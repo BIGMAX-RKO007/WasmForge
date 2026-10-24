@@ -21,6 +21,7 @@
 | **[04. 踩坑全记录与避坑技术指南](file:///c:/Users/FX/Projects/wasm/docs/04_PITFALLS_AND_SOLUTIONS.md)** | 5 大典型坑与深度剖析 | MSVC 链接器缺失、wasm-opt 网络断连、Rust 内存释放 unreachable 恐慌排查、MIME 类型等。 |
 | **[05. 运行指南与全套常用命令手册](file:///c:/Users/FX/Projects/wasm/docs/05_OPERATIONS_AND_COMMANDS.md)** | 全量开发/构建/部署命令 | Rust 生产线、TS 生产线、Hono 测试场常用命令，以及工厂扩容新功能的标准流程。 |
 | **[06. 统一接口通信规范 (Envelope Protocol)](file:///c:/Users/FX/Projects/wasm/docs/06_INTERFACE_SPECIFICATION.md)** | 标准输入输出信封契约 | 确立极简 3 符号 ABI (`alloc`/`dealloc`/`dispatch`)，规范 JSON 请求/响应信封与错误码体系。 |
+| **[07. it-tools 全功能领域分类与 WASM 赋能全景手册](file:///c:/Users/FX/Projects/wasm/docs/07_IT_TOOLS_DOMAIN_CAPABILITIES.md)** | 10 大领域 85 项机能全景 | 将业界最火开源工具箱 `it-tools` 完整按领域拆解分类，给出每项机能的 WASM 改造价值评估与 Rust Crate 推荐。 |
 
 ---
 

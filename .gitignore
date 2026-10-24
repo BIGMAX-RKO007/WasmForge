@@ -1,5 +1,6 @@
 # Dependencies
 node_modules/
+it-tools/
 .pnp
 .pnp.js
 
