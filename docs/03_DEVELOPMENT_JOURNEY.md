@@ -17,19 +17,27 @@ AssemblyScript 上手极其迅速，让我们在极短时间内确立了对 WASM
 
 ---
 
-## 阶段二：引入 Rust 工具链与 wasm-pack 方案 (`rs-wasm`)
+## 阶段二：引入 Rust 工具链与 wasm-pack 方案的早期弯路 (`rs-wasm`)
 
 ### 思考与尝试
 为了让工厂具备生产高计算密度、复杂安全算法的能力，我们启动了 `rs-wasm` 项目：
-1. **环境初始化**：利用统一版本管理工具 `mise` 安装了 Rust 编译器（`rustc 1.99.1`）、包管理器 `cargo` 以及打包工具 `wasm-pack`；
-2. **胶水框架试水**：引入了 Rust WASM 领域最主流的 `wasm-bindgen`，并在 `src/lib.rs` 中编写了 `add` 和 `greet` 函数；
-3. **双目标构建**：尝试通过 `wasm-pack build --target web` 和 `wasm-pack build --target nodejs` 分别导出面向浏览器和 Node.js 的产物；
-4. **验证通过**：Node 原生测试全部通过，浏览器页面成功跑起。
+1. **环境初始化**：利用统一版本管理工具 `mise` 安装了 Rust 编译器（`rustc 1.99.1`）、包管理器 `cargo` 以及社区常用的打包工具 `wasm-pack`；
+2. **早期胶水框架试水**：引入了 Rust WASM 领域最主流的 `wasm-bindgen`，并在 `src/lib.rs` 中编写了 `add` 和 `greet` 函数；
+3. **早期双目标构建（历史弯路）**：
+   社区工具 `wasm-pack` 提倡针对不同宿主分别构建：
+   - `wasm-pack build --target web`：为浏览器生成一套 `pkg/`（含 ESM 胶水 JS）；
+   - `wasm-pack build --target nodejs`：为 Node.js 生成另一套 `pkg-node/`（含 CJS 胶水 JS）。
+4. **验证通过但引发质疑**：虽然功能验证跑通了，但这**严重违背了“单一 WASM 全场景通用”的核心目标**！
 
-### 遇到的痛点
-我们发现 `wasm-pack` 针对 Web 生成了一套 `pkg/`（ESM 胶水），针对 Node 生成了另一套 `pkg-node/`（CJS 胶水）。
-**此时引发了关键反思**：
-> 如果每增加一种运行环境（如 Python、Go、Java、微服务、边缘容器），我们都要重新构建或者引入对应的定制胶水，那么这个“WASM 工厂”的产物是严重碎片化、不可控的。
+### 踩坑反思：为什么绝不应该为不同场景构建不同的 WASM？
+> ⚠️ **核心架构质疑：为什么 Rust 居然需要构建两个不同的包？这极其不合理！**
+> 
+> 我们的终极目标是：**同一个二进制 `.wasm` 文件，无需修改、无需重编，直接适用于全部场景（浏览器、Node.js、Java、Python、C#、Go 等任意运行时）。**
+> 
+> `wasm-pack` 之所以要分成两个 target 构建，并不是 WASM 字节码本身不能通用，而是因为它的上层 JavaScript 胶水层分别针对浏览器的 `fetch()` 和 Node.js 的 `fs.readFileSync()` 做了硬编码绑定！
+> 
+> **这个发现成为了最重要的转折点**：
+> 如果每换一个宿主环境都要单独构建一套产物，工厂就会陷入无限碎片化的灾难。这促使我们在【阶段四】彻底推翻了 `wasm-pack` 的多目标方案，回归原生纯净的 `cargo build --target wasm32-unknown-unknown` 单一构建！
 
 ---
 
