@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Rust build artifacts
+target/
+**/*.rs.bk
+
+# AssemblyScript / Build intermediate artifacts
+*.map
+ts-wasm/build/debug.*
+ts-wasm/build/*.wat
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# Environment & OS
+.env
+.env.*
+.DS_Store
+Thumbs.db
+
+# Editor
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/extensions.json

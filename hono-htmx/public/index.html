@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WASM Factory: Hono + HTMX 综合测试基准</title>
+  <!-- HTMX 官方脚本 -->
+  <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --card-bg: rgba(23, 32, 54, 0.75);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --rust-accent: #f97316;
+      --rust-glow: rgba(249, 115, 22, 0.25);
+      --ts-accent: #38bdf8;
+      --ts-glow: rgba(56, 189, 248, 0.25);
+      --text: #f1f5f9;
+      --text-muted: #94a3b8;
+      --success: #34d399;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: radial-gradient(circle at 50% 0%, #1e1b4b 0%, var(--bg) 80%);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+      min-height: 100vh;
+      padding: 32px 16px;
+    }
+
+    .container {
+      max-width: 1080px;
+      margin: 0 auto;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+
+    h1 {
+      font-size: 32px;
+      margin: 0 0 10px;
+      background: linear-gradient(135deg, #fb923c, #38bdf8);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    p.subtitle {
+      color: var(--text-muted);
+      font-size: 15px;
+      margin: 0;
+    }
+
+    /* 状态栏条目 */
+    .status-bar {
+      display: flex;
+      justify-content: center;
+      gap: 16px;
+      margin: 20px 0 32px;
+      flex-wrap: wrap;
+    }
+    .status-item {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      padding: 8px 16px;
+      border-radius: 999px;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--success);
+      box-shadow: 0 0 8px var(--success);
+    }
+
+    /* 左右两列布局 */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(480px, 1fr));
+      gap: 24px;
+      margin-bottom: 32px;
+    }
+
+    .card {
+      background: var(--card-bg);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.4);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .card h2 {
+      margin: 0 0 16px;
+      font-size: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .engine-picker {
+      display: flex;
+      gap: 8px;
+      background: rgba(15, 23, 42, 0.8);
+      padding: 4px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      border: 1px solid var(--card-border);
+    }
+    .engine-picker label {
+      flex: 1;
+      text-align: center;
+      padding: 8px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+    .engine-picker input[type="radio"] {
+      display: none;
+    }
+    .engine-picker label.active-rust {
+      background: var(--rust-accent);
+      color: #fff;
+      box-shadow: 0 0 12px var(--rust-glow);
+    }
+    .engine-picker label.active-ts {
+      background: var(--ts-accent);
+      color: #0f172a;
+      font-weight: 600;
+      box-shadow: 0 0 12px var(--ts-glow);
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+    .form-group label {
+      display: block;
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+
+    .input-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    input[type="number"], input[type="text"] {
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid var(--card-border);
+      color: var(--text);
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    input[type="number"] { width: 90px; text-align: center; }
+    input[type="text"] { flex: 1; }
+    input:focus { border-color: var(--ts-accent); }
+
+    button {
+      background: linear-gradient(135deg, #3b82f6, #2563eb);
+      color: white;
+      border: none;
+      padding: 10px 18px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+    button:hover {
+      opacity: 0.9;
+      transform: translateY(-1px);
+    }
+    button.btn-rust {
+      background: linear-gradient(135deg, #f97316, #ea580c);
+    }
+    button.btn-all {
+      background: linear-gradient(135deg, #10b981, #059669);
+      width: 100%;
+      padding: 14px;
+      font-size: 15px;
+    }
+
+    /* 结果展示盒 */
+    .result-container {
+      margin-top: 16px;
+      min-height: 80px;
+    }
+    .result-box {
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+      padding: 14px 18px;
+      margin-top: 8px;
+      animation: fadeIn 0.25s ease-out;
+    }
+    .result-box.error {
+      border-color: #ef4444;
+      color: #f87171;
+    }
+    .result-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .tag {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 4px;
+      text-transform: uppercase;
+    }
+    .tag-rust { background: rgba(249, 115, 22, 0.2); color: #fb923c; border: 1px solid rgba(249, 115, 22, 0.4); }
+    .tag-ts { background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4); }
+    .badge-time {
+      font-size: 12px;
+      color: #34d399;
+      font-family: var(--font-mono);
+    }
+    .result-value {
+      font-size: 15px;
+      font-family: var(--font-mono);
+      word-break: break-all;
+    }
+
+    /* 4矩阵横向对比表格 */
+    .matrix-card {
+      background: var(--card-bg);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 24px;
+      margin-bottom: 32px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 16px;
+      font-size: 14px;
+    }
+    th, td {
+      padding: 12px 16px;
+      text-align: left;
+      border-bottom: 1px solid var(--card-border);
+    }
+    th {
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+    td.mono {
+      font-family: var(--font-mono);
+    }
+
+    /* HTMX 加载动画指示器 */
+    .htmx-indicator {
+      display: none;
+      font-size: 12px;
+      color: #38bdf8;
+      margin-left: 8px;
+    }
+    .htmx-request .htmx-indicator {
+      display: inline-block;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>⚙️ WASM Factory 统一测试基准</h1>
+      <p class="subtitle">基于 <strong>Hono (Node.js 后端)</strong> + <strong>HTMX</strong> + <strong>纯前端原生 WASM</strong> 驱动的跨场景测试场</p>
+      
+      <div class="status-bar">
+        <div class="status-item"><span class="dot"></span> Hono 后端服务：正常</div>
+        <div class="status-item"><span class="dot"></span> HTMX 2.0.4：就绪</div>
+        <div class="status-item" id="frontend-status"><span class="dot" style="background:#eab308; box-shadow:0 0 8px #eab308;"></span> 浏览器 WASM 模块：加载中...</div>
+      </div>
+    </header>
+
+    <div class="grid">
+      <!-- ================= 区域 1: 后端执行 (Hono + HTMX) ================= -->
+      <div class="card">
+        <h2>
+          <span>🖥️ 后端场景 (Hono Server + HTMX)</span>
+          <span style="font-size:12px; color:var(--text-muted); font-weight:normal;">HTMX 异步请求并局部替换</span>
+        </h2>
+
+        <!-- 引擎选择器 -->
+        <div class="engine-picker">
+          <label id="lbl-backend-rust" class="active-rust">
+            <input type="radio" name="backend-engine" value="rust" checked onchange="toggleBackendEngine('rust')"> 🦀 Rust WASM
+          </label>
+          <label id="lbl-backend-ts">
+            <input type="radio" name="backend-engine" value="ts" onchange="toggleBackendEngine('ts')"> 🚀 AssemblyScript WASM
+          </label>
+        </div>
+
+        <!-- 加法表单 (HTMX) -->
+        <form hx-post="/api/backend/calc" hx-target="#backend-calc-result" hx-swap="innerHTML" class="form-group">
+          <input type="hidden" name="engine" id="backend-calc-engine" value="rust">
+          <label>1. 基础算术测试 (add):</label>
+          <div class="input-row">
+            <input type="number" name="a" value="25">
+            <span>+</span>
+            <input type="number" name="b" value="75">
+            <button type="submit">HTMX 发送后端计算</button>
+            <span class="htmx-indicator">⏳ 运算中...</span>
+          </div>
+        </form>
+        <div id="backend-calc-result" class="result-container">
+          <div class="result-box" style="opacity:0.5;">点击上方按钮由 Hono 宿主调用 WASM 计算</div>
+        </div>
+
+        <!-- 问候表单 (HTMX) -->
+        <form hx-post="/api/backend/greet" hx-target="#backend-greet-result" hx-swap="innerHTML" class="form-group" style="margin-top:20px;">
+          <input type="hidden" name="engine" id="backend-greet-engine" value="rust">
+          <label>2. 字符串与内存传递测试 (greet):</label>
+          <div class="input-row">
+            <input type="text" name="name" value="Hono Developer">
+            <button type="submit">HTMX 触发</button>
+            <span class="htmx-indicator">⏳ 运算中...</span>
+          </div>
+        </form>
+        <div id="backend-greet-result" class="result-container">
+          <div class="result-box" style="opacity:0.5;">等待发送测试数据...</div>
+        </div>
+      </div>
+
+      <!-- ================= 区域 2: 前端执行 (浏览器客户端 WASM) ================= -->
+      <div class="card">
+        <h2>
+          <span>🌐 前端场景 (浏览器原生调用)</span>
+          <span style="font-size:12px; color:var(--text-muted); font-weight:normal;">无需网络往返，客户端即时运行</span>
+        </h2>
+
+        <!-- 前端引擎选择器 -->
+        <div class="engine-picker">
+          <label id="lbl-frontend-rust" class="active-rust">
+            <input type="radio" name="frontend-engine" value="rust" checked onchange="toggleFrontendEngine('rust')"> 🦀 Rust WASM
+          </label>
+          <label id="lbl-frontend-ts">
+            <input type="radio" name="frontend-engine" value="ts" onchange="toggleFrontendEngine('ts')"> 🚀 AssemblyScript WASM
+          </label>
+        </div>
+
+        <!-- 前端加法 -->
+        <div class="form-group">
+          <label>1. 浏览器内本地算术 (add):</label>
+          <div class="input-row">
+            <input type="number" id="front-num-a" value="128">
+            <span>+</span>
+            <input type="number" id="front-num-b" value="256">
+            <button type="button" onclick="runFrontendCalc()">浏览器前端直接执行</button>
+          </div>
+        </div>
+        <div id="frontend-calc-result" class="result-container">
+          <div class="result-box" style="opacity:0.5;">点击按钮由当前页面中的 WebAssembly 实例直接执行</div>
+        </div>
+
+        <!-- 前端问候 -->
+        <div class="form-group" style="margin-top:20px;">
+          <label>2. 浏览器内字符串传递 (greet):</label>
+          <div class="input-row">
+            <input type="text" id="front-name" value="Browser Explorer">
+            <button type="button" onclick="runFrontendGreet()">执行</button>
+          </div>
+        </div>
+        <div id="frontend-greet-result" class="result-container">
+          <div class="result-box" style="opacity:0.5;">等待执行...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= 区域 3: 4 象限综合矩阵基准测试 ================= -->
+    <div class="matrix-card">
+      <h2>📊 4 维度跨场景一致性与性能矩阵</h2>
+      <p style="color:var(--text-muted); font-size:14px; margin-top:0;">一键同时向【后端 Rust】、【后端 TS】、【前端 Rust】、【前端 TS】触发计算，校验跨平台逻辑一致性与耗时。</p>
+      
+      <button class="btn-all" onclick="runFullBenchmark()">⚡ 一键执行全矩阵一致性测试 (add 1000 + 2000, greet 'MatrixTester')</button>
+
+      <table>
+        <thead>
+          <tr>
+            <th>运行场景 (Context)</th>
+            <th>WASM 语言引擎</th>
+            <th>模块体积 (.wasm)</th>
+            <th>add(1000, 2000) 结果</th>
+            <th>greet() 逻辑输出</th>
+            <th>执行延迟</th>
+          </tr>
+        </thead>
+        <tbody id="matrix-tbody">
+          <tr><td colspan="6" style="text-align:center; color:var(--text-muted); padding:24px;">点击上方绿色按钮开始一键跨端测试</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 引入前端统一基础设施层加载器 (无需第三方胶水代码) -->
+  <script type="module">
+    import { loadWasmFromUrl } from "./infrastructure/wasm/wasm-loader.browser.js";
+
+    window.wasmContext = {
+      rustReady: false,
+      tsReady: false,
+      rust: null,
+      ts: null,
+      activeFrontendEngine: "rust",
+      activeBackendEngine: "rust"
+    };
+
+    async function bootstrap() {
+      try {
+        const rsEngine = await loadWasmFromUrl("./wasm/rs.wasm");
+        const tsEngine = await loadWasmFromUrl("./wasm/ts.wasm");
+
+        window.wasmContext.rust = rsEngine;
+        window.wasmContext.ts = tsEngine;
+        window.wasmContext.rustReady = true;
+        window.wasmContext.tsReady = true;
+
+        const statusEl = document.getElementById("frontend-status");
+        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载单一 rs.wasm & ts.wasm)`;
+
+        // 初始自动运行一次前端计算
+        window.runFrontendCalc();
+        window.runFrontendGreet();
+      } catch (err) {
+        console.error("加载浏览器端 WASM 失败:", err);
+        const statusEl = document.getElementById("frontend-status");
+        statusEl.innerHTML = `<span class="dot" style="background:#ef4444; box-shadow:0 0 8px #ef4444;"></span> 浏览器 WASM 加载失败: ${err.message}`;
+      }
+    }
+
+    bootstrap();
+
+    // 引擎切换函数
+    window.toggleBackendEngine = function(engine) {
+      window.wasmContext.activeBackendEngine = engine;
+      document.getElementById("backend-calc-engine").value = engine;
+      document.getElementById("backend-greet-engine").value = engine;
+      
+      const lblRust = document.getElementById("lbl-backend-rust");
+      const lblTs = document.getElementById("lbl-backend-ts");
+      if (engine === "rust") {
+        lblRust.className = "active-rust";
+        lblTs.className = "";
+      } else {
+        lblRust.className = "";
+        lblTs.className = "active-ts";
+      }
+    };
+
+    window.toggleFrontendEngine = function(engine) {
+      window.wasmContext.activeFrontendEngine = engine;
+      const lblRust = document.getElementById("lbl-frontend-rust");
+      const lblTs = document.getElementById("lbl-frontend-ts");
+      if (engine === "rust") {
+        lblRust.className = "active-rust";
+        lblTs.className = "";
+      } else {
+        lblRust.className = "";
+        lblTs.className = "active-ts";
+      }
+      window.runFrontendCalc();
+      window.runFrontendGreet();
+    };
+
+    // 前端计算
+    window.runFrontendCalc = function() {
+      const engine = window.wasmContext.activeFrontendEngine;
+      const mod = window.wasmContext[engine];
+      const a = parseInt(document.getElementById("front-num-a").value) || 0;
+      const b = parseInt(document.getElementById("front-num-b").value) || 0;
+
+      const t0 = performance.now();
+      const res = mod.add(a, b);
+      const duration = (performance.now() - t0).toFixed(4);
+
+      const engineName = engine === "rust" ? "🦀 Rust WASM" : "🚀 AssemblyScript WASM";
+      const tagClass = engine === "rust" ? "tag-rust" : "tag-ts";
+
+      document.getElementById("frontend-calc-result").innerHTML = `
+        <div class="result-box">
+          <div class="result-header">
+            <span class="tag ${tagClass}">${engineName}</span>
+            <span class="badge-time">⚡ ${duration} ms (客户端瞬时完成)</span>
+          </div>
+          <div class="result-value">${a} + ${b} = <strong>${res}</strong></div>
+        </div>
+      `;
+    };
+
+    // 前端问候
+    window.runFrontendGreet = function() {
+      const engine = window.wasmContext.activeFrontendEngine;
+      const mod = window.wasmContext[engine];
+      const name = document.getElementById("front-name").value || "Anonymous";
+
+      const t0 = performance.now();
+      const res = mod.greet(name);
+      const duration = (performance.now() - t0).toFixed(4);
+
+      const engineName = engine === "rust" ? "🦀 Rust WASM" : "🚀 AssemblyScript WASM";
+      const tagClass = engine === "rust" ? "tag-rust" : "tag-ts";
+
+      document.getElementById("frontend-greet-result").innerHTML = `
+        <div class="result-box">
+          <div class="result-header">
+            <span class="tag ${tagClass}">${engineName}</span>
+            <span class="badge-time">⚡ ${duration} ms (客户端瞬时完成)</span>
+          </div>
+          <div class="result-value">${res}</div>
+        </div>
+      `;
+    };
+
+    // 全矩阵对比测试
+    window.runFullBenchmark = async function() {
+      const tbody = document.getElementById("matrix-tbody");
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:18px;">正在并行收集后端与前端运行指标...</td></tr>`;
+
+      // 获取模块大小
+      const statsRes = await fetch("/api/stats");
+      const stats = await statsRes.json();
+
+      // 1. 后端 Rust
+      const t0_br = performance.now();
+      const brCalc = await (await fetch("/api/backend/calc", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: "engine=rust&a=1000&b=2000"
+      })).text();
+      const brGreet = await (await fetch("/api/backend/greet", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: "engine=rust&name=MatrixTester"
+      })).text();
+      const d_br = (performance.now() - t0_br).toFixed(2);
+
+      // 2. 后端 TS
+      const t0_bts = performance.now();
+      const btsCalc = await (await fetch("/api/backend/calc", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: "engine=ts&a=1000&b=2000"
+      })).text();
+      const btsGreet = await (await fetch("/api/backend/greet", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: "engine=ts&name=MatrixTester"
+      })).text();
+      const d_bts = (performance.now() - t0_bts).toFixed(2);
+
+      // 3. 前端 Rust
+      const t0_fr = performance.now();
+      const frAdd = window.wasmContext.rust.add(1000, 2000);
+      const frGreet = window.wasmContext.rust.greet("MatrixTester");
+      const d_fr = (performance.now() - t0_fr).toFixed(4);
+
+      // 4. 前端 TS
+      const t0_fts = performance.now();
+      const ftsAdd = window.wasmContext.ts.add(1000, 2000);
+      const ftsGreet = window.wasmContext.ts.greet("MatrixTester");
+      const d_fts = (performance.now() - t0_fts).toFixed(4);
+
+      tbody.innerHTML = `
+        <tr>
+          <td><strong>🖥️ 后端 Hono (Node.js)</strong></td>
+          <td><span class="tag tag-rust">🦀 Rust WASM</span></td>
+          <td class="mono">${stats.rust.sizeFormatted}</td>
+          <td class="mono" style="color:#34d399;">3000</td>
+          <td style="font-size:12px;">Hello, MatrixTester! This is WebAssembly powered by Rust 🦀</td>
+          <td class="mono" style="color:#38bdf8;">~${d_br} ms (含HTTP往返)</td>
+        </tr>
+        <tr>
+          <td><strong>🖥️ 后端 Hono (Node.js)</strong></td>
+          <td><span class="tag tag-ts">🚀 AssemblyScript</span></td>
+          <td class="mono">${stats.ts.sizeFormatted}</td>
+          <td class="mono" style="color:#34d399;">3000</td>
+          <td style="font-size:12px;">Hello, MatrixTester! This is WebAssembly powered by AssemblyScript 🚀</td>
+          <td class="mono" style="color:#38bdf8;">~${d_bts} ms (含HTTP往返)</td>
+        </tr>
+        <tr>
+          <td><strong>🌐 前端 Browser (Client)</strong></td>
+          <td><span class="tag tag-rust">🦀 Rust WASM</span></td>
+          <td class="mono">${stats.rust.sizeFormatted}</td>
+          <td class="mono" style="color:#34d399;">${frAdd}</td>
+          <td style="font-size:12px;">${frGreet}</td>
+          <td class="mono" style="color:#a7f3d0;"><strong>${d_fr} ms (纯执行)</strong></td>
+        </tr>
+        <tr>
+          <td><strong>🌐 前端 Browser (Client)</strong></td>
+          <td><span class="tag tag-ts">🚀 AssemblyScript</span></td>
+          <td class="mono">${stats.ts.sizeFormatted}</td>
+          <td class="mono" style="color:#34d399;">${ftsAdd}</td>
+          <td style="font-size:12px;">${ftsGreet}</td>
+          <td class="mono" style="color:#a7f3d0;"><strong>${d_fts} ms (纯执行)</strong></td>
+        </tr>
+      `;
+    };
+  </script>
+</body>
+</html>

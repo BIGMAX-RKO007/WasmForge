@@ -1,0 +1,19 @@
+{
+  "name": "rs-wasm",
+  "version": "1.0.0",
+  "description": "Rust WebAssembly Module Demo",
+  "type": "module",
+  "scripts": {
+    "build:wasm": "cargo build --target wasm32-unknown-unknown --release",
+    "export": "powershell -Command \"Copy-Item target/wasm32-unknown-unknown/release/rs_wasm.wasm ../hono-htmx/public/wasm/rs.wasm\"",
+    "deploy": "npm run build:wasm && npm run export",
+    "build:web": "wasm-pack build --target web --out-dir pkg",
+    "build:node": "wasm-pack build --target nodejs --out-dir pkg-node",
+    "build": "npm run build:wasm",
+    "test": "cargo test",
+    "start": "npx serve ."
+  },
+  "keywords": ["wasm", "rust", "webassembly"],
+  "author": "",
+  "license": "ISC"
+}

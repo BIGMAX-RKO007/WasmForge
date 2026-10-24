@@ -1,0 +1,28 @@
+{
+  "name": "ts-wasm",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "node --test",
+    "build:wasm": "asc assembly/index.ts --outFile build/ts.wasm -O3 --bindings none",
+    "export": "powershell -Command \"Copy-Item build/ts.wasm ../hono-htmx/public/wasm/ts.wasm\"",
+    "deploy": "npm run build:wasm && npm run export",
+    "asbuild:debug": "asc assembly/index.ts --target debug",
+    "asbuild:release": "asc assembly/index.ts --target release",
+    "asbuild": "npm run build:wasm",
+    "start": "npx serve ."
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "assemblyscript": "^0.28.20"
+  },
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./build/release.js",
+      "types": "./build/release.d.ts"
+    }
+  }
+}

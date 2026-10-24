@@ -1,0 +1,110 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 620" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0b0f19"/>
+      <stop offset="100%" stop-color="#111827"/>
+    </linearGradient>
+    <linearGradient id="rustGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#ea580c"/>
+      <stop offset="100%" stop-color="#f97316"/>
+    </linearGradient>
+    <linearGradient id="tsGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0284c7"/>
+      <stop offset="100%" stop-color="#38bdf8"/>
+    </linearGradient>
+    <linearGradient id="infraGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#059669"/>
+      <stop offset="100%" stop-color="#10b981"/>
+    </linearGradient>
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="110%">
+      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#000" flood-opacity="0.5"/>
+    </filter>
+  </defs>
+
+  <rect width="960" height="620" fill="url(#bgGrad)" rx="16"/>
+
+  <!-- Title -->
+  <text x="480" y="38" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="20" font-weight="bold" fill="#f8fafc">
+    WASM 工厂架构全景图 (纯单一 WASM + 通用基础设施)
+  </text>
+
+  <!-- ================= FACTORY CONTAINER ================= -->
+  <rect x="40" y="65" width="880" height="175" fill="#1e293b" fill-opacity="0.6" stroke="#334155" stroke-width="1.5" rx="12" filter="url(#shadow)"/>
+  <rect x="55" y="55" width="220" height="24" fill="#334155" rx="6"/>
+  <text x="165" y="71" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="12" font-weight="bold" fill="#e2e8f0">
+    🏭 WASM 生产工厂 (Factory)
+  </text>
+
+  <!-- Rust Box -->
+  <rect x="60" y="95" width="400" height="125" fill="#0f172a" stroke="#ea580c" stroke-width="1.5" rx="8"/>
+  <text x="80" y="125" font-family="-apple-system, sans-serif" font-size="15" font-weight="bold" fill="#fb923c">🦀 rs-wasm (Rust 生产线)</text>
+  <text x="80" y="150" font-family="-apple-system, sans-serif" font-size="12" fill="#94a3b8">• 源码: src/lib.rs (C-ABI 纯函数，零 JS 胶水)</text>
+  <text x="80" y="172" font-family="-apple-system, sans-serif" font-size="12" fill="#94a3b8">• 编译: cargo build --target wasm32-unknown-unknown</text>
+  <text x="80" y="195" font-family="-apple-system, sans-serif" font-size="12" font-weight="bold" fill="#fdba74">📦 产物: rs_wasm.wasm (重命名为 rs.wasm, ~24KB)</text>
+
+  <!-- TS Box -->
+  <rect x="500" y="95" width="400" height="125" fill="#0f172a" stroke="#0284c7" stroke-width="1.5" rx="8"/>
+  <text x="520" y="125" font-family="-apple-system, sans-serif" font-size="15" font-weight="bold" fill="#38bdf8">🚀 ts-wasm (AssemblyScript 生产线)</text>
+  <text x="520" y="150" font-family="-apple-system, sans-serif" font-size="12" fill="#94a3b8">• 源码: assembly/index.ts (同名同签名 C-ABI 函数)</text>
+  <text x="520" y="172" font-family="-apple-system, sans-serif" font-size="12" fill="#94a3b8">• 编译: asc --outFile build/ts.wasm --bindings none</text>
+  <text x="520" y="195" font-family="-apple-system, sans-serif" font-size="12" font-weight="bold" fill="#7dd3fc">📦 产物: ts.wasm (纯二进制单文件, ~5KB)</text>
+
+  <!-- Arrows Down -->
+  <path d="M 260 220 L 260 270" stroke="#f97316" stroke-width="2.5" stroke-dasharray="4,4" marker-end="url(#arrow)"/>
+  <polygon points="260,275 255,265 265,265" fill="#f97316"/>
+  <text x="270" y="250" font-family="-apple-system, sans-serif" font-size="11" fill="#fb923c">拷贝单文件</text>
+
+  <path d="M 700 220 L 700 270" stroke="#38bdf8" stroke-width="2.5" stroke-dasharray="4,4"/>
+  <polygon points="700,275 695,265 705,265" fill="#38bdf8"/>
+  <text x="710" y="250" font-family="-apple-system, sans-serif" font-size="11" fill="#38bdf8">拷贝单文件</text>
+
+  <!-- ================= CONSUMER CONTAINER ================= -->
+  <rect x="40" y="280" width="880" height="315" fill="#1e293b" fill-opacity="0.6" stroke="#334155" stroke-width="1.5" rx="12" filter="url(#shadow)"/>
+  <rect x="55" y="270" width="280" height="24" fill="#334155" rx="6"/>
+  <text x="195" y="286" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="12" font-weight="bold" fill="#e2e8f0">
+    🏢 消费宿主与测试场 (hono-htmx)
+  </text>
+
+  <!-- Single Asset Directory -->
+  <rect x="60" y="305" width="840" height="48" fill="#0f172a" stroke="#475569" stroke-width="1" rx="6"/>
+  <text x="80" y="334" font-family="-apple-system, sans-serif" font-size="13" font-weight="bold" fill="#f8fafc">
+    📁 唯一资产目录 (public/wasm/)：仅存放两个纯二进制单文件
+  </text>
+  <rect x="460" y="315" width="180" height="28" fill="#ea580c" fill-opacity="0.2" stroke="#ea580c" rx="4"/>
+  <text x="550" y="334" text-anchor="middle" font-family="ui-monospace, monospace" font-size="12" fill="#fb923c">public/wasm/rs.wasm</text>
+
+  <rect x="660" y="315" width="180" height="28" fill="#0284c7" fill-opacity="0.2" stroke="#0284c7" rx="4"/>
+  <text x="750" y="334" text-anchor="middle" font-family="ui-monospace, monospace" font-size="12" fill="#38bdf8">public/wasm/ts.wasm</text>
+
+  <!-- Infra Layer -->
+  <rect x="60" y="370" width="840" height="110" fill="#064e3b" fill-opacity="0.2" stroke="#10b981" stroke-width="1.5" rx="8"/>
+  <text x="80" y="395" font-family="-apple-system, sans-serif" font-size="14" font-weight="bold" fill="#34d399">
+    ⚙️ WASM 基础设施层 (Infrastructure Layer) - 自研通用驱动核心
+  </text>
+
+  <rect x="80" y="410" width="800" height="30" fill="#022c22" stroke="#059669" rx="4"/>
+  <text x="480" y="430" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="12" fill="#a7f3d0">
+    📦 WasmEngine: 封装 C-ABI 调用、线性内存 alloc/dealloc 分配与回收、UTF-8 (ptr &lt;&lt; 32 | len) 打包解析
+  </text>
+
+  <rect x="80" y="448" width="390" height="24" fill="#0f172a" stroke="#334155" rx="4"/>
+  <text x="275" y="464" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="11" fill="#94a3b8">
+    🖥️ wasm-loader.node.js (后端通过 fs 读取单文件实例化)
+  </text>
+
+  <rect x="490" y="448" width="390" height="24" fill="#0f172a" stroke="#334155" rx="4"/>
+  <text x="685" y="464" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="11" fill="#94a3b8">
+    🌐 wasm-loader.browser.js (前端流式 fetch 单文件实例化)
+  </text>
+
+  <!-- Presentation Layer -->
+  <rect x="60" y="495" width="410" height="85" fill="#0f172a" stroke="#334155" rx="8"/>
+  <text x="80" y="520" font-family="-apple-system, sans-serif" font-size="13" font-weight="bold" fill="#f8fafc">🖥️ 后端展现 (Hono SSR / API)</text>
+  <text x="80" y="542" font-family="-apple-system, sans-serif" font-size="11" fill="#94a3b8">• POST /api/backend/calc (执行纯 WASM add)</text>
+  <text x="80" y="562" font-family="-apple-system, sans-serif" font-size="11" fill="#94a3b8">• POST /api/backend/greet (执行纯 WASM greet 内存解算)</text>
+
+  <rect x="490" y="495" width="410" height="85" fill="#0f172a" stroke="#334155" rx="8"/>
+  <text x="510" y="520" font-family="-apple-system, sans-serif" font-size="13" font-weight="bold" fill="#f8fafc">🌐 前端展现 (HTMX + 浏览器纯客户端)</text>
+  <text x="510" y="542" font-family="-apple-system, sans-serif" font-size="11" fill="#94a3b8">• HTMX 异步请求并无感局部替换 DOM</text>
+  <text x="510" y="562" font-family="-apple-system, sans-serif" font-size="11" fill="#94a3b8">• 浏览器纯原生加载 WASM 实例，零网络往返瞬时计算</text>
+</svg>
