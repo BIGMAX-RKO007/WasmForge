@@ -1239,6 +1239,60 @@
           </div>
         </div>
       </div>
+    <!-- ================= 核心工具 1.11: PDF Digital Signature Inspector ================= -->
+    <div class="card" style="margin-bottom: 32px; border: 1px solid rgba(236, 72, 153, 0.3); background: rgba(15, 23, 42, 0.85);">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px;">
+        <div>
+          <h2 style="margin:0 0 4px; display:flex; align-items:center; gap:10px;">
+            <span>📑 1.11 PDF 数字签名与文档完整性检测器 (PDF Signature & ByteRange)</span>
+            <span class="tag tag-rust" style="background:rgba(236,72,153,0.2); color:#f472b6; border-color:rgba(236,72,153,0.4);">pdf-signature.wasm (~141 KB)</span>
+          </h2>
+          <p style="color:var(--text-muted); font-size:13px; margin:0;">
+            深入 PDF 内部对象结构解析 /Type /Sig 签名字典，校验 ByteRange 文件覆盖闭环、提取证书签名者、时间戳与签署意图。
+          </p>
+        </div>
+        <div style="font-size:12px; font-family:var(--font-mono); color:#f472b6; background:rgba(236, 72, 153, 0.1); padding:4px 10px; border-radius:6px; border:1px solid rgba(236, 72, 153, 0.2);">
+          C-ABI: alloc / dealloc / dispatch
+        </div>
+      </div>
+
+      <!-- PDF 检测表单 -->
+      <form id="pdf-sig-form" hx-post="/api/backend/pdf/inspect" hx-target="#backend-pdf-result" hx-swap="innerHTML" style="margin-top:20px;">
+        <div>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+            <label style="font-size:13px; color:var(--text-muted);">PDF 数据源 (Base64 或拖拽上传):</label>
+            <button type="button" onclick="loadPdfSample()" style="padding:4px 10px; font-size:12px; background:rgba(236,72,153,0.15); color:#f472b6; border:1px solid rgba(236,72,153,0.3); border-radius:4px; cursor:pointer;">
+              📂 载入内置标准签名 PDF 样本
+            </button>
+          </div>
+          <textarea id="pdf-base64-input" name="pdfBase64" rows="4" placeholder="在此粘贴 PDF 文件的 Base64 编码，或点击上方载入内置样本..." style="width:100%; padding:10px; background:#1e293b; border:1px solid rgba(255,255,255,0.1); color:#fff; border-radius:6px; font-family:var(--font-mono); font-size:12px; box-sizing:border-box; resize:vertical;"></textarea>
+        </div>
+
+        <div style="display:flex; gap:12px; margin-top:16px; flex-wrap:wrap;">
+          <button type="submit" style="padding:8px 16px; background:linear-gradient(135deg, #ec4899, #db2777); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600; display:flex; align-items:center; gap:6px;">
+            <span>🖥️ HTMX 提交后端检测</span>
+            <span class="htmx-indicator">⏳</span>
+          </button>
+          <button type="button" onclick="runFrontendPdfInspect()" style="padding:8px 16px; background:linear-gradient(135deg, #db2777, #be185d); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600;">
+            🌐 浏览器前端本地直检
+          </button>
+        </div>
+      </form>
+
+      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:16px; margin-top:16px;">
+        <div>
+          <div style="font-size:12px; color:var(--text-muted); margin-bottom:4px;">后端检测输出 (Hono HTMX):</div>
+          <div id="backend-pdf-result" class="result-container">
+            <div class="result-box" style="opacity:0.5;">输入或载入 PDF Base64 并点击检测</div>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:12px; color:var(--text-muted); margin-bottom:4px;">前端检测输出 (Browser WASM):</div>
+          <div id="frontend-pdf-result" class="result-container">
+            <div class="result-box" style="opacity:0.5;">输入或载入 PDF Base64 并点击检测</div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- ================= 区域 3: 4 象限综合矩阵基准测试 ================= -->
@@ -1283,6 +1337,7 @@
       hmacReady: false,
       rsaReady: false,
       passwordStrengthReady: false,
+      pdfSignatureReady: false,
       rust: null,
       ts: null,
       tokenGenerator: null,
@@ -1295,6 +1350,7 @@
       hmac: null,
       rsa: null,
       passwordStrength: null,
+      pdfSignature: null,
       activeFrontendEngine: "rust",
       activeBackendEngine: "rust"
     };
@@ -1313,6 +1369,7 @@
         const hmacEngine = await loadWasmFromUrl("./wasm/hmac-generator.wasm");
         const rsaEngine = await loadWasmFromUrl("./wasm/rsa-key-pair.wasm");
         const pwdEngine = await loadWasmFromUrl("./wasm/password-strength.wasm");
+        const pdfEngine = await loadWasmFromUrl("./wasm/pdf-signature.wasm");
 
         window.wasmContext.rust = rsEngine;
         window.wasmContext.ts = tsEngine;
@@ -1326,6 +1383,7 @@
         window.wasmContext.hmac = hmacEngine;
         window.wasmContext.rsa = rsaEngine;
         window.wasmContext.passwordStrength = pwdEngine;
+        window.wasmContext.pdfSignature = pdfEngine;
         window.wasmContext.rustReady = true;
         window.wasmContext.tsReady = true;
         window.wasmContext.tokenReady = true;
@@ -1338,11 +1396,12 @@
         window.wasmContext.hmacReady = true;
         window.wasmContext.rsaReady = true;
         window.wasmContext.passwordStrengthReady = true;
+        window.wasmContext.pdfSignatureReady = true;
 
         const statusEl = document.getElementById("frontend-status");
-        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载 12 大模块: rs, ts, token-gen, hash-text, bcrypt, uuid-gen, ulid-gen, encryption, bip39, hmac, rsa & password-strength)`;
+        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载 13 大模块: rs, ts, token-gen, hash-text, bcrypt, uuid-gen, ulid-gen, encryption, bip39, hmac, rsa, password-strength & pdf-signature)`;
 
-        // 初始自动运行一次前端计算、Token、Hash、Bcrypt、UUID、ULID、AES、BIP-39、HMAC、RSA、密码评估
+        // 初始自动运行一次前端计算、Token、Hash、Bcrypt、UUID、ULID、AES、BIP-39、HMAC、RSA、密码评估、PDF签名检测
         window.runFrontendCalc();
         window.runFrontendGreet();
         window.runFrontendTokenGen();
@@ -1355,6 +1414,7 @@
         window.runFrontendHmacAll();
         window.runFrontendRsaGen();
         window.runFrontendPasswordAnalyze();
+        window.loadPdfSample();
       } catch (err) {
         console.error("加载浏览器端 WASM 失败:", err);
         const statusEl = document.getElementById("frontend-status");
@@ -2355,6 +2415,109 @@
           <div style="margin-top:8px; font-size:12px; color:var(--text-muted);">
             💡 <strong>改进建议:</strong> ${d.suggestions.join(" | ")}
           </div>
+        </div>
+      `;
+    };
+
+    // 加载内置带签名的 PDF 样本
+    window.loadPdfSample = async function() {
+      const engine = window.wasmContext.pdfSignature;
+      let sampleB64 = "";
+
+      if (engine) {
+        const response = engine.dispatch({
+          action: "pdf/sample",
+          requestId: `req-front-${Date.now()}`,
+          params: {}
+        });
+        if (response.code === 0 && response.data && response.data.sampleBase64) {
+          sampleB64 = response.data.sampleBase64;
+        }
+      }
+
+      if (!sampleB64) {
+        try {
+          const res = await fetch("/api/backend/pdf/sample");
+          const json = await res.json();
+          sampleB64 = json.sampleBase64 || "";
+        } catch (_) {}
+      }
+
+      const inputEl = document.getElementById("pdf-base64-input");
+      if (inputEl && sampleB64) {
+        inputEl.value = sampleB64;
+        window.runFrontendPdfInspect();
+      }
+    };
+
+    // 前端 PDF 签名与完整性检测 (pdf/inspect)
+    window.runFrontendPdfInspect = function() {
+      const engine = window.wasmContext.pdfSignature;
+      if (!engine) {
+        document.getElementById("frontend-pdf-result").innerHTML = `
+          <div class="result-box error">pdf-signature.wasm 尚未加载完毕</div>
+        `;
+        return;
+      }
+
+      const pdfBase64 = (document.getElementById("pdf-base64-input").value || "").trim();
+      if (!pdfBase64) {
+        document.getElementById("frontend-pdf-result").innerHTML = `
+          <div class="result-box error">请在上方文本框中输入 PDF Base64 编码或点击载入内置样本</div>
+        `;
+        return;
+      }
+
+      const t0 = performance.now();
+      const response = engine.dispatch({
+        action: "pdf/inspect",
+        requestId: `req-front-${Date.now()}`,
+        params: { pdfBase64 }
+      });
+      const duration = (performance.now() - t0).toFixed(4);
+
+      if (response.code !== 0) {
+        document.getElementById("frontend-pdf-result").innerHTML = `
+          <div class="result-box error"><strong>检测失败:</strong> ${response.msg}</div>
+        `;
+        return;
+      }
+
+      const d = response.data;
+      const badgeColor = d.hasSignatures ? "#34d399" : "#f97316";
+
+      document.getElementById("frontend-pdf-result").innerHTML = `
+        <div class="result-box" style="border-color:${badgeColor};">
+          <div class="result-header">
+            <span class="tag tag-rust">🦀 Browser WASM: PDF ${d.pdfVersion} (${d.fileSizeBytes} 字节)</span>
+            <span class="badge-time">⚡ ${duration} ms (纯前端内存解析)</span>
+          </div>
+
+          <div style="font-size:14px; font-weight:bold; color:${badgeColor}; margin:8px 0;">
+            ${d.hasSignatures ? `✅ 成功检测到 ${d.signatureCount} 个数字签名 (/Type /Sig)` : `⚠️ 未在文档中发现任何数字签名 (/Type /Sig)`}
+          </div>
+
+          ${d.signatures.map((sig) => `
+            <div style="background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.08); padding:12px; border-radius:8px; margin-top:8px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <span style="font-weight:600; color:#38bdf8;">🔏 签名者: ${sig.signerName}</span>
+                <span style="font-size:11px; padding:2px 8px; border-radius:4px; background:${sig.byteRangeValid ? 'rgba(52,211,153,0.2)' : 'rgba(239,68,68,0.2)'}; color:${sig.byteRangeValid ? '#34d399' : '#f87171'};">
+                  ${sig.byteRangeValid ? '✅ ByteRange 完整性闭合' : '❌ ByteRange 校验越界'}
+                </span>
+              </div>
+              <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:6px; font-size:12px; color:var(--text-muted);">
+                <div>签名标准 (SubFilter): <strong style="color:#fff;">${sig.subFilter}</strong></div>
+                <div>加密引擎 (Filter): <strong style="color:#fff;">${sig.filter}</strong></div>
+                <div>签名时间戳: <strong style="color:#fff;">${sig.signDate}</strong></div>
+                <div>签名签署原因: <strong style="color:#fff;">${sig.reason}</strong></div>
+                <div>签署物理位置: <strong style="color:#fff;">${sig.location}</strong></div>
+                <div>签名数据长度: <strong style="color:#fff;">${sig.signatureLengthBytes} 字节 (PKCS#7)</strong></div>
+              </div>
+              <div style="margin-top:8px; font-size:11px; color:#94a3b8; font-family:var(--font-mono); background:rgba(0,0,0,0.2); padding:4px 8px; border-radius:4px;">
+                ByteRange 校验细节: ${sig.byteRangeDetails}
+              </div>
+            </div>
+          `).join("")}
         </div>
       `;
     };

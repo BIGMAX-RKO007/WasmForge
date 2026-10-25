@@ -1,0 +1,20 @@
+{
+  "name": "@wasmforge/pdf-signature",
+  "version": "1.0.0",
+  "description": "Pure standalone WebAssembly module for inspecting and verifying PDF digital signatures and integrity",
+  "main": "dist/pdf-signature.wasm",
+  "scripts": {
+    "build": "cargo build --target wasm32-unknown-unknown --release",
+    "test": "cargo test"
+  },
+  "keywords": [
+    "webassembly",
+    "wasm",
+    "pdf",
+    "signature",
+    "pkcs7",
+    "integrity"
+  ],
+  "author": "BIGMAX-RKO007",
+  "license": "MIT"
+}

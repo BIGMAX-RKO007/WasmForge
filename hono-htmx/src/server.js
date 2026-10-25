@@ -22,6 +22,7 @@ const bip39WasmPath = path.resolve(__dirname, "../public/wasm/bip39-generator.wa
 const hmacWasmPath = path.resolve(__dirname, "../public/wasm/hmac-generator.wasm");
 const rsaWasmPath = path.resolve(__dirname, "../public/wasm/rsa-key-pair.wasm");
 const passwordStrengthWasmPath = path.resolve(__dirname, "../public/wasm/password-strength.wasm");
+const pdfSignatureWasmPath = path.resolve(__dirname, "../public/wasm/pdf-signature.wasm");
 
 let rsEngine = null;
 let tsEngine = null;
@@ -35,6 +36,7 @@ let bip39Engine = null;
 let hmacEngine = null;
 let rsaEngine = null;
 let passwordStrengthEngine = null;
+let pdfSignatureEngine = null;
 
 async function initEngines() {
   try {
@@ -120,6 +122,13 @@ async function initEngines() {
       console.log("✅ [Backend Infra] 纯单一文件 password-strength.wasm 加载成功");
     } else {
       console.warn("⚠️ password-strength.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    if (fs.existsSync(pdfSignatureWasmPath)) {
+      pdfSignatureEngine = await loadWasmFromDisk(pdfSignatureWasmPath);
+      console.log("✅ [Backend Infra] 纯单一文件 pdf-signature.wasm 加载成功");
+    } else {
+      console.warn("⚠️ pdf-signature.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
     }
   } catch (err) {
     console.error("❌ 后端 WASM 基础设施初始化失败:", err);
@@ -1152,6 +1161,108 @@ app.post("/api/backend/password/analyze", async (c) => {
   }
 });
 
+// API: 获取 PDF 内置签名示例 Base64
+app.get("/api/backend/pdf/sample", async (c) => {
+  try {
+    if (!pdfSignatureEngine) {
+      throw new Error("pdf-signature.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    const response = pdfSignatureEngine.dispatch({
+      action: "pdf/sample",
+      requestId: `srv-${Date.now()}`,
+      params: {}
+    });
+
+    if (response.code !== 0) {
+      throw new Error(response.msg);
+    }
+
+    return c.json(response.data);
+  } catch (err) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+// API: 后端 PDF 签名检测与完整性解析 (由 HTMX 调用)
+app.post("/api/backend/pdf/inspect", async (c) => {
+  try {
+    if (!pdfSignatureEngine) {
+      throw new Error("pdf-signature.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    const body = await c.req.parseBody();
+    let pdfBase64 = (body.pdfBase64 || "").toString().trim();
+
+    // 如果上传了文件
+    if (body.pdfFile && typeof body.pdfFile === "object" && body.pdfFile.arrayBuffer) {
+      const buffer = await body.pdfFile.arrayBuffer();
+      pdfBase64 = Buffer.from(buffer).toString("base64");
+    }
+
+    if (!pdfBase64) {
+      throw new Error("请提供有效的 PDF 文件或 Base64 数据编码");
+    }
+    pdfBase64 = pdfBase64.replace(/ /g, "+");
+
+    const t0 = performance.now();
+    const response = pdfSignatureEngine.dispatch({
+      action: "pdf/inspect",
+      requestId: `srv-${Date.now()}`,
+      params: { pdfBase64 }
+    });
+    const duration = (performance.now() - t0).toFixed(4);
+
+    if (response.code !== 0) {
+      throw new Error(response.msg);
+    }
+
+    const d = response.data;
+    const badgeColor = d.hasSignatures ? "#34d399" : "#f97316";
+
+    return c.html(`
+      <div class="result-box" style="border-color:${badgeColor};">
+        <div class="result-header">
+          <span class="tag tag-rust">🦀 Rust WASM: PDF ${d.pdfVersion} (${d.fileSizeBytes} 字节)</span>
+          <span class="badge-time">⚡ ${duration} ms (Hono 原生结构化解析)</span>
+        </div>
+
+        <div style="font-size:14px; font-weight:bold; color:${badgeColor}; margin:8px 0;">
+          ${d.hasSignatures ? `✅ 成功检测到 ${d.signatureCount} 个数字签名 (/Type /Sig)` : `⚠️ 未在文档中发现任何数字签名 (/Type /Sig)`}
+        </div>
+
+        ${d.signatures.map((sig) => `
+          <div style="background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.08); padding:12px; border-radius:8px; margin-top:8px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+              <span style="font-weight:600; color:#38bdf8;">🔏 签名者: ${sig.signerName}</span>
+              <span style="font-size:11px; padding:2px 8px; border-radius:4px; background:${sig.byteRangeValid ? 'rgba(52,211,153,0.2)' : 'rgba(239,68,68,0.2)'}; color:${sig.byteRangeValid ? '#34d399' : '#f87171'};">
+                ${sig.byteRangeValid ? '✅ ByteRange 完整性闭合' : '❌ ByteRange 校验越界'}
+              </span>
+            </div>
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:6px; font-size:12px; color:var(--text-muted);">
+              <div>签名标准 (SubFilter): <strong style="color:#fff;">${sig.subFilter}</strong></div>
+              <div>加密引擎 (Filter): <strong style="color:#fff;">${sig.filter}</strong></div>
+              <div>签名时间戳: <strong style="color:#fff;">${sig.signDate}</strong></div>
+              <div>签名签署原因: <strong style="color:#fff;">${sig.reason}</strong></div>
+              <div>签署物理位置: <strong style="color:#fff;">${sig.location}</strong></div>
+              <div>签名数据长度: <strong style="color:#fff;">${sig.signatureLengthBytes} 字节 (PKCS#7)</strong></div>
+            </div>
+            <div style="margin-top:8px; font-size:11px; color:#94a3b8; font-family:var(--font-mono); background:rgba(0,0,0,0.2); padding:4px 8px; border-radius:4px;">
+              ByteRange 校验细节: ${sig.byteRangeDetails}
+            </div>
+          </div>
+        `).join("")}
+      </div>
+    `);
+  } catch (err) {
+    return c.html(`
+      <div class="result-box error">
+        <strong>PDF 签名检测失败:</strong> ${err.message}
+      </div>
+    `, 400);
+  }
+});
+
 // API: 模块统计信息
 app.get("/api/stats", (c) => {
   const rsSize = fs.existsSync(rsWasmPath) ? fs.statSync(rsWasmPath).size : 0;
@@ -1166,6 +1277,7 @@ app.get("/api/stats", (c) => {
   const hmacSize = fs.existsSync(hmacWasmPath) ? fs.statSync(hmacWasmPath).size : 0;
   const rsaSize = fs.existsSync(rsaWasmPath) ? fs.statSync(rsaWasmPath).size : 0;
   const passwordStrengthSize = fs.existsSync(passwordStrengthWasmPath) ? fs.statSync(passwordStrengthWasmPath).size : 0;
+  const pdfSignatureSize = fs.existsSync(pdfSignatureWasmPath) ? fs.statSync(pdfSignatureWasmPath).size : 0;
   return c.json({
     rust: {
       file: "rs.wasm",
@@ -1226,6 +1338,11 @@ app.get("/api/stats", (c) => {
       file: "password-strength.wasm",
       sizeBytes: passwordStrengthSize,
       sizeFormatted: `${(passwordStrengthSize / 1024).toFixed(2)} KB`,
+    },
+    pdfSignature: {
+      file: "pdf-signature.wasm",
+      sizeBytes: pdfSignatureSize,
+      sizeFormatted: `${(pdfSignatureSize / 1024).toFixed(2)} KB`,
     },
   });
 });
