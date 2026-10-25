@@ -1,0 +1,21 @@
+{
+  "name": "@wasmforge/json-to-csv",
+  "version": "0.1.0",
+  "description": "Pure standalone WebAssembly JSON to CSV converter following WasmForge Universal Envelope Protocol",
+  "main": "index.js",
+  "scripts": {
+    "build": "cargo build --target wasm32-unknown-unknown --release",
+    "test": "cargo test"
+  },
+  "keywords": [
+    "wasm",
+    "webassembly",
+    "json",
+    "csv",
+    "converter",
+    "c-abi",
+    "wasmforge"
+  ],
+  "author": "Antigravity Team",
+  "license": "MIT"
+}

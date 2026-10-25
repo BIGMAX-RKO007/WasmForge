@@ -1,0 +1,13 @@
+[package]
+name = "json-to-csv"
+version = "0.1.0"
+edition = "2021"
+description = "Pure standalone WebAssembly JSON to CSV converter"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+csv = "1.3"

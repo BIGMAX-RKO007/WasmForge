@@ -31,6 +31,7 @@ const tomlToJsonWasmPath = path.resolve(__dirname, "../public/wasm/toml-to-json.
 const tomlToYamlWasmPath = path.resolve(__dirname, "../public/wasm/toml-to-yaml.wasm");
 const xmlToJsonWasmPath = path.resolve(__dirname, "../public/wasm/xml-to-json.wasm");
 const jsonToXmlWasmPath = path.resolve(__dirname, "../public/wasm/json-to-xml.wasm");
+const jsonToCsvWasmPath = path.resolve(__dirname, "../public/wasm/json-to-csv.wasm");
 
 let rsEngine = null;
 let tsEngine = null;
@@ -53,6 +54,7 @@ let tomlToJsonEngine = null;
 let tomlToYamlEngine = null;
 let xmlToJsonEngine = null;
 let jsonToXmlEngine = null;
+let jsonToCsvEngine = null;
 
 async function initEngines() {
   try {
@@ -201,6 +203,13 @@ async function initEngines() {
       console.log("✅ [Backend Infra] 纯单一文件 json-to-xml.wasm 加载成功");
     } else {
       console.warn("⚠️ json-to-xml.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    if (fs.existsSync(jsonToCsvWasmPath)) {
+      jsonToCsvEngine = await loadWasmFromDisk(jsonToCsvWasmPath);
+      console.log("✅ [Backend Infra] 纯单一文件 json-to-csv.wasm 加载成功");
+    } else {
+      console.warn("⚠️ json-to-csv.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
     }
   } catch (err) {
     console.error("❌ 后端 WASM 基础设施初始化失败:", err);
@@ -1904,6 +1913,86 @@ app.get("/api/backend/json-to-xml/sample", async (c) => {
   }
 });
 
+// API: HTMX 提交 JSON 转 CSV
+app.post("/api/backend/json/to-csv", async (c) => {
+  try {
+    const body = await c.req.parseBody();
+    const json = (body.json || "").toString();
+    const delimiter = (body.delimiter || ",").toString();
+    const includeHeaders = body.includeHeaders !== "false";
+    const flatten = body.flatten !== "false";
+
+    if (!json.trim()) {
+      return c.html(`
+        <div class="result-box error">
+          <strong>转换失败:</strong> 输入的 JSON 内容不能为空
+        </div>
+      `, 400);
+    }
+
+    if (!jsonToCsvEngine) {
+      throw new Error("json-to-csv WASM 引擎未就绪");
+    }
+
+    const t0 = performance.now();
+    const response = jsonToCsvEngine.dispatch({
+      action: "json/to-csv",
+      requestId: `srv-${Date.now()}`,
+      params: { json, delimiter, includeHeaders, flatten }
+    });
+    const duration = (performance.now() - t0).toFixed(4);
+
+    if (response.code !== 0) {
+      return c.html(`
+        <div class="result-box error">
+          <strong>JSON 转换 CSV 失败:</strong> ${response.msg}
+        </div>
+      `, 400);
+    }
+
+    const d = response.data;
+    return c.html(`
+      <div class="result-box">
+        <div class="result-header">
+          <span class="tag tag-rust">🦀 Rust WASM: JSON ➜ CSV (${d.rowCount} 行, 分隔符: '${d.delimiter}')</span>
+          <span class="badge-time">⚡ ${duration} ms (Hono 后端原生)</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; font-size:12px; color:var(--text-muted);">
+          <span>输入 JSON 大小: <strong>${d.sourceSizeBytes} 字节</strong></span>
+          <span>转换 CSV 大小: <strong>${d.targetSizeBytes} 字节</strong></span>
+        </div>
+        <pre class="code-preview" style="max-height:280px; overflow-y:auto; background:rgba(0,0,0,0.4); padding:10px; border-radius:6px; font-size:12px; font-family:var(--font-mono); color:#38bdf8;"><code>${d.csv.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</code></pre>
+      </div>
+    `);
+  } catch (err) {
+    return c.html(`
+      <div class="result-box error">
+        <strong>JSON 转 CSV 失败:</strong> ${err.message}
+      </div>
+    `, 400);
+  }
+});
+
+// API: 获取 JSON 示例模版 (CSV)
+app.get("/api/backend/json-to-csv/sample", async (c) => {
+  try {
+    if (!jsonToCsvEngine) {
+      throw new Error("json-to-csv WASM 引擎未就绪");
+    }
+    const response = jsonToCsvEngine.dispatch({
+      action: "json/sample",
+      requestId: `srv-${Date.now()}`,
+      params: {}
+    });
+    if (response.code !== 0) {
+      throw new Error(response.msg || "获取示例失败");
+    }
+    return c.text(response.data.json);
+  } catch (err) {
+    return c.text("[]", 500);
+  }
+});
+
 // API: 模块统计信息
 app.get("/api/stats", (c) => {
   const rsSize = fs.existsSync(rsWasmPath) ? fs.statSync(rsWasmPath).size : 0;
@@ -1927,6 +2016,7 @@ app.get("/api/stats", (c) => {
   const tomlToYamlSize = fs.existsSync(tomlToYamlWasmPath) ? fs.statSync(tomlToYamlWasmPath).size : 0;
   const xmlToJsonSize = fs.existsSync(xmlToJsonWasmPath) ? fs.statSync(xmlToJsonWasmPath).size : 0;
   const jsonToXmlSize = fs.existsSync(jsonToXmlWasmPath) ? fs.statSync(jsonToXmlWasmPath).size : 0;
+  const jsonToCsvSize = fs.existsSync(jsonToCsvWasmPath) ? fs.statSync(jsonToCsvWasmPath).size : 0;
   return c.json({
     rust: {
       file: "rs.wasm",
@@ -2032,6 +2122,11 @@ app.get("/api/stats", (c) => {
       file: "json-to-xml.wasm",
       sizeBytes: jsonToXmlSize,
       sizeFormatted: `${(jsonToXmlSize / 1024).toFixed(2)} KB`,
+    },
+    jsonToCsv: {
+      file: "json-to-csv.wasm",
+      sizeBytes: jsonToCsvSize,
+      sizeFormatted: `${(jsonToCsvSize / 1024).toFixed(2)} KB`,
     },
   });
 });
