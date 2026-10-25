@@ -4250,6 +4250,52 @@ spec:
           </div>
         </div>
       </div>
+
+      <!-- Card 5.5: 客户端设备信息嗅探与环境解析 (Device Information) -->
+      <div class="card" id="card-device-information">
+        <div class="card-header">
+          <div>
+            <div class="card-title">📱 客户端设备信息嗅探与环境解析 (Device Information)</div>
+            <div class="card-desc">纯单一文件 Rust WASM 驱动的 User-Agent 精准语义提取、OS / 浏览器版本分流、移动端/平板/桌面形态与爬虫 Bot 自动判定引擎</div>
+          </div>
+          <span class="tag tag-rust">Tool #57: device-information</span>
+        </div>
+
+        <form id="form-device-information" hx-post="/api/backend/device/parse" hx-target="#backend-device-result" hx-swap="innerHTML">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+            <span style="font-size:12px; color:var(--text-muted); font-weight:600;">待分析的 User-Agent 字符串:</span>
+
+            <div style="display:flex; gap:6px; font-size:11px; flex-wrap:wrap;">
+              <button type="button" onclick="loadRealBrowserUa()" style="background:rgba(16,185,129,0.15); color:#34d399; border:1px solid rgba(52,211,153,0.3); border-radius:4px; padding:3px 8px; cursor:pointer; font-weight:600;">🌐 读取本机实际环境</button>
+              <button type="button" onclick="loadDevicePreset('desktop-chrome-win11')" style="background:rgba(255,255,255,0.06); color:#38bdf8; border:1px solid rgba(56,189,248,0.3); border-radius:4px; padding:3px 8px; cursor:pointer;">💻 Win11 Chrome</button>
+              <button type="button" onclick="loadDevicePreset('iphone-safari-ios18')" style="background:rgba(255,255,255,0.06); color:#f43f5e; border:1px solid rgba(244,63,94,0.3); border-radius:4px; padding:3px 8px; cursor:pointer;">📱 iPhone iOS 18</button>
+              <button type="button" onclick="loadDevicePreset('googlebot-spider')" style="background:rgba(255,255,255,0.06); color:#f59e0b; border:1px solid rgba(245,158,11,0.3); border-radius:4px; padding:3px 8px; cursor:pointer;">🕷️ Googlebot</button>
+            </div>
+          </div>
+
+          <textarea name="ua" id="device-ua-input" rows="3" placeholder="输入待识别的 User-Agent 字符串..." style="width:100%; box-sizing:border-box; background:#0f172a; color:#f8fafc; border:1px solid rgba(255,255,255,0.15); border-radius:6px; padding:8px 12px; font-size:12px; font-family:var(--font-mono); margin-bottom:12px; word-break:break-all;" oninput="runFrontendDeviceParse()">Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36</textarea>
+
+          <div style="display:flex; gap:8px;">
+            <button type="submit" style="padding:8px 16px; background:linear-gradient(135deg, #3b82f6, #1d4ed8); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:12px;">
+              🖥️ 后端嗅探 (HTMX)
+            </button>
+            <button type="button" onclick="runFrontendDeviceParse()" style="padding:8px 16px; background:linear-gradient(135deg, #10b981, #059669); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:12px;">
+              🌐 前端极速解析
+            </button>
+          </div>
+        </form>
+
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:16px; margin-top:16px;">
+          <div>
+            <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px;">后端投影输出:</div>
+            <div id="backend-device-result" class="result-container"><div class="result-box" style="opacity:0.5; font-size:12px;">等待识别...</div></div>
+          </div>
+          <div>
+            <div style="font-size:11px; color:var(--text-muted); margin-top:0px; margin-bottom:4px;">前端投影输出:</div>
+            <div id="frontend-device-result" class="result-container"><div class="result-box" style="opacity:0.5; font-size:12px;">等待识别...</div></div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- ================= 区域 3: 4 象限综合矩阵基准测试 ================= -->
@@ -4436,6 +4482,7 @@ spec:
         const otpGeneratorEngine = await loadWasmFromUrl("./wasm/otp-generator.wasm");
         const urlEncoderDecoderEngine = await loadWasmFromUrl("./wasm/url-encoder-decoder.wasm");
         const urlParserEngine = await loadWasmFromUrl("./wasm/url-parser.wasm");
+        const deviceInformationEngine = await loadWasmFromUrl("./wasm/device-information.wasm");
 
         window.wasmContext.rust = rsEngine;
         window.wasmContext.ts = tsEngine;
@@ -4495,6 +4542,7 @@ spec:
         window.wasmContext.otpGenerator = otpGeneratorEngine;
         window.wasmContext.urlEncoderDecoder = urlEncoderDecoderEngine;
         window.wasmContext.urlParser = urlParserEngine;
+        window.wasmContext.deviceInformation = deviceInformationEngine;
         window.wasmContext.rustReady = true;
         window.wasmContext.tsReady = true;
         window.wasmContext.tokenReady = true;
@@ -4553,9 +4601,10 @@ spec:
         window.wasmContext.otpGeneratorReady = true;
         window.wasmContext.urlEncoderDecoderReady = true;
         window.wasmContext.urlParserReady = true;
+        window.wasmContext.deviceInformationReady = true;
 
         const statusEl = document.getElementById("frontend-status");
-        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载 58 大模块: rs, ts, token-gen, hash-text, bcrypt, uuid-gen, ulid-gen, encryption, bip39, hmac, rsa, password-strength, pdf-sig, yaml-to-json, yaml-to-toml, json-to-yaml, json-to-toml, toml-to-json, toml-to-yaml, xml-to-json, json-to-xml, json-to-csv, base64-string, base64-file, color-converter, case-converter, date-time-converter, integer-base-converter, roman-numeral-converter, text-to-binary, text-to-unicode, markdown-to-html, list-converter, text-to-nato, sql-prettify, xml-formatter, json-minify, json-viewer, yaml-viewer, regex-tester, regex-memo, crontab-generator, chmod-calculator, docker-run-to-compose, email-normalizer, git-memo, random-port, text-diff, text-statistics, string-obfuscator, lorem-ipsum, ascii-text-drawer, numeronym-generator, emoji-picker, jwt-parser, otp-generator, url-encoder-decoder & url-parser)`;
+        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载 59 大模块: rs, ts, token-gen, hash-text, bcrypt, uuid-gen, ulid-gen, encryption, bip39, hmac, rsa, password-strength, pdf-sig, yaml-to-json, yaml-to-toml, json-to-yaml, json-to-toml, toml-to-json, toml-to-yaml, xml-to-json, json-to-xml, json-to-csv, base64-string, base64-file, color-converter, case-converter, date-time-converter, integer-base-converter, roman-numeral-converter, text-to-binary, text-to-unicode, markdown-to-html, list-converter, text-to-nato, sql-prettify, xml-formatter, json-minify, json-viewer, yaml-viewer, regex-tester, regex-memo, crontab-generator, chmod-calculator, docker-run-to-compose, email-normalizer, git-memo, random-port, text-diff, text-statistics, string-obfuscator, lorem-ipsum, ascii-text-drawer, numeronym-generator, emoji-picker, jwt-parser, otp-generator, url-encoder-decoder, url-parser & device-information)`;
 
         // 初始自动运行一次前端计算
         window.runFrontendCalc();
@@ -10070,6 +10119,115 @@ spec:
               </table>
             </div>
           ` : '<div style="font-size:11px; color:var(--text-muted); margin-top:6px;">(无 Query 查询参数)</div>'}
+        </div>
+      `;
+    };
+
+    // Device Information 前端极速解析
+    const devicePresets = {
+      "desktop-chrome-win11": { ua: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36" },
+      "iphone-safari-ios18": { ua: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Mobile/15E148 Safari/604.1" },
+      "android-pixel-chrome": { ua: "Mozilla/5.0 (Linux; Android 15; Pixel 9 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.6723.102 Mobile Safari/537.36" },
+      "macos-m3-safari": { ua: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Safari/605.1.15" },
+      "googlebot-spider": { ua: "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)" }
+    };
+
+    window.loadRealBrowserUa = function() {
+      document.getElementById("device-ua-input").value = navigator.userAgent;
+      window.runFrontendDeviceParse();
+    };
+
+    window.loadDevicePreset = function(presetId) {
+      const p = devicePresets[presetId];
+      if (p) {
+        document.getElementById("device-ua-input").value = p.ua;
+        window.runFrontendDeviceParse();
+      }
+    };
+
+    window.runFrontendDeviceParse = function() {
+      if (!window.wasmContext.deviceInformationReady || !window.wasmContext.deviceInformation) {
+        document.getElementById("frontend-device-result").innerHTML = `
+          <div class="result-box error">device-information.wasm 尚未加载完毕</div>
+        `;
+        return;
+      }
+
+      const ua = document.getElementById("device-ua-input").value || navigator.userAgent;
+
+      // 采集前端真实运行环境元数据
+      const clientDetails = {
+        screenWidth: window.screen.width,
+        screenHeight: window.screen.height,
+        pixelRatio: window.devicePixelRatio || 1,
+        colorDepth: window.screen.colorDepth || 24,
+        language: navigator.language || "zh-CN",
+        hardwareConcurrency: navigator.hardwareConcurrency || 4,
+        cookiesEnabled: navigator.cookieEnabled
+      };
+
+      const t0 = performance.now();
+      const response = window.wasmContext.deviceInformation.dispatch({
+        action: "device/parse",
+        requestId: `front-${Date.now()}`,
+        params: {
+          ua,
+          clientDetails
+        }
+      });
+      const duration = (performance.now() - t0).toFixed(4);
+
+      if (response.code !== 0) {
+        document.getElementById("frontend-device-result").innerHTML = `
+          <div class="result-box error">识别失败: ${escapeHtmlFront(response.msg)}</div>
+        `;
+        return;
+      }
+
+      const d = response.data;
+      let badgeType = "tag-rust";
+      if (d.isBot) badgeType = "tag-red";
+      else if (d.isMobile) badgeType = "tag-yellow";
+
+      document.getElementById("frontend-device-result").innerHTML = `
+        <div class="result-box">
+          <div class="result-header">
+            <span class="tag ${badgeType}">🦀 Browser WASM: ${escapeHtmlFront(d.device.deviceType)} 设备识别 (${escapeHtmlFront(d.browser.name)} ${escapeHtmlFront(d.browser.majorVersion)})</span>
+            <span class="badge-time">⚡ ${duration} ms (纯前端内存)</span>
+          </div>
+
+          <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:10px; margin-bottom:12px; font-size:12px;">
+            <div style="background:rgba(0,0,0,0.3); padding:8px 12px; border-radius:6px; border:1px solid rgba(255,255,255,0.08);">
+              <div style="color:var(--text-muted); font-size:11px;">浏览器 (Browser):</div>
+              <div style="font-family:var(--font-mono); color:#38bdf8; font-weight:600;">${escapeHtmlFront(d.browser.name)} <span style="font-size:11px; color:var(--text-muted);">${escapeHtmlFront(d.browser.version)}</span></div>
+            </div>
+            <div style="background:rgba(0,0,0,0.3); padding:8px 12px; border-radius:6px; border:1px solid rgba(255,255,255,0.08);">
+              <div style="color:var(--text-muted); font-size:11px;">操作系统 (OS):</div>
+              <div style="font-family:var(--font-mono); color:#34d399; font-weight:600;">${escapeHtmlFront(d.os.name)} <span style="font-size:11px; color:var(--text-muted);">${escapeHtmlFront(d.os.version)}</span></div>
+            </div>
+            <div style="background:rgba(0,0,0,0.3); padding:8px 12px; border-radius:6px; border:1px solid rgba(255,255,255,0.08);">
+              <div style="color:var(--text-muted); font-size:11px;">内核引擎 (Engine):</div>
+              <div style="font-family:var(--font-mono); color:#c084fc; font-weight:600;">${escapeHtmlFront(d.engine.name)} <span style="font-size:11px; color:var(--text-muted);">${escapeHtmlFront(d.engine.version)}</span></div>
+            </div>
+            <div style="background:rgba(0,0,0,0.3); padding:8px 12px; border-radius:6px; border:1px solid rgba(255,255,255,0.08);">
+              <div style="color:var(--text-muted); font-size:11px;">CPU 架构 / 设备类型:</div>
+              <div style="font-family:var(--font-mono); color:#f59e0b; font-weight:600;">${escapeHtmlFront(d.cpu)} / ${escapeHtmlFront(d.device.deviceType)}</div>
+            </div>
+          </div>
+
+          <div style="display:flex; flex-wrap:wrap; gap:12px; font-size:11px; margin-bottom:10px;">
+            <span style="background:rgba(255,255,255,0.06); padding:4px 8px; border-radius:4px; border:1px solid rgba(255,255,255,0.1);">厂商: <strong>${escapeHtmlFront(d.device.vendor)}</strong></span>
+            <span style="background:rgba(255,255,255,0.06); padding:4px 8px; border-radius:4px; border:1px solid rgba(255,255,255,0.1);">型号: <strong>${escapeHtmlFront(d.device.model)}</strong></span>
+            <span style="background:rgba(255,255,255,0.06); padding:4px 8px; border-radius:4px; border:1px solid rgba(255,255,255,0.1);">爬虫/Bot: <strong>${d.isBot ? '<span style="color:#ef4444;">是 (Bot Detected)</span>' : '<span style="color:#34d399;">否 (Human Client)</span>'}</strong></span>
+            ${d.clientDetails ? `
+              <span style="background:rgba(255,255,255,0.06); padding:4px 8px; border-radius:4px; border:1px solid rgba(255,255,255,0.1);">屏幕: <strong>${d.clientDetails.screenWidth}x${d.clientDetails.screenHeight} (${d.clientDetails.pixelRatio}x)</strong></span>
+              <span style="background:rgba(255,255,255,0.06); padding:4px 8px; border-radius:4px; border:1px solid rgba(255,255,255,0.1);">核心数: <strong>${d.clientDetails.hardwareConcurrency} Cores</strong></span>
+            ` : ''}
+          </div>
+
+          <div style="font-size:11px; color:var(--text-muted); word-break:break-all; background:rgba(0,0,0,0.3); padding:8px 10px; border-radius:4px; font-family:var(--font-mono);">
+            UA: ${escapeHtmlFront(d.ua)}
+          </div>
         </div>
       `;
     };

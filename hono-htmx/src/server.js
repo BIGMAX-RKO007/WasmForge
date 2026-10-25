@@ -68,6 +68,7 @@ const jwtParserWasmPath = path.resolve(__dirname, "../public/wasm/jwt-parser.was
 const otpGeneratorWasmPath = path.resolve(__dirname, "../public/wasm/otp-generator.wasm");
 const urlEncoderDecoderWasmPath = path.resolve(__dirname, "../public/wasm/url-encoder-decoder.wasm");
 const urlParserWasmPath = path.resolve(__dirname, "../public/wasm/url-parser.wasm");
+const deviceInformationWasmPath = path.resolve(__dirname, "../public/wasm/device-information.wasm");
 
 let rsEngine = null;
 let tsEngine = null;
@@ -127,6 +128,7 @@ let jwtParserEngine = null;
 let otpGeneratorEngine = null;
 let urlEncoderDecoderEngine = null;
 let urlParserEngine = null;
+let deviceInformationEngine = null;
 
 async function initEngines() {
   try {
@@ -534,6 +536,13 @@ async function initEngines() {
       console.log("✅ [Backend Infra] 纯单一文件 url-parser.wasm 加载成功");
     } else {
       console.warn("⚠️ url-parser.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    if (fs.existsSync(deviceInformationWasmPath)) {
+      deviceInformationEngine = await loadWasmFromDisk(deviceInformationWasmPath);
+      console.log("✅ [Backend Infra] 纯单一文件 device-information.wasm 加载成功");
+    } else {
+      console.warn("⚠️ device-information.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
     }
   } catch (err) {
     console.error("❌ 后端 WASM 基础设施初始化失败:", err);
@@ -6957,6 +6966,124 @@ app.get("/api/backend/url/parser/presets", async (c) => {
   }
 });
 
+// API: 客户端设备信息嗅探与环境解析 (Device Information)
+app.post("/api/backend/device/parse", async (c) => {
+  try {
+    const contentType = c.req.header("Content-Type") || "";
+    let uaStr = "";
+    let clientDetails = null;
+
+    if (contentType.includes("application/json")) {
+      const json = await c.req.json().catch(() => ({}));
+      uaStr = (json.ua || "").toString();
+      clientDetails = json.clientDetails || null;
+    } else {
+      const body = await c.req.parseBody().catch(() => ({}));
+      uaStr = (body.ua || "").toString();
+      if (body.clientDetails) {
+        try { clientDetails = JSON.parse(body.clientDetails); } catch (_) {}
+      }
+    }
+
+    if (!uaStr) {
+      uaStr = c.req.header("User-Agent") || "";
+    }
+
+    if (!deviceInformationEngine) {
+      throw new Error("device-information WASM 引擎未就绪");
+    }
+
+    const t0 = performance.now();
+    const response = deviceInformationEngine.dispatch({
+      action: "device/parse",
+      requestId: `srv-${Date.now()}`,
+      params: {
+        ua: uaStr,
+        clientDetails
+      }
+    });
+    const duration = (performance.now() - t0).toFixed(4);
+
+    if (contentType.includes("application/json") && !c.req.header("HX-Request")) {
+      return c.json(response);
+    }
+
+    if (response.code !== 0) {
+      return c.html(`
+        <div class="result-box error">
+          <strong>设备信息嗅探失败:</strong> ${escapeHtml(response.msg)}
+        </div>
+      `, 400);
+    }
+
+    const d = response.data;
+    let badgeType = "tag-rust";
+    if (d.isBot) badgeType = "tag-red";
+    else if (d.isMobile) badgeType = "tag-yellow";
+
+    return c.html(`
+      <div class="result-box">
+        <div class="result-header">
+          <span class="tag ${badgeType}">🦀 Rust WASM: ${escapeHtml(d.device.deviceType)} 设备识别 (${escapeHtml(d.browser.name)} ${escapeHtml(d.browser.majorVersion)})</span>
+          <span class="badge-time">⚡ ${duration} ms (Hono 后端原生)</span>
+        </div>
+
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:10px; margin-bottom:12px; font-size:12px;">
+          <div style="background:rgba(0,0,0,0.3); padding:8px 12px; border-radius:6px; border:1px solid rgba(255,255,255,0.08);">
+            <div style="color:var(--text-muted); font-size:11px;">浏览器 (Browser):</div>
+            <div style="font-family:var(--font-mono); color:#38bdf8; font-weight:600;">${escapeHtml(d.browser.name)} <span style="font-size:11px; color:var(--text-muted);">${escapeHtml(d.browser.version)}</span></div>
+          </div>
+          <div style="background:rgba(0,0,0,0.3); padding:8px 12px; border-radius:6px; border:1px solid rgba(255,255,255,0.08);">
+            <div style="color:var(--text-muted); font-size:11px;">操作系统 (OS):</div>
+            <div style="font-family:var(--font-mono); color:#34d399; font-weight:600;">${escapeHtml(d.os.name)} <span style="font-size:11px; color:var(--text-muted);">${escapeHtml(d.os.version)}</span></div>
+          </div>
+          <div style="background:rgba(0,0,0,0.3); padding:8px 12px; border-radius:6px; border:1px solid rgba(255,255,255,0.08);">
+            <div style="color:var(--text-muted); font-size:11px;">内核引擎 (Engine):</div>
+            <div style="font-family:var(--font-mono); color:#c084fc; font-weight:600;">${escapeHtml(d.engine.name)} <span style="font-size:11px; color:var(--text-muted);">${escapeHtml(d.engine.version)}</span></div>
+          </div>
+          <div style="background:rgba(0,0,0,0.3); padding:8px 12px; border-radius:6px; border:1px solid rgba(255,255,255,0.08);">
+            <div style="color:var(--text-muted); font-size:11px;">CPU 架构 / 设备类型:</div>
+            <div style="font-family:var(--font-mono); color:#f59e0b; font-weight:600;">${escapeHtml(d.cpu)} / ${escapeHtml(d.device.deviceType)}</div>
+          </div>
+        </div>
+
+        <div style="display:flex; flex-wrap:wrap; gap:12px; font-size:11px; margin-bottom:10px;">
+          <span style="background:rgba(255,255,255,0.06); padding:4px 8px; border-radius:4px; border:1px solid rgba(255,255,255,0.1);">厂商: <strong>${escapeHtml(d.device.vendor)}</strong></span>
+          <span style="background:rgba(255,255,255,0.06); padding:4px 8px; border-radius:4px; border:1px solid rgba(255,255,255,0.1);">型号: <strong>${escapeHtml(d.device.model)}</strong></span>
+          <span style="background:rgba(255,255,255,0.06); padding:4px 8px; border-radius:4px; border:1px solid rgba(255,255,255,0.1);">爬虫/Bot: <strong>${d.isBot ? '<span style="color:#ef4444;">是 (Bot Detected)</span>' : '<span style="color:#34d399;">否 (Human Client)</span>'}</strong></span>
+        </div>
+
+        <div style="font-size:11px; color:var(--text-muted); word-break:break-all; background:rgba(0,0,0,0.3); padding:8px 10px; border-radius:4px; font-family:var(--font-mono);">
+          UA: ${escapeHtml(d.ua)}
+        </div>
+      </div>
+    `);
+  } catch (err) {
+    return c.html(`
+      <div class="result-box error">
+        <strong>执行失败:</strong> ${escapeHtml(err.message)}
+      </div>
+    `, 500);
+  }
+});
+
+// API: 获取 Device Presets 预设
+app.get("/api/backend/device/presets", async (c) => {
+  try {
+    if (!deviceInformationEngine) {
+      throw new Error("device-information WASM 引擎未就绪");
+    }
+    const response = deviceInformationEngine.dispatch({
+      action: "device/presets",
+      requestId: `srv-${Date.now()}`,
+      params: {}
+    });
+    return c.json(response);
+  } catch (err) {
+    return c.json({ code: 500, msg: err.message, data: null }, 500);
+  }
+});
+
 // API: 获取 Markdown 示例
 app.get("/api/backend/markdown/sample", async (c) => {
   try {
@@ -7137,6 +7264,7 @@ app.get("/api/stats", (c) => {
   const otpGeneratorSize = fs.existsSync(otpGeneratorWasmPath) ? fs.statSync(otpGeneratorWasmPath).size : 0;
   const urlEncoderDecoderSize = fs.existsSync(urlEncoderDecoderWasmPath) ? fs.statSync(urlEncoderDecoderWasmPath).size : 0;
   const urlParserSize = fs.existsSync(urlParserWasmPath) ? fs.statSync(urlParserWasmPath).size : 0;
+  const deviceInformationSize = fs.existsSync(deviceInformationWasmPath) ? fs.statSync(deviceInformationWasmPath).size : 0;
   return c.json({
     rust: {
       file: "rs.wasm",
@@ -7427,6 +7555,11 @@ app.get("/api/stats", (c) => {
       file: "url-parser.wasm",
       sizeBytes: urlParserSize,
       sizeFormatted: `${(urlParserSize / 1024).toFixed(2)} KB`,
+    },
+    deviceInformation: {
+      file: "device-information.wasm",
+      sizeBytes: deviceInformationSize,
+      sizeFormatted: `${(deviceInformationSize / 1024).toFixed(2)} KB`,
     },
   });
 });

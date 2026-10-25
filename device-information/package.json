@@ -1,0 +1,26 @@
+{
+  "name": "@wasm-forge/device-information",
+  "version": "0.1.0",
+  "description": "Pure Standalone WebAssembly User-Agent Parser, Device Classifier & Client Capability Profiler",
+  "type": "module",
+  "main": "pkg/device_information.wasm",
+  "files": [
+    "pkg/device_information.wasm",
+    "README.md"
+  ],
+  "scripts": {
+    "build:wasm": "cargo build --target wasm32-unknown-unknown --release",
+    "test": "cargo test"
+  },
+  "keywords": [
+    "wasm",
+    "webassembly",
+    "user-agent",
+    "device-detection",
+    "browser-detection",
+    "os-detection",
+    "client-hints"
+  ],
+  "author": "WasmForge",
+  "license": "MIT"
+}
