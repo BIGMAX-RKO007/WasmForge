@@ -2575,6 +2575,88 @@ Banana</textarea>
       </div>
     </div>
 
+    <!-- ================= 领域 3: 开发与代码工程 (Development) ================= -->
+    <div style="margin: 32px 0 16px 0; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.1);">
+      <h2 style="margin:0; font-size:18px; color:#38bdf8; display:flex; align-items:center; gap:8px;">
+        🛠️ 领域 3: 开发与代码工程 (Development Tools)
+      </h2>
+      <p style="margin:4px 0 0 0; font-size:12px; color:var(--text-muted);">
+        代码语法解析、SQL/XML/JSON 排版美化、正则表达式防 ReDoS 测试、Crontab 推算、Linux 权限位与配置映射等纯 WASM 高性能工具集。
+      </p>
+    </div>
+
+    <!-- ================= 卡片 3.1: SQL 语句排版美化与压缩 (SQL Prettify & Minifier) ================= -->
+    <div class="card" style="margin-bottom: 24px;">
+      <div class="card-header">
+        <div>
+          <h3>卡片 3.1: SQL 语句排版美化与压缩 (SQL Prettify & Minifier)</h3>
+          <p style="margin:0; font-size:12px; color:var(--text-muted);">
+            工业级 SQL 语法排版与关键词大写美化，支持多行缩进控制与极速注释剔除/单行瘦身压缩。
+          </p>
+        </div>
+        <span class="tag tag-rust">Tool #33: sql-prettify</span>
+      </div>
+
+      <div style="margin-top:16px;">
+        <form hx-post="/api/backend/sql/format" hx-target="#backend-sql-result" hx-swap="innerHTML">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <div style="display:flex; gap:16px; align-items:center;">
+              <label style="font-size:12px; font-weight:600; color:var(--text-muted);">输入待处理 SQL 语句:</label>
+              <div style="display:flex; gap:10px; font-size:12px;">
+                <label style="cursor:pointer; display:flex; align-items:center; gap:4px;">
+                  <input type="radio" name="mode" value="format" checked id="sql-mode-fmt" /> 排版美化 (Format)
+                </label>
+                <label style="cursor:pointer; display:flex; align-items:center; gap:4px;">
+                  <input type="radio" name="mode" value="minify" id="sql-mode-min" /> 压缩瘦身 (Minify)
+                </label>
+              </div>
+            </div>
+            <div style="display:flex; gap:8px;">
+              <button type="button" onclick="loadSqlSample()" style="padding:2px 8px; font-size:11px; background:rgba(56,189,248,0.15); color:#38bdf8; border:1px solid rgba(56,189,248,0.3); border-radius:4px; cursor:pointer;">
+                载入样例
+              </button>
+            </div>
+          </div>
+          <textarea id="sql-input" name="sql" rows="6" placeholder="输入 SQL 查询语句，例如: select u.id, u.name from users u where u.status = 'active';" style="width:100%; padding:10px 12px; background:#1e293b; border:1px solid rgba(255,255,255,0.1); color:#fff; border-radius:6px; font-family:var(--font-mono); font-size:13px; box-sizing:border-box;">SELECT u.id, u.name, count(o.id) as total_orders, sum(o.amount) as total_spent FROM users u LEFT JOIN orders o ON u.id = o.user_id WHERE u.status = 'active' AND u.created_at >= '2026-01-01' GROUP BY u.id, u.name HAVING count(o.id) > 5 ORDER BY total_spent DESC LIMIT 20;</textarea>
+
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px;">
+            <div style="display:flex; gap:16px; align-items:center; font-size:12px; color:var(--text-muted);">
+              <div style="display:flex; align-items:center; gap:4px;">
+                <span>缩进空格:</span>
+                <select id="sql-indent" name="indent" style="background:#1e293b; color:#fff; border:1px solid rgba(255,255,255,0.2); padding:3px 6px; border-radius:4px; font-size:12px;">
+                  <option value="2" selected>2 空格</option>
+                  <option value="4">4 空格</option>
+                </select>
+              </div>
+              <label style="cursor:pointer; display:flex; align-items:center; gap:4px;">
+                <input type="checkbox" id="sql-uppercase" name="uppercase" value="true" checked /> 关键词大写
+              </label>
+            </div>
+
+            <div style="display:flex; gap:10px;">
+              <button type="submit" style="padding:6px 12px; background:linear-gradient(135deg, #0284c7, #0369a1); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:12px;">
+                🖥️ 后端 SQL 排版
+              </button>
+              <button type="button" onclick="runFrontendSqlFormat()" style="padding:6px 12px; background:linear-gradient(135deg, #0ea5e9, #0284c7); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:12px;">
+                🌐 前端本地排版
+              </button>
+            </div>
+          </div>
+        </form>
+
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:16px; margin-top:16px;">
+          <div>
+            <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px;">后端投影输出:</div>
+            <div id="backend-sql-result" class="result-container"><div class="result-box" style="opacity:0.5; font-size:12px;">等待处理...</div></div>
+          </div>
+          <div>
+            <div style="font-size:11px; color:var(--text-muted); margin-top:0px; margin-bottom:4px;">前端投影输出:</div>
+            <div id="frontend-sql-result" class="result-container"><div class="result-box" style="opacity:0.5; font-size:12px;">等待处理...</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- ================= 区域 3: 4 象限综合矩阵基准测试 ================= -->
     <div class="matrix-card">
       <h2>📊 4 维度跨场景一致性与性能矩阵</h2>
@@ -2673,6 +2755,8 @@ Banana</textarea>
       listConverterReady: false,
       textToNato: null,
       textToNatoReady: false,
+      sqlPrettify: null,
+      sqlPrettifyReady: false,
       activeFrontendEngine: "rust",
       activeBackendEngine: "rust"
     };
@@ -2713,6 +2797,7 @@ Banana</textarea>
         const markdownToHtmlEngine = await loadWasmFromUrl("./wasm/markdown-to-html.wasm");
         const listConverterEngine = await loadWasmFromUrl("./wasm/list-converter.wasm");
         const textToNatoEngine = await loadWasmFromUrl("./wasm/text-to-nato.wasm");
+        const sqlPrettifyEngine = await loadWasmFromUrl("./wasm/sql-prettify.wasm");
 
         window.wasmContext.rust = rsEngine;
         window.wasmContext.ts = tsEngine;
@@ -2748,6 +2833,7 @@ Banana</textarea>
         window.wasmContext.markdownToHtml = markdownToHtmlEngine;
         window.wasmContext.listConverter = listConverterEngine;
         window.wasmContext.textToNato = textToNatoEngine;
+        window.wasmContext.sqlPrettify = sqlPrettifyEngine;
         window.wasmContext.rustReady = true;
         window.wasmContext.tsReady = true;
         window.wasmContext.tokenReady = true;
@@ -2782,9 +2868,10 @@ Banana</textarea>
         window.wasmContext.markdownToHtmlReady = true;
         window.wasmContext.listConverterReady = true;
         window.wasmContext.textToNatoReady = true;
+        window.wasmContext.sqlPrettifyReady = true;
 
         const statusEl = document.getElementById("frontend-status");
-        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载 34 大模块: rs, ts, token-gen, hash-text, bcrypt, uuid-gen, ulid-gen, encryption, bip39, hmac, rsa, password-strength, pdf-sig, yaml-to-json, yaml-to-toml, json-to-yaml, json-to-toml, toml-to-json, toml-to-yaml, xml-to-json, json-to-xml, json-to-csv, base64-string, base64-file, color-converter, case-converter, date-time-converter, integer-base-converter, roman-numeral-converter, text-to-binary, text-to-unicode, markdown-to-html, list-converter & text-to-nato [Domain 2 100% 达成!])`;
+        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载 35 大模块: rs, ts, token-gen, hash-text, bcrypt, uuid-gen, ulid-gen, encryption, bip39, hmac, rsa, password-strength, pdf-sig, yaml-to-json, yaml-to-toml, json-to-yaml, json-to-toml, toml-to-json, toml-to-yaml, xml-to-json, json-to-xml, json-to-csv, base64-string, base64-file, color-converter, case-converter, date-time-converter, integer-base-converter, roman-numeral-converter, text-to-binary, text-to-unicode, markdown-to-html, list-converter, text-to-nato & sql-prettify)`;
 
         // 初始自动运行一次前端计算
         window.runFrontendCalc();
@@ -5629,6 +5716,114 @@ Banana</textarea>
             <div style="background:rgba(255,255,255,0.03); padding:8px; border-radius:4px; border:1px solid rgba(255,255,255,0.06); font-family:var(--font-mono); font-size:13px; color:#34d399; word-break:break-all; line-height:1.5;">
               ${d.encoded}
             </div>
+          </div>
+        </div>
+      `;
+    };
+
+    // 载入 SQL 示例
+    window.loadSqlSample = async function() {
+      const input = document.getElementById("sql-input");
+      if (window.wasmContext.sqlPrettify) {
+        const resp = window.wasmContext.sqlPrettify.dispatch({
+          action: "sql/sample",
+          requestId: `sample-${Date.now()}`,
+          params: {}
+        });
+        if (resp.code === 0 && resp.data?.sampleSql) {
+          input.value = resp.data.sampleSql;
+          window.runFrontendSqlFormat();
+          return;
+        }
+      }
+      try {
+        const res = await fetch("/api/backend/sql/sample");
+        const data = await res.json();
+        input.value = data.sampleSql || "SELECT id, name FROM users;";
+        window.runFrontendSqlFormat();
+      } catch (e) {
+        console.error("加载 SQL 示例失败:", e);
+      }
+    };
+
+    // 前端执行 SQL 排版或压缩
+    window.runFrontendSqlFormat = function() {
+      const engine = window.wasmContext.sqlPrettify;
+      if (!engine) {
+        document.getElementById("frontend-sql-result").innerHTML = `
+          <div class="result-box error">sql-prettify.wasm 尚未加载完毕</div>
+        `;
+        return;
+      }
+
+      const isMinify = document.getElementById("sql-mode-min").checked;
+      const sql = (document.getElementById("sql-input").value || "").trim();
+      const indent = parseInt(document.getElementById("sql-indent").value, 10) || 2;
+      const uppercase = document.getElementById("sql-uppercase").checked;
+
+      if (!sql) {
+        document.getElementById("frontend-sql-result").innerHTML = `
+          <div class="result-box error"><strong>处理失败:</strong> SQL 语句不能为空</div>
+        `;
+        return;
+      }
+
+      const t0 = performance.now();
+      const action = isMinify ? "sql/minify" : "sql/format";
+      const params = isMinify ? { sql } : { sql, indent, uppercase };
+
+      const response = engine.dispatch({
+        action,
+        requestId: `req-front-${Date.now()}`,
+        params
+      });
+      const duration = (performance.now() - t0).toFixed(4);
+
+      if (response.code !== 0) {
+        document.getElementById("frontend-sql-result").innerHTML = `
+          <div class="result-box error"><strong>处理失败:</strong> ${response.msg}</div>
+        `;
+        return;
+      }
+
+      const d = response.data;
+      if (isMinify) {
+        document.getElementById("frontend-sql-result").innerHTML = `
+          <div class="result-box">
+            <div class="result-header">
+              <span class="tag tag-rust">🦀 Browser WASM: SQL 压缩瘦身成功</span>
+              <span class="badge-time">⚡ ${duration} ms (纯前端内存)</span>
+            </div>
+
+            <div style="font-size:11px; color:var(--text-muted); margin-bottom:6px;">
+              原体积: <strong>${d.stats.originalLength} 字符</strong> | 瘦身后: <strong style="color:#38bdf8;">${d.stats.minifiedLength} 字符</strong> | 压缩率: <strong style="color:#34d399;">${d.stats.compressionRatioPercent}%</strong>
+            </div>
+
+            <div>
+              <div style="font-size:10px; color:var(--text-muted); margin-bottom:2px;">压缩输出:</div>
+              <div style="background:rgba(255,255,255,0.03); padding:8px; border-radius:4px; border:1px solid rgba(255,255,255,0.06); font-family:var(--font-mono); font-size:12px; color:#38bdf8; word-break:break-all; max-height:140px; overflow-y:auto; white-space:pre-wrap;">
+                ${d.minified}
+              </div>
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      document.getElementById("frontend-sql-result").innerHTML = `
+        <div class="result-box">
+          <div class="result-header">
+            <span class="tag tag-rust">🦀 Browser WASM: SQL 关键词排版美化成功</span>
+            <span class="badge-time">⚡ ${duration} ms (纯前端内存)</span>
+          </div>
+
+          <div style="font-size:11px; color:var(--text-muted); margin-bottom:6px;">
+            原长: <strong>${d.stats.originalLength} 字符</strong> | 排版后: <strong style="color:#38bdf8;">${d.stats.formattedLength} 字符</strong> | 总行数: <strong style="color:#a78bfa;">${d.stats.lineCount} 行</strong>
+          </div>
+
+          <div>
+            <div style="font-size:10px; color:var(--text-muted); margin-bottom:2px;">格式化输出:</div>
+            <pre style="background:rgba(255,255,255,0.03); padding:8px 10px; border-radius:4px; border:1px solid rgba(255,255,255,0.06); font-family:var(--font-mono); font-size:12px; color:#34d399; margin:0; overflow-x:auto; line-height:1.4;"><code>${d.formatted}</code></pre>
           </div>
         </div>
       `;

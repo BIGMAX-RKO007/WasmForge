@@ -1,0 +1,21 @@
+{
+  "name": "@wasmforge/sql-prettify",
+  "version": "0.1.0",
+  "description": "Pure Standalone WebAssembly SQL Formatter, Prettifier and Minifier for WasmForge",
+  "main": "sql_prettify.wasm",
+  "scripts": {
+    "build": "cargo build --target wasm32-unknown-unknown --release",
+    "test": "cargo test"
+  },
+  "keywords": [
+    "wasm",
+    "webassembly",
+    "sql",
+    "formatter",
+    "prettifier",
+    "minify",
+    "wasmforge"
+  ],
+  "author": "WasmForge",
+  "license": "MIT"
+}
