@@ -1,0 +1,25 @@
+[package]
+name = "encryption"
+version = "1.0.0"
+edition = "2021"
+description = "Pure WebAssembly AES-GCM authenticated symmetric encryption and decryption engine conforming to WasmForge Envelope Protocol"
+authors = ["WasmForge Team"]
+license = "MIT"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+aes-gcm = { version = "0.10", default-features = false, features = ["alloc", "aes"] }
+sha2 = { version = "0.10", default-features = false }
+base64 = { version = "0.22", default-features = false, features = ["alloc"] }
+hex = { version = "0.4", default-features = false, features = ["alloc"] }
+serde = { version = "1.0", default-features = false, features = ["alloc", "derive"] }
+serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

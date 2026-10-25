@@ -1,0 +1,14 @@
+{
+  "name": "@wasmforge/encryption",
+  "version": "1.0.0",
+  "description": "Pure WebAssembly AES-GCM authenticated symmetric encryption and decryption engine conforming to WasmForge Envelope Protocol",
+  "main": "dist/encryption.wasm",
+  "scripts": {
+    "test": "cargo test",
+    "build": "cargo build --target wasm32-unknown-unknown --release",
+    "export": "copy target\\wasm32-unknown-unknown\\release\\encryption.wasm ..\\hono-htmx\\public\\wasm\\encryption.wasm"
+  },
+  "keywords": ["wasm", "webassembly", "encryption", "aes-gcm", "crypto", "aead"],
+  "author": "WasmForge Team",
+  "license": "MIT"
+}

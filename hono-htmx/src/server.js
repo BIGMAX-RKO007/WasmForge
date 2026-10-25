@@ -17,6 +17,7 @@ const hashWasmPath = path.resolve(__dirname, "../public/wasm/hash-text.wasm");
 const bcryptWasmPath = path.resolve(__dirname, "../public/wasm/bcrypt.wasm");
 const uuidWasmPath = path.resolve(__dirname, "../public/wasm/uuid-generator.wasm");
 const ulidWasmPath = path.resolve(__dirname, "../public/wasm/ulid-generator.wasm");
+const encryptionWasmPath = path.resolve(__dirname, "../public/wasm/encryption.wasm");
 
 let rsEngine = null;
 let tsEngine = null;
@@ -25,6 +26,7 @@ let hashEngine = null;
 let bcryptEngine = null;
 let uuidEngine = null;
 let ulidEngine = null;
+let encryptionEngine = null;
 
 async function initEngines() {
   try {
@@ -75,6 +77,13 @@ async function initEngines() {
       console.log("✅ [Backend Infra] 纯单一文件 ulid-generator.wasm 加载成功");
     } else {
       console.warn("⚠️ ulid-generator.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    if (fs.existsSync(encryptionWasmPath)) {
+      encryptionEngine = await loadWasmFromDisk(encryptionWasmPath);
+      console.log("✅ [Backend Infra] 纯单一文件 encryption.wasm 加载成功");
+    } else {
+      console.warn("⚠️ encryption.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
     }
   } catch (err) {
     console.error("❌ 后端 WASM 基础设施初始化失败:", err);
@@ -590,6 +599,138 @@ app.post("/api/backend/ulid/parse", async (c) => {
   }
 });
 
+// API: 后端 AES 加密 (由 HTMX 调用)
+app.post("/api/backend/aes/encrypt", async (c) => {
+  try {
+    if (!encryptionEngine) {
+      throw new Error("encryption.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    const body = await c.req.parseBody();
+    const text = (body.text || "").toString();
+    const secretKey = (body.secretKey || "").toString();
+    const keyBits = parseInt(body.keyBits || "256", 10);
+    const format = (body.format || "base64").toString();
+
+    const t0 = performance.now();
+    const response = encryptionEngine.dispatch({
+      action: "aes/encrypt",
+      requestId: `srv-${Date.now()}`,
+      params: {
+        text,
+        secretKey,
+        keyBits,
+        format,
+        seed: Math.floor(Math.random() * 0xFFFFFFFF)
+      }
+    });
+    const duration = (performance.now() - t0).toFixed(4);
+
+    if (response.code !== 0) {
+      throw new Error(response.msg);
+    }
+
+    const { ciphertext, nonce, algorithm } = response.data;
+
+    return c.html(`
+      <div class="result-box">
+        <div class="result-header">
+          <span class="tag tag-rust">🦀 Rust WASM: ${algorithm}</span>
+          <span class="badge-time">⚡ ${duration} ms (Hono 后端原生极速加密)</span>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:8px; margin:8px 0;">
+          <div>
+            <div style="font-size:12px; color:var(--text-muted); margin-bottom:4px;">密文 (Ciphertext + 128-bit Auth Tag):</div>
+            <div class="token-display-wrap" style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,0.3); padding:8px 12px; border-radius:6px;">
+              <div class="result-value" id="srv-aes-cipher" style="font-size:13px; color:#10b981; word-break:break-all; flex:1;">${ciphertext}</div>
+              <button type="button" class="btn-copy" style="margin-left:8px; padding:2px 8px; border-radius:4px; background:#1e293b; color:#fff; border:1px solid #10b981; cursor:pointer;" onclick="navigator.clipboard.writeText(document.getElementById('srv-aes-cipher').innerText); this.innerText='已复制!'; setTimeout(()=>this.innerText='复制', 1500)">复制</button>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:12px; color:var(--text-muted); margin-bottom:4px;">随机 Nonce / IV (96-bit 认证初始向量):</div>
+            <div class="token-display-wrap" style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,0.3); padding:6px 12px; border-radius:6px;">
+              <div class="result-value" id="srv-aes-nonce" style="font-size:13px; color:#38bdf8; word-break:break-all; flex:1;">${nonce}</div>
+              <button type="button" class="btn-copy" style="margin-left:8px; padding:2px 8px; border-radius:4px; background:#1e293b; color:#fff; border:1px solid #38bdf8; cursor:pointer;" onclick="navigator.clipboard.writeText(document.getElementById('srv-aes-nonce').innerText); this.innerText='已复制!'; setTimeout(()=>this.innerText='复制', 1500)">复制</button>
+            </div>
+          </div>
+        </div>
+        <div class="token-meta" style="display:flex; gap:16px; font-size:12px; color:var(--text-muted);">
+          <span>模式: <strong style="color:#fff;">Galois/Counter Mode (AEAD)</strong></span>
+          <span>密钥长度: <strong style="color:#34d399;">${keyBits} bits</strong></span>
+          <span>编码: <strong style="color:#38bdf8;">${format.toUpperCase()}</strong></span>
+        </div>
+      </div>
+    `);
+  } catch (err) {
+    return c.html(`
+      <div class="result-box error">
+        <strong>加密失败:</strong> ${err.message}
+      </div>
+    `, 400);
+  }
+});
+
+// API: 后端 AES 解密 (由 HTMX 调用)
+app.post("/api/backend/aes/decrypt", async (c) => {
+  try {
+    if (!encryptionEngine) {
+      throw new Error("encryption.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    const body = await c.req.parseBody();
+    const ciphertext = (body.ciphertext || "").toString().trim();
+    const secretKey = (body.secretKey || "").toString();
+    const nonce = (body.nonce || "").toString().trim();
+    const keyBits = parseInt(body.keyBits || "256", 10);
+    const format = (body.format || "base64").toString();
+
+    const t0 = performance.now();
+    const response = encryptionEngine.dispatch({
+      action: "aes/decrypt",
+      requestId: `srv-${Date.now()}`,
+      params: {
+        ciphertext,
+        secretKey,
+        nonce,
+        keyBits,
+        format
+      }
+    });
+    const duration = (performance.now() - t0).toFixed(4);
+
+    if (response.code !== 0) {
+      throw new Error(response.msg);
+    }
+
+    const { plaintext, verified, algorithm } = response.data;
+
+    return c.html(`
+      <div class="result-box" style="border-color:#10b981;">
+        <div class="result-header">
+          <span class="tag tag-rust">🦀 Rust WASM: ${algorithm} 解密校验通过</span>
+          <span class="badge-time">⚡ ${duration} ms (恒定时间认证)</span>
+        </div>
+        <div style="margin:8px 0;">
+          <div style="font-size:12px; color:var(--text-muted); margin-bottom:4px;">解密明文 (Plaintext Payload):</div>
+          <div class="token-display-wrap" style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,0.3); padding:8px 12px; border-radius:6px;">
+            <div class="result-value" id="srv-aes-plain" style="font-size:14px; color:#34d399; font-weight:bold; word-break:break-all; flex:1;">${plaintext}</div>
+            <button type="button" class="btn-copy" style="margin-left:8px; padding:2px 8px; border-radius:4px; background:#1e293b; color:#fff; border:1px solid #34d399; cursor:pointer;" onclick="navigator.clipboard.writeText(document.getElementById('srv-aes-plain').innerText); this.innerText='已复制!'; setTimeout(()=>this.innerText='复制', 1500)">复制</button>
+          </div>
+        </div>
+        <div class="token-meta" style="display:flex; gap:16px; font-size:12px; color:var(--text-muted);">
+          <span>🔒 认证标签验证: <strong style="color:#34d399;">✅ 完整且未被篡改</strong></span>
+        </div>
+      </div>
+    `);
+  } catch (err) {
+    return c.html(`
+      <div class="result-box error">
+        <strong>解密失败:</strong> ${err.message}
+      </div>
+    `, 400);
+  }
+});
+
 // API: 模块统计信息
 app.get("/api/stats", (c) => {
   const rsSize = fs.existsSync(rsWasmPath) ? fs.statSync(rsWasmPath).size : 0;
@@ -599,6 +740,7 @@ app.get("/api/stats", (c) => {
   const bcryptSize = fs.existsSync(bcryptWasmPath) ? fs.statSync(bcryptWasmPath).size : 0;
   const uuidSize = fs.existsSync(uuidWasmPath) ? fs.statSync(uuidWasmPath).size : 0;
   const ulidSize = fs.existsSync(ulidWasmPath) ? fs.statSync(ulidWasmPath).size : 0;
+  const encryptionSize = fs.existsSync(encryptionWasmPath) ? fs.statSync(encryptionWasmPath).size : 0;
   return c.json({
     rust: {
       file: "rs.wasm",
@@ -634,6 +776,11 @@ app.get("/api/stats", (c) => {
       file: "ulid-generator.wasm",
       sizeBytes: ulidSize,
       sizeFormatted: `${(ulidSize / 1024).toFixed(2)} KB`,
+    },
+    encryption: {
+      file: "encryption.wasm",
+      sizeBytes: encryptionSize,
+      sizeFormatted: `${(encryptionSize / 1024).toFixed(2)} KB`,
     },
   });
 });
