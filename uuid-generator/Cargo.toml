@@ -1,0 +1,20 @@
+[package]
+name = "uuid-generator"
+version = "0.1.0"
+edition = "2021"
+description = "High-performance UUID v4 / v7 Generator and Validator WASM Module for WasmForge"
+
+[lib]
+name = "uuid_generator"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+serde = { version = "1.0", default-features = false, features = ["alloc", "derive"] }
+serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
+uuid = { version = "1.8", default-features = false, features = ["serde"] }
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"

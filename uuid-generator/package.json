@@ -1,0 +1,15 @@
+{
+  "name": "uuid-generator",
+  "version": "1.0.0",
+  "description": "High-performance UUID v4 / v7 Generator and Validator WASM Module for WasmForge",
+  "type": "module",
+  "scripts": {
+    "build:wasm": "cargo build --target wasm32-unknown-unknown --release",
+    "export": "powershell -Command \"Copy-Item target/wasm32-unknown-unknown/release/uuid_generator.wasm ../hono-htmx/public/wasm/uuid-generator.wasm\"",
+    "deploy": "npm run build:wasm ; npm run export",
+    "test": "cargo test"
+  },
+  "keywords": ["wasm", "rust", "uuid", "uuid-v4", "uuid-v7"],
+  "author": "",
+  "license": "MIT"
+}

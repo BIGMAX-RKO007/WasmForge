@@ -631,6 +631,73 @@
       </div>
     </div>
 
+    <!-- ================= 核心工具 1.4: UUID Generator (UUID v4 / v7 发生器) ================= -->
+    <div class="card" style="margin-bottom: 32px; border: 1px solid rgba(56, 189, 248, 0.3); background: rgba(15, 23, 42, 0.85);">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px;">
+        <div>
+          <h2 style="margin:0 0 4px; display:flex; align-items:center; gap:10px;">
+            <span>🆔 1.4 UUID 生成与解析器 (v4 随机 / v7 毫秒单调)</span>
+            <span class="tag tag-rust">uuid-generator.wasm (~188 KB)</span>
+          </h2>
+          <p style="color:var(--text-muted); font-size:13px; margin:0;">
+            完整实现 RFC 4122 (v4 强随机) 与最新的 RFC 9562 (v7 时间戳单调递增，现代分布式存储首选)。
+          </p>
+        </div>
+        <div style="font-size:12px; font-family:var(--font-mono); color:#38bdf8; background:rgba(56, 189, 248, 0.1); padding:4px 10px; border-radius:6px; border:1px solid rgba(56, 189, 248, 0.2);">
+          C-ABI: alloc / dealloc / dispatch
+        </div>
+      </div>
+
+      <form id="uuid-form" hx-post="/api/backend/uuid/generate" hx-target="#backend-uuid-result" hx-swap="innerHTML" style="margin-top:20px;">
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:16px;">
+          <div>
+            <label style="display:block; font-size:13px; margin-bottom:6px; color:var(--text-muted);">版本规范 (Version):</label>
+            <select id="uuid-version" name="version" style="width:100%; padding:8px 12px; background:#1e293b; border:1px solid rgba(255,255,255,0.1); color:#fff; border-radius:6px;">
+              <option value="v4" selected>UUID v4 (RFC 4122 强随机)</option>
+              <option value="v7">UUID v7 (RFC 9562 时间戳单调增)</option>
+            </select>
+          </div>
+          <div>
+            <label style="display:block; font-size:13px; margin-bottom:6px; color:var(--text-muted);">生成数量 (Count):</label>
+            <input type="number" id="uuid-count" name="count" min="1" max="50" value="3" style="width:100%; padding:8px 12px; background:#1e293b; border:1px solid rgba(255,255,255,0.1); color:#fff; border-radius:6px; box-sizing:border-box;">
+          </div>
+          <div style="display:flex; align-items:center; gap:16px; margin-top:24px;">
+            <label style="display:flex; align-items:center; gap:6px; font-size:13px; cursor:pointer;">
+              <input type="checkbox" id="uuid-hyphens" name="hyphens" checked> 带连字符 (-)
+            </label>
+            <label style="display:flex; align-items:center; gap:6px; font-size:13px; cursor:pointer;">
+              <input type="checkbox" id="uuid-uppercase" name="uppercase"> 全部大写
+            </label>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:12px; margin-top:16px; flex-wrap:wrap;">
+          <button type="submit" style="padding:8px 16px; background:linear-gradient(135deg, #f97316, #ea580c); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600; display:flex; align-items:center; gap:6px;">
+            <span>🖥️ HTMX 提交后端生成</span>
+            <span class="htmx-indicator">⏳</span>
+          </button>
+          <button type="button" onclick="runFrontendUuidGen()" style="padding:8px 16px; background:linear-gradient(135deg, #0284c7, #0369a1); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600;">
+            🌐 浏览器前端本地直算
+          </button>
+        </div>
+      </form>
+
+      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:16px; margin-top:16px;">
+        <div>
+          <div style="font-size:12px; color:var(--text-muted); margin-bottom:4px;">后端生成结果 (Hono HTMX):</div>
+          <div id="backend-uuid-result" class="result-container">
+            <div class="result-box" style="opacity:0.5;">点击上方橙色按钮生成</div>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:12px; color:var(--text-muted); margin-bottom:4px;">前端生成结果 (Browser WASM):</div>
+          <div id="frontend-uuid-result" class="result-container">
+            <div class="result-box" style="opacity:0.5;">点击上方蓝色按钮生成</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- ================= 区域 3: 4 象限综合矩阵基准测试 ================= -->
     <div class="matrix-card">
       <h2>📊 4 维度跨场景一致性与性能矩阵</h2>
@@ -666,11 +733,13 @@
       tokenReady: false,
       hashReady: false,
       bcryptReady: false,
+      uuidReady: false,
       rust: null,
       ts: null,
       tokenGenerator: null,
       hashText: null,
       bcrypt: null,
+      uuidGenerator: null,
       activeFrontendEngine: "rust",
       activeBackendEngine: "rust"
     };
@@ -682,27 +751,31 @@
         const tokenEngine = await loadWasmFromUrl("./wasm/token-generator.wasm");
         const hashEngine = await loadWasmFromUrl("./wasm/hash-text.wasm");
         const bcryptEngine = await loadWasmFromUrl("./wasm/bcrypt.wasm");
+        const uuidEngine = await loadWasmFromUrl("./wasm/uuid-generator.wasm");
 
         window.wasmContext.rust = rsEngine;
         window.wasmContext.ts = tsEngine;
         window.wasmContext.tokenGenerator = tokenEngine;
         window.wasmContext.hashText = hashEngine;
         window.wasmContext.bcrypt = bcryptEngine;
+        window.wasmContext.uuidGenerator = uuidEngine;
         window.wasmContext.rustReady = true;
         window.wasmContext.tsReady = true;
         window.wasmContext.tokenReady = true;
         window.wasmContext.hashReady = true;
         window.wasmContext.bcryptReady = true;
+        window.wasmContext.uuidReady = true;
 
         const statusEl = document.getElementById("frontend-status");
-        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载 rs, ts, token-gen, hash-text & bcrypt)`;
+        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载 rs, ts, token-gen, hash-text, bcrypt & uuid-gen)`;
 
-        // 初始自动运行一次前端计算、Token、Hash、Bcrypt
+        // 初始自动运行一次前端计算、Token、Hash、Bcrypt、UUID
         window.runFrontendCalc();
         window.runFrontendGreet();
         window.runFrontendTokenGen();
         window.runFrontendHashAll();
         window.runFrontendBcryptHash();
+        window.runFrontendUuidGen();
       } catch (err) {
         console.error("加载浏览器端 WASM 失败:", err);
         const statusEl = document.getElementById("frontend-status");
@@ -1016,6 +1089,65 @@
           <div style="font-size:15px; font-weight:bold; color:${badgeColor}; margin-top:4px;">
             ${statusText}
           </div>
+        </div>
+      `;
+    };
+
+    // 前端 UUID 生成器 (uuid/generate)
+    window.runFrontendUuidGen = function() {
+      const engine = window.wasmContext.uuidGenerator;
+      if (!engine) {
+        document.getElementById("frontend-uuid-result").innerHTML = `
+          <div class="result-box error">uuid-generator.wasm 尚未加载完毕</div>
+        `;
+        return;
+      }
+
+      const version = document.getElementById("uuid-version").value || "v4";
+      const count = parseInt(document.getElementById("uuid-count").value) || 1;
+      const hyphens = document.getElementById("uuid-hyphens").checked;
+      const uppercase = document.getElementById("uuid-uppercase").checked;
+
+      const t0 = performance.now();
+      const response = engine.dispatch({
+        action: "uuid/generate",
+        requestId: `req-front-${Date.now()}`,
+        params: {
+          version,
+          count,
+          hyphens,
+          uppercase,
+          timestampMs: Date.now(),
+          seed: Math.floor(Math.random() * 0xFFFFFFFF)
+        }
+      });
+      const duration = (performance.now() - t0).toFixed(4);
+
+      if (response.code !== 0) {
+        document.getElementById("frontend-uuid-result").innerHTML = `
+          <div class="result-box error"><strong>生成失败:</strong> ${response.msg}</div>
+        `;
+        return;
+      }
+
+      const { uuids } = response.data;
+      const listHtml = uuids.map((id, idx) => `
+        <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,0.3); padding:6px 12px; border-radius:6px; margin-bottom:6px; font-family:var(--font-mono); font-size:13px;">
+          <span style="color:#38bdf8; word-break:break-all;">${id}</span>
+          <button type="button" class="btn-copy" style="margin-left:8px; padding:2px 8px; border-radius:4px; background:#1e293b; color:#fff; border:1px solid #38bdf8; cursor:pointer;" onclick="navigator.clipboard.writeText('${id}'); this.innerText='已复制!'; setTimeout(()=>this.innerText='复制', 1500)">复制</button>
+        </div>
+      `).join("");
+
+      document.getElementById("frontend-uuid-result").innerHTML = `
+        <div class="result-box">
+          <div class="result-header">
+            <span class="tag tag-rust">🦀 Browser WASM: uuid-generator</span>
+            <span class="badge-time">⚡ ${duration} ms (纯前端微秒级直接运算)</span>
+          </div>
+          <div style="font-size:12px; color:var(--text-muted); margin-bottom:8px;">
+            规范: <strong style="color:#fff;">RFC ${version === "v7" ? "9562 (v7)" : "4122 (v4)"}</strong> | 数量: <strong style="color:#fff;">${count}</strong>
+          </div>
+          <div>${listHtml}</div>
         </div>
       `;
     };

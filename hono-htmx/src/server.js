@@ -15,12 +15,14 @@ const tsWasmPath = path.resolve(__dirname, "../public/wasm/ts.wasm");
 const tokenWasmPath = path.resolve(__dirname, "../public/wasm/token-generator.wasm");
 const hashWasmPath = path.resolve(__dirname, "../public/wasm/hash-text.wasm");
 const bcryptWasmPath = path.resolve(__dirname, "../public/wasm/bcrypt.wasm");
+const uuidWasmPath = path.resolve(__dirname, "../public/wasm/uuid-generator.wasm");
 
 let rsEngine = null;
 let tsEngine = null;
 let tokenEngine = null;
 let hashEngine = null;
 let bcryptEngine = null;
+let uuidEngine = null;
 
 async function initEngines() {
   try {
@@ -57,6 +59,13 @@ async function initEngines() {
       console.log("✅ [Backend Infra] 纯单一文件 bcrypt.wasm 加载成功");
     } else {
       console.warn("⚠️ bcrypt.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    if (fs.existsSync(uuidWasmPath)) {
+      uuidEngine = await loadWasmFromDisk(uuidWasmPath);
+      console.log("✅ [Backend Infra] 纯单一文件 uuid-generator.wasm 加载成功");
+    } else {
+      console.warn("⚠️ uuid-generator.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
     }
   } catch (err) {
     console.error("❌ 后端 WASM 基础设施初始化失败:", err);
@@ -404,6 +413,68 @@ app.post("/api/backend/bcrypt/verify", async (c) => {
   }
 });
 
+// API: 后端生成 UUID (支持 v4 与 v7)
+app.post("/api/backend/uuid/generate", async (c) => {
+  try {
+    if (!uuidEngine) {
+      throw new Error("uuid-generator.wasm 模块尚未就绪，请先完成编译");
+    }
+
+    const body = await c.req.parseBody();
+    const version = (body.version || "v4").toString();
+    const count = parseInt(body.count || "1", 10);
+    const uppercase = body.uppercase === "on" || body.uppercase === "true" || body.uppercase === true;
+    const hyphens = body.hyphens !== "off" && body.hyphens !== "false" && body.hyphens !== false;
+
+    const t0 = performance.now();
+    const response = uuidEngine.dispatch({
+      action: version === "v7" ? "uuid/v7" : "uuid/v4",
+      requestId: `req-${Date.now()}`,
+      params: {
+        count,
+        uppercase,
+        hyphens,
+        timestampMs: Date.now(),
+      },
+    });
+    const duration = (performance.now() - t0).toFixed(4);
+
+    if (response.code !== 0) {
+      throw new Error(response.msg || "UUID 生成失败");
+    }
+
+    const { uuids } = response.data;
+
+    return c.html(`
+      <div class="result-box">
+        <div class="result-header">
+          <span class="tag tag-rust">🦀 Rust WASM: uuid-${version} (${count} 个)</span>
+          <span class="badge-time">⚡ ${duration} ms (Hono 后端原生极速生成)</span>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:6px; margin:8px 0;">
+          ${uuids.map((id, idx) => `
+            <div class="token-display-wrap" style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,0.3); padding:8px 12px; border-radius:6px;">
+              <div class="result-value" id="srv-uuid-${idx}" style="font-size:14px; color:#38bdf8; word-break:break-all; flex:1;">${id}</div>
+              <button type="button" class="btn-copy" style="margin-left:8px; padding:2px 8px; border-radius:4px; background:#1e293b; color:#fff; border:1px solid #38bdf8; cursor:pointer;" onclick="navigator.clipboard.writeText(document.getElementById('srv-uuid-${idx}').innerText); this.innerText='已复制!'; setTimeout(()=>this.innerText='复制', 1500)">复制</button>
+            </div>
+          `).join("")}
+        </div>
+        <div class="token-meta" style="display:flex; gap:16px; font-size:12px; color:var(--text-muted);">
+          <span>规格: <strong style="color:#fff;">${version.toUpperCase()} (RFC ${version === "v7" ? "9562 时间单调" : "4122 强随机"})</strong></span>
+          <span>连字符: <strong style="color:#34d399;">${hyphens ? "是" : "否"}</strong></span>
+          <span>大写字母: <strong style="color:#34d399;">${uppercase ? "是" : "否"}</strong></span>
+        </div>
+      </div>
+    `);
+  } catch (err) {
+    return c.html(`
+      <div class="result-box error">
+        <strong>生成失败:</strong> ${err.message}
+      </div>
+    `, 400);
+  }
+});
+
 // API: 模块统计信息
 app.get("/api/stats", (c) => {
   const rsSize = fs.existsSync(rsWasmPath) ? fs.statSync(rsWasmPath).size : 0;
@@ -411,6 +482,7 @@ app.get("/api/stats", (c) => {
   const tokenSize = fs.existsSync(tokenWasmPath) ? fs.statSync(tokenWasmPath).size : 0;
   const hashSize = fs.existsSync(hashWasmPath) ? fs.statSync(hashWasmPath).size : 0;
   const bcryptSize = fs.existsSync(bcryptWasmPath) ? fs.statSync(bcryptWasmPath).size : 0;
+  const uuidSize = fs.existsSync(uuidWasmPath) ? fs.statSync(uuidWasmPath).size : 0;
   return c.json({
     rust: {
       file: "rs.wasm",
@@ -436,6 +508,11 @@ app.get("/api/stats", (c) => {
       file: "bcrypt.wasm",
       sizeBytes: bcryptSize,
       sizeFormatted: `${(bcryptSize / 1024).toFixed(2)} KB`,
+    },
+    uuidGenerator: {
+      file: "uuid-generator.wasm",
+      sizeBytes: uuidSize,
+      sizeFormatted: `${(uuidSize / 1024).toFixed(2)} KB`,
     },
   });
 });
