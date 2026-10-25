@@ -69,6 +69,7 @@ const otpGeneratorWasmPath = path.resolve(__dirname, "../public/wasm/otp-generat
 const urlEncoderDecoderWasmPath = path.resolve(__dirname, "../public/wasm/url-encoder-decoder.wasm");
 const urlParserWasmPath = path.resolve(__dirname, "../public/wasm/url-parser.wasm");
 const deviceInformationWasmPath = path.resolve(__dirname, "../public/wasm/device-information.wasm");
+const jsonDiffWasmPath = path.resolve(__dirname, "../public/wasm/json-diff.wasm");
 
 let rsEngine = null;
 let tsEngine = null;
@@ -129,6 +130,7 @@ let otpGeneratorEngine = null;
 let urlEncoderDecoderEngine = null;
 let urlParserEngine = null;
 let deviceInformationEngine = null;
+let jsonDiffEngine = null;
 
 async function initEngines() {
   try {
@@ -543,6 +545,13 @@ async function initEngines() {
       console.log("✅ [Backend Infra] 纯单一文件 device-information.wasm 加载成功");
     } else {
       console.warn("⚠️ device-information.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    if (fs.existsSync(jsonDiffWasmPath)) {
+      jsonDiffEngine = await loadWasmFromDisk(jsonDiffWasmPath);
+      console.log("✅ [Backend Infra] 纯单一文件 json-diff.wasm 加载成功");
+    } else {
+      console.warn("⚠️ json-diff.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
     }
   } catch (err) {
     console.error("❌ 后端 WASM 基础设施初始化失败:", err);
@@ -7084,6 +7093,140 @@ app.get("/api/backend/device/presets", async (c) => {
   }
 });
 
+// API: 结构化 JSON 深度对比与 RFC 6902 补丁生成 (JSON Diff)
+app.post("/api/backend/json/diff", async (c) => {
+  try {
+    const contentType = c.req.header("Content-Type") || "";
+    let left = "";
+    let right = "";
+
+    if (contentType.includes("application/json")) {
+      const json = await c.req.json().catch(() => ({}));
+      left = (json.left || "").toString();
+      right = (json.right || "").toString();
+    } else {
+      const body = await c.req.parseBody().catch(() => ({}));
+      left = (body.left || "").toString();
+      right = (body.right || "").toString();
+    }
+
+    if (!jsonDiffEngine) {
+      throw new Error("json-diff WASM 引擎未就绪");
+    }
+
+    const t0 = performance.now();
+    const response = jsonDiffEngine.dispatch({
+      action: "json/diff",
+      requestId: `srv-${Date.now()}`,
+      params: {
+        left,
+        right
+      }
+    });
+    const duration = (performance.now() - t0).toFixed(4);
+
+    if (contentType.includes("application/json") && !c.req.header("HX-Request")) {
+      return c.json(response);
+    }
+
+    if (response.code !== 0) {
+      return c.html(`
+        <div class="result-box error">
+          <strong>JSON 比对失败:</strong> ${escapeHtml(response.msg)}
+        </div>
+      `, 400);
+    }
+
+    const d = response.data;
+    const diffRows = d.entries.map(e => {
+      let badge = "color:#34d399; background:rgba(52,211,153,0.1); border:1px solid rgba(52,211,153,0.3);";
+      let text = "ADD";
+      if (e.kind === "removed") {
+        badge = "color:#ef4444; background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.3);";
+        text = "DEL";
+      } else if (e.kind === "modified") {
+        badge = "color:#f59e0b; background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.3);";
+        text = "MOD";
+      } else if (e.kind === "type_changed") {
+        badge = "color:#c084fc; background:rgba(192,132,252,0.1); border:1px solid rgba(192,132,252,0.3);";
+        text = "TYPE";
+      }
+
+      return `
+        <tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
+          <td style="padding:6px 10px;"><span style="font-size:10px; font-weight:700; padding:2px 6px; border-radius:4px; ${badge}">${text}</span></td>
+          <td style="padding:6px 10px; font-family:var(--font-mono); color:#38bdf8; font-size:11px;">${escapeHtml(e.path)}</td>
+          <td style="padding:6px 10px; font-family:var(--font-mono); font-size:11px; color:#94a3b8;">${e.oldValue !== undefined && e.oldValue !== null ? escapeHtml(JSON.stringify(e.oldValue)) : '-'}</td>
+          <td style="padding:6px 10px; font-family:var(--font-mono); font-size:11px; color:#f8fafc;">${e.newValue !== undefined && e.newValue !== null ? escapeHtml(JSON.stringify(e.newValue)) : '-'}</td>
+        </tr>
+      `;
+    }).join("");
+
+    return c.html(`
+      <div class="result-box">
+        <div class="result-header">
+          <span class="tag tag-rust">🦀 Rust WASM: JSON 结构比对 (${d.summary.equal ? '完全一致' : `发现 ${d.summary.totalChanges} 处变更`})</span>
+          <span class="badge-time">⚡ ${duration} ms (Hono 后端原生)</span>
+        </div>
+
+        <div style="display:flex; flex-wrap:wrap; gap:12px; margin-bottom:12px; font-size:12px;">
+          <span style="background:rgba(255,255,255,0.06); padding:4px 8px; border-radius:4px; border:1px solid rgba(255,255,255,0.1);">差异总数: <strong>${d.summary.totalChanges}</strong></span>
+          <span style="background:rgba(52,211,153,0.1); color:#34d399; padding:4px 8px; border-radius:4px; border:1px solid rgba(52,211,153,0.3);">新增 (+): <strong>${d.summary.additions}</strong></span>
+          <span style="background:rgba(239,68,68,0.1); color:#ef4444; padding:4px 8px; border-radius:4px; border:1px solid rgba(239,68,68,0.3);">移除 (-): <strong>${d.summary.removals}</strong></span>
+          <span style="background:rgba(245,158,11,0.1); color:#f59e0b; padding:4px 8px; border-radius:4px; border:1px solid rgba(245,158,11,0.3);">修改 (~): <strong>${d.summary.modifications}</strong></span>
+        </div>
+
+        ${d.entries.length > 0 ? `
+          <div style="margin-top:10px;">
+            <div style="font-size:11px; color:var(--text-muted); font-weight:600; margin-bottom:4px;">差异详情审计列表:</div>
+            <table style="width:100%; border-collapse:collapse; font-size:11px; text-align:left;">
+              <thead>
+                <tr style="color:var(--text-muted); border-bottom:1px solid rgba(255,255,255,0.1);">
+                  <th style="padding:4px 10px; width:10%;">类型</th>
+                  <th style="padding:4px 10px; width:30%;">JSON Pointer 路径</th>
+                  <th style="padding:4px 10px; width:30%;">原值 (Old)</th>
+                  <th style="padding:4px 10px; width:30%;">新值 (New)</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${diffRows}
+              </tbody>
+            </table>
+          </div>
+
+          <div style="margin-top:12px;">
+            <div style="font-size:11px; color:var(--text-muted); font-weight:600; margin-bottom:4px;">RFC 6902 JSON Patch 操作集 (${d.patches.length} ops):</div>
+            <pre style="padding:10px; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1); border-radius:6px; font-family:var(--font-mono); font-size:11px; color:#38bdf8; overflow-x:auto;">${escapeHtml(JSON.stringify(d.patches, null, 2))}</pre>
+          </div>
+        ` : '<div style="font-size:12px; color:#34d399; margin:8px 0;">🎉 两个 JSON 对象结构与数值完全一致，无任何变更！</div>'}
+      </div>
+    `);
+  } catch (err) {
+    return c.html(`
+      <div class="result-box error">
+        <strong>执行失败:</strong> ${escapeHtml(err.message)}
+      </div>
+    `, 500);
+  }
+});
+
+// API: 获取 JSON Diff 预设
+app.get("/api/backend/json/diff/presets", async (c) => {
+  try {
+    if (!jsonDiffEngine) {
+      throw new Error("json-diff WASM 引擎未就绪");
+    }
+    const response = jsonDiffEngine.dispatch({
+      action: "json/presets",
+      requestId: `srv-${Date.now()}`,
+      params: {}
+    });
+    return c.json(response);
+  } catch (err) {
+    return c.json({ code: 500, msg: err.message, data: null }, 500);
+  }
+});
+
 // API: 获取 Markdown 示例
 app.get("/api/backend/markdown/sample", async (c) => {
   try {
@@ -7265,6 +7408,7 @@ app.get("/api/stats", (c) => {
   const urlEncoderDecoderSize = fs.existsSync(urlEncoderDecoderWasmPath) ? fs.statSync(urlEncoderDecoderWasmPath).size : 0;
   const urlParserSize = fs.existsSync(urlParserWasmPath) ? fs.statSync(urlParserWasmPath).size : 0;
   const deviceInformationSize = fs.existsSync(deviceInformationWasmPath) ? fs.statSync(deviceInformationWasmPath).size : 0;
+  const jsonDiffSize = fs.existsSync(jsonDiffWasmPath) ? fs.statSync(jsonDiffWasmPath).size : 0;
   return c.json({
     rust: {
       file: "rs.wasm",
@@ -7560,6 +7704,11 @@ app.get("/api/stats", (c) => {
       file: "device-information.wasm",
       sizeBytes: deviceInformationSize,
       sizeFormatted: `${(deviceInformationSize / 1024).toFixed(2)} KB`,
+    },
+    jsonDiff: {
+      file: "json-diff.wasm",
+      sizeBytes: jsonDiffSize,
+      sizeFormatted: `${(jsonDiffSize / 1024).toFixed(2)} KB`,
     },
   });
 });

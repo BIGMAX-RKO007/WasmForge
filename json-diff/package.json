@@ -1,0 +1,26 @@
+{
+  "name": "@wasm-forge/json-diff",
+  "version": "0.1.0",
+  "description": "Pure Standalone WebAssembly Deep Structural JSON Diff & RFC 6902 JSON Patch Engine",
+  "type": "module",
+  "main": "pkg/json_diff.wasm",
+  "files": [
+    "pkg/json_diff.wasm",
+    "README.md"
+  ],
+  "scripts": {
+    "build:wasm": "cargo build --target wasm32-unknown-unknown --release",
+    "test": "cargo test"
+  },
+  "keywords": [
+    "wasm",
+    "webassembly",
+    "json",
+    "diff",
+    "json-diff",
+    "rfc6902",
+    "patch"
+  ],
+  "author": "WasmForge",
+  "license": "MIT"
+}

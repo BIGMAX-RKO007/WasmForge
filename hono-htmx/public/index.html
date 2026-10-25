@@ -4296,6 +4296,87 @@ spec:
           </div>
         </div>
       </div>
+
+      <!-- Card 5.6: 结构化 JSON 深度对比与 RFC 6902 补丁生成 (JSON Diff) -->
+      <div class="card" id="card-json-diff">
+        <div class="card-header">
+          <div>
+            <div class="card-title">⚖️ 结构化 JSON 深度对比与 RFC 6902 补丁生成 (JSON Diff)</div>
+            <div class="card-desc">纯单一文件 Rust WASM 驱动的嵌套结构递归差量分析、键值变更/增删/类型漂移审计与标准 JSON Patch 操作集合成引擎</div>
+          </div>
+          <span class="tag tag-rust">Tool #58: json-diff</span>
+        </div>
+
+        <form id="form-json-diff" hx-post="/api/backend/json/diff" hx-target="#backend-json-diff-result" hx-swap="innerHTML">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+            <span style="font-size:12px; color:var(--text-muted); font-weight:600;">双侧 JSON 文本对比:</span>
+
+            <div style="display:flex; gap:6px; font-size:11px;">
+              <span style="color:var(--text-muted); padding:3px 0;">示例预设:</span>
+              <button type="button" onclick="loadJsonDiffPreset('config-drift')" style="background:rgba(255,255,255,0.06); color:#38bdf8; border:1px solid rgba(56,189,248,0.3); border-radius:4px; padding:3px 8px; cursor:pointer;">⚙️ 配置漂移</button>
+              <button type="button" onclick="loadJsonDiffPreset('user-profile')" style="background:rgba(255,255,255,0.06); color:#34d399; border:1px solid rgba(52,211,153,0.3); border-radius:4px; padding:3px 8px; cursor:pointer;">👤 用户画像</button>
+            </div>
+          </div>
+
+          <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:12px; margin-bottom:12px;">
+            <div>
+              <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px;">左侧基准 (Original / Baseline):</div>
+              <textarea name="left" id="json-diff-left" rows="7" style="width:100%; box-sizing:border-box; background:#0f172a; color:#f8fafc; border:1px solid rgba(255,255,255,0.15); border-radius:6px; padding:8px 12px; font-size:11px; font-family:var(--font-mono);" oninput="runFrontendJsonDiff()">{
+  "service": "order-api",
+  "version": "1.2.0",
+  "database": {
+    "host": "db.prod.internal",
+    "port": 5432,
+    "poolSize": 20
+  },
+  "features": {
+    "betaPricing": true,
+    "legacyAuth": true
+  },
+  "endpoints": ["/api/v1/orders", "/api/v1/checkout"]
+}</textarea>
+            </div>
+            <div>
+              <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px;">右侧最新 (Modified / Current):</div>
+              <textarea name="right" id="json-diff-right" rows="7" style="width:100%; box-sizing:border-box; background:#0f172a; color:#f8fafc; border:1px solid rgba(255,255,255,0.15); border-radius:6px; padding:8px 12px; font-size:11px; font-family:var(--font-mono);" oninput="runFrontendJsonDiff()">{
+  "service": "order-api",
+  "version": "1.3.0",
+  "database": {
+    "host": "db-cluster.prod.internal",
+    "port": 5432,
+    "poolSize": 50,
+    "ssl": true
+  },
+  "features": {
+    "betaPricing": false,
+    "fastCheckout": true
+  },
+  "endpoints": ["/api/v1/orders", "/api/v1/checkout", "/api/v2/orders"]
+}</textarea>
+            </div>
+          </div>
+
+          <div style="display:flex; gap:8px;">
+            <button type="submit" style="padding:8px 16px; background:linear-gradient(135deg, #3b82f6, #1d4ed8); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:12px;">
+              🖥️ 后端深度对比 (HTMX)
+            </button>
+            <button type="button" onclick="runFrontendJsonDiff()" style="padding:8px 16px; background:linear-gradient(135deg, #10b981, #059669); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:12px;">
+              🌐 前端极速对比
+            </button>
+          </div>
+        </form>
+
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:16px; margin-top:16px;">
+          <div>
+            <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px;">后端投影输出:</div>
+            <div id="backend-json-diff-result" class="result-container"><div class="result-box" style="opacity:0.5; font-size:12px;">等待比对...</div></div>
+          </div>
+          <div>
+            <div style="font-size:11px; color:var(--text-muted); margin-top:0px; margin-bottom:4px;">前端投影输出:</div>
+            <div id="frontend-json-diff-result" class="result-container"><div class="result-box" style="opacity:0.5; font-size:12px;">等待比对...</div></div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- ================= 区域 3: 4 象限综合矩阵基准测试 ================= -->
@@ -4483,6 +4564,7 @@ spec:
         const urlEncoderDecoderEngine = await loadWasmFromUrl("./wasm/url-encoder-decoder.wasm");
         const urlParserEngine = await loadWasmFromUrl("./wasm/url-parser.wasm");
         const deviceInformationEngine = await loadWasmFromUrl("./wasm/device-information.wasm");
+        const jsonDiffEngine = await loadWasmFromUrl("./wasm/json-diff.wasm");
 
         window.wasmContext.rust = rsEngine;
         window.wasmContext.ts = tsEngine;
@@ -4543,6 +4625,7 @@ spec:
         window.wasmContext.urlEncoderDecoder = urlEncoderDecoderEngine;
         window.wasmContext.urlParser = urlParserEngine;
         window.wasmContext.deviceInformation = deviceInformationEngine;
+        window.wasmContext.jsonDiff = jsonDiffEngine;
         window.wasmContext.rustReady = true;
         window.wasmContext.tsReady = true;
         window.wasmContext.tokenReady = true;
@@ -4602,9 +4685,10 @@ spec:
         window.wasmContext.urlEncoderDecoderReady = true;
         window.wasmContext.urlParserReady = true;
         window.wasmContext.deviceInformationReady = true;
+        window.wasmContext.jsonDiffReady = true;
 
         const statusEl = document.getElementById("frontend-status");
-        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载 59 大模块: rs, ts, token-gen, hash-text, bcrypt, uuid-gen, ulid-gen, encryption, bip39, hmac, rsa, password-strength, pdf-sig, yaml-to-json, yaml-to-toml, json-to-yaml, json-to-toml, toml-to-json, toml-to-yaml, xml-to-json, json-to-xml, json-to-csv, base64-string, base64-file, color-converter, case-converter, date-time-converter, integer-base-converter, roman-numeral-converter, text-to-binary, text-to-unicode, markdown-to-html, list-converter, text-to-nato, sql-prettify, xml-formatter, json-minify, json-viewer, yaml-viewer, regex-tester, regex-memo, crontab-generator, chmod-calculator, docker-run-to-compose, email-normalizer, git-memo, random-port, text-diff, text-statistics, string-obfuscator, lorem-ipsum, ascii-text-drawer, numeronym-generator, emoji-picker, jwt-parser, otp-generator, url-encoder-decoder, url-parser & device-information)`;
+        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载 60 大模块: rs, ts, token-gen, hash-text, bcrypt, uuid-gen, ulid-gen, encryption, bip39, hmac, rsa, password-strength, pdf-sig, yaml-to-json, yaml-to-toml, json-to-yaml, json-to-toml, toml-to-json, toml-to-yaml, xml-to-json, json-to-xml, json-to-csv, base64-string, base64-file, color-converter, case-converter, date-time-converter, integer-base-converter, roman-numeral-converter, text-to-binary, text-to-unicode, markdown-to-html, list-converter, text-to-nato, sql-prettify, xml-formatter, json-minify, json-viewer, yaml-viewer, regex-tester, regex-memo, crontab-generator, chmod-calculator, docker-run-to-compose, email-normalizer, git-memo, random-port, text-diff, text-statistics, string-obfuscator, lorem-ipsum, ascii-text-drawer, numeronym-generator, emoji-picker, jwt-parser, otp-generator, url-encoder-decoder, url-parser, device-information & json-diff)`;
 
         // 初始自动运行一次前端计算
         window.runFrontendCalc();
@@ -10228,6 +10312,146 @@ spec:
           <div style="font-size:11px; color:var(--text-muted); word-break:break-all; background:rgba(0,0,0,0.3); padding:8px 10px; border-radius:4px; font-family:var(--font-mono);">
             UA: ${escapeHtmlFront(d.ua)}
           </div>
+        </div>
+      `;
+    };
+
+    // JSON Diff 前端极速对比
+    const jsonDiffPresets = {
+      "config-drift": {
+        left: JSON.stringify({
+          service: "order-api",
+          version: "1.2.0",
+          database: { host: "db.prod.internal", port: 5432, poolSize: 20 },
+          features: { betaPricing: true, legacyAuth: true },
+          endpoints: ["/api/v1/orders", "/api/v1/checkout"]
+        }, null, 2),
+        right: JSON.stringify({
+          service: "order-api",
+          version: "1.3.0",
+          database: { host: "db-cluster.prod.internal", port: 5432, poolSize: 50, ssl: true },
+          features: { betaPricing: false, fastCheckout: true },
+          endpoints: ["/api/v1/orders", "/api/v1/checkout", "/api/v2/orders"]
+        }, null, 2)
+      },
+      "user-profile": {
+        left: JSON.stringify({
+          uid: 10042,
+          name: "Alice Developer",
+          role: "editor",
+          mfaEnabled: false,
+          tags: ["frontend", "react"]
+        }, null, 2),
+        right: JSON.stringify({
+          uid: 10042,
+          name: "Alice Developer",
+          role: "admin",
+          mfaEnabled: true,
+          tags: ["frontend", "react", "rust", "wasm"]
+        }, null, 2)
+      }
+    };
+
+    window.loadJsonDiffPreset = function(presetId) {
+      const p = jsonDiffPresets[presetId];
+      if (p) {
+        document.getElementById("json-diff-left").value = p.left;
+        document.getElementById("json-diff-right").value = p.right;
+        window.runFrontendJsonDiff();
+      }
+    };
+
+    window.runFrontendJsonDiff = function() {
+      if (!window.wasmContext.jsonDiffReady || !window.wasmContext.jsonDiff) {
+        document.getElementById("frontend-json-diff-result").innerHTML = `
+          <div class="result-box error">json-diff.wasm 尚未加载完毕</div>
+        `;
+        return;
+      }
+
+      const left = document.getElementById("json-diff-left").value || "{}";
+      const right = document.getElementById("json-diff-right").value || "{}";
+
+      const t0 = performance.now();
+      const response = window.wasmContext.jsonDiff.dispatch({
+        action: "json/diff",
+        requestId: `front-${Date.now()}`,
+        params: {
+          left,
+          right
+        }
+      });
+      const duration = (performance.now() - t0).toFixed(4);
+
+      if (response.code !== 0) {
+        document.getElementById("frontend-json-diff-result").innerHTML = `
+          <div class="result-box error">比对失败: ${escapeHtmlFront(response.msg)}</div>
+        `;
+        return;
+      }
+
+      const d = response.data;
+      const diffRows = d.entries.map(e => {
+        let badge = "color:#34d399; background:rgba(52,211,153,0.1); border:1px solid rgba(52,211,153,0.3);";
+        let text = "ADD";
+        if (e.kind === "removed") {
+          badge = "color:#ef4444; background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.3);";
+          text = "DEL";
+        } else if (e.kind === "modified") {
+          badge = "color:#f59e0b; background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.3);";
+          text = "MOD";
+        } else if (e.kind === "type_changed") {
+          badge = "color:#c084fc; background:rgba(192,132,252,0.1); border:1px solid rgba(192,132,252,0.3);";
+          text = "TYPE";
+        }
+
+        return `
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
+            <td style="padding:6px 10px;"><span style="font-size:10px; font-weight:700; padding:2px 6px; border-radius:4px; ${badge}">${text}</span></td>
+            <td style="padding:6px 10px; font-family:var(--font-mono); color:#38bdf8; font-size:11px;">${escapeHtmlFront(e.path)}</td>
+            <td style="padding:6px 10px; font-family:var(--font-mono); font-size:11px; color:#94a3b8;">${e.oldValue !== undefined && e.oldValue !== null ? escapeHtmlFront(JSON.stringify(e.oldValue)) : '-'}</td>
+            <td style="padding:6px 10px; font-family:var(--font-mono); font-size:11px; color:#f8fafc;">${e.newValue !== undefined && e.newValue !== null ? escapeHtmlFront(JSON.stringify(e.newValue)) : '-'}</td>
+          </tr>
+        `;
+      }).join("");
+
+      document.getElementById("frontend-json-diff-result").innerHTML = `
+        <div class="result-box">
+          <div class="result-header">
+            <span class="tag tag-rust">🦀 Browser WASM: JSON 结构比对 (${d.summary.equal ? '完全一致' : `发现 ${d.summary.totalChanges} 处变更`})</span>
+            <span class="badge-time">⚡ ${duration} ms (纯前端内存)</span>
+          </div>
+
+          <div style="display:flex; flex-wrap:wrap; gap:12px; margin-bottom:12px; font-size:12px;">
+            <span style="background:rgba(255,255,255,0.06); padding:4px 8px; border-radius:4px; border:1px solid rgba(255,255,255,0.1);">差异总数: <strong>${d.summary.totalChanges}</strong></span>
+            <span style="background:rgba(52,211,153,0.1); color:#34d399; padding:4px 8px; border-radius:4px; border:1px solid rgba(52,211,153,0.3);">新增 (+): <strong>${d.summary.additions}</strong></span>
+            <span style="background:rgba(239,68,68,0.1); color:#ef4444; padding:4px 8px; border-radius:4px; border:1px solid rgba(239,68,68,0.3);">移除 (-): <strong>${d.summary.removals}</strong></span>
+            <span style="background:rgba(245,158,11,0.1); color:#f59e0b; padding:4px 8px; border-radius:4px; border:1px solid rgba(245,158,11,0.3);">修改 (~): <strong>${d.summary.modifications}</strong></span>
+          </div>
+
+          ${d.entries.length > 0 ? `
+            <div style="margin-top:10px;">
+              <div style="font-size:11px; color:var(--text-muted); font-weight:600; margin-bottom:4px;">差异详情审计列表:</div>
+              <table style="width:100%; border-collapse:collapse; font-size:11px; text-align:left;">
+                <thead>
+                  <tr style="color:var(--text-muted); border-bottom:1px solid rgba(255,255,255,0.1);">
+                    <th style="padding:4px 10px; width:10%;">类型</th>
+                    <th style="padding:4px 10px; width:30%;">JSON Pointer 路径</th>
+                    <th style="padding:4px 10px; width:30%;">原值 (Old)</th>
+                    <th style="padding:4px 10px; width:30%;">新值 (New)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${diffRows}
+                </tbody>
+              </table>
+            </div>
+
+            <div style="margin-top:12px;">
+              <div style="font-size:11px; color:var(--text-muted); font-weight:600; margin-bottom:4px;">RFC 6902 JSON Patch 操作集 (${d.patches.length} ops):</div>
+              <pre style="padding:10px; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1); border-radius:6px; font-family:var(--font-mono); font-size:11px; color:#38bdf8; overflow-x:auto;">${escapeHtmlFront(JSON.stringify(d.patches, null, 2))}</pre>
+            </div>
+          ` : '<div style="font-size:12px; color:#34d399; margin:8px 0;">🎉 两个 JSON 对象结构与数值完全一致，无任何变更！</div>'}
         </div>
       `;
     };
