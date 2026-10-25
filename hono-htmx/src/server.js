@@ -41,6 +41,7 @@ const integerBaseConverterWasmPath = path.resolve(__dirname, "../public/wasm/int
 const romanNumeralConverterWasmPath = path.resolve(__dirname, "../public/wasm/roman-numeral-converter.wasm");
 const textToBinaryWasmPath = path.resolve(__dirname, "../public/wasm/text-to-binary.wasm");
 const textToUnicodeWasmPath = path.resolve(__dirname, "../public/wasm/text-to-unicode.wasm");
+const markdownToHtmlWasmPath = path.resolve(__dirname, "../public/wasm/markdown-to-html.wasm");
 
 let rsEngine = null;
 let tsEngine = null;
@@ -73,6 +74,7 @@ let integerBaseConverterEngine = null;
 let romanNumeralConverterEngine = null;
 let textToBinaryEngine = null;
 let textToUnicodeEngine = null;
+let markdownToHtmlEngine = null;
 
 async function initEngines() {
   try {
@@ -291,6 +293,13 @@ async function initEngines() {
       console.log("✅ [Backend Infra] 纯单一文件 text-to-unicode.wasm 加载成功");
     } else {
       console.warn("⚠️ text-to-unicode.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    if (fs.existsSync(markdownToHtmlWasmPath)) {
+      markdownToHtmlEngine = await loadWasmFromDisk(markdownToHtmlWasmPath);
+      console.log("✅ [Backend Infra] 纯单一文件 markdown-to-html.wasm 加载成功");
+    } else {
+      console.warn("⚠️ markdown-to-html.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
     }
   } catch (err) {
     console.error("❌ 后端 WASM 基础设施初始化失败:", err);
@@ -3105,6 +3114,129 @@ app.post("/api/backend/unicode/convert", async (c) => {
   }
 });
 
+// API: HTMX 提交 Markdown 渲染
+app.post("/api/backend/markdown/render", async (c) => {
+  try {
+    let markdown = "";
+    let enableTables = true;
+    let enableTasklists = true;
+    let enableStrikethrough = true;
+    const contentType = c.req.header("content-type") || "";
+    if (contentType.includes("application/json")) {
+      const json = await c.req.json().catch(() => ({}));
+      markdown = (json.markdown || json.text || json.md || "").toString();
+      if (json.enableTables !== undefined) enableTables = Boolean(json.enableTables);
+      if (json.enableTasklists !== undefined) enableTasklists = Boolean(json.enableTasklists);
+      if (json.enableStrikethrough !== undefined) enableStrikethrough = Boolean(json.enableStrikethrough);
+    } else {
+      const body = await c.req.parseBody().catch(() => ({}));
+      markdown = (body.markdown || body.text || body.md || "").toString();
+      if (body.enable_tables !== undefined) enableTables = body.enable_tables === "true" || body.enable_tables === "on";
+      if (body.enable_tasklists !== undefined) enableTasklists = body.enable_tasklists === "true" || body.enable_tasklists === "on";
+      if (body.enable_strikethrough !== undefined) enableStrikethrough = body.enable_strikethrough === "true" || body.enable_strikethrough === "on";
+    }
+
+    if (!markdown) {
+      if (contentType.includes("application/json") && !c.req.header("HX-Request")) {
+        return c.json({ code: 400, msg: "Markdown 内容不能为空", data: null }, 400);
+      }
+      return c.html(`
+        <div class="result-box error">
+          <strong>渲染失败:</strong> Markdown 内容不能为空
+        </div>
+      `, 400);
+    }
+
+    if (!markdownToHtmlEngine) {
+      throw new Error("markdown-to-html WASM 引擎未就绪");
+    }
+
+    const t0 = performance.now();
+    const response = markdownToHtmlEngine.dispatch({
+      action: "markdown/render",
+      requestId: `srv-${Date.now()}`,
+      params: {
+        markdown,
+        enableTables,
+        enableTasklists,
+        enableStrikethrough,
+        enableFootnotes: true,
+        enableSmartPunctuation: true
+      }
+    });
+    const duration = (performance.now() - t0).toFixed(4);
+
+    if (contentType.includes("application/json") && !c.req.header("HX-Request")) {
+      return c.json(response);
+    }
+
+    if (response.code !== 0) {
+      return c.html(`
+        <div class="result-box error">
+          <strong>Markdown 渲染失败:</strong> ${response.msg}
+        </div>
+      `, 400);
+    }
+
+    const d = response.data;
+    return c.html(`
+      <div class="result-box">
+        <div class="result-header">
+          <span class="tag tag-rust">🦀 Rust WASM: pulldown-cmark 极速渲染成功</span>
+          <span class="badge-time">⚡ ${duration} ms (Hono 后端原生)</span>
+        </div>
+
+        <div style="display:flex; flex-wrap:wrap; gap:16px; margin-bottom:12px; font-size:12px; color:var(--text-muted);">
+          <span>标题数: <strong>${d.stats.headingsCount}</strong></span>
+          <span>链接数: <strong>${d.stats.linksCount}</strong></span>
+          <span>代码块: <strong>${d.stats.codeBlocksCount}</strong></span>
+          <span>源大小: <strong>${d.stats.inputBytes} B</strong> ➔ HTML: <strong>${d.stats.outputBytes} B</strong></span>
+        </div>
+
+        <div style="margin-bottom:12px;">
+          <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px;">HTML 实时渲染预览 (Rich Preview):</div>
+          <div style="background:#0f172a; padding:12px 16px; border-radius:6px; border:1px solid rgba(255,255,255,0.1); color:#f8fafc; font-size:13px; line-height:1.6; max-height:220px; overflow-y:auto;">
+            ${d.html}
+          </div>
+        </div>
+
+        <div>
+          <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px;">生成原生 HTML 代码:</div>
+          <div style="background:rgba(255,255,255,0.03); padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,0.08); font-family:var(--font-mono); font-size:11px; color:#34d399; word-break:break-all; max-height:120px; overflow-y:auto; white-space:pre-wrap;">
+            ${d.html.replace(/</g, "&lt;").replace(/>/g, "&gt;")}
+          </div>
+        </div>
+      </div>
+    `);
+  } catch (err) {
+    return c.html(`
+      <div class="result-box error">
+        <strong>渲染失败:</strong> ${err.message}
+      </div>
+    `, 400);
+  }
+});
+
+// API: 获取 Markdown 示例
+app.get("/api/backend/markdown/sample", async (c) => {
+  try {
+    if (!markdownToHtmlEngine) {
+      throw new Error("markdown-to-html WASM 引擎未就绪");
+    }
+    const response = markdownToHtmlEngine.dispatch({
+      action: "markdown/sample",
+      requestId: `srv-${Date.now()}`,
+      params: {}
+    });
+    if (response.code !== 0) {
+      throw new Error(response.msg || "获取示例失败");
+    }
+    return c.json(response.data);
+  } catch (err) {
+    return c.json({ sampleMarkdown: "# Hello WasmForge" }, 500);
+  }
+});
+
 // API: 获取 Unicode 示例
 app.get("/api/backend/unicode/sample", async (c) => {
   try {
@@ -3238,6 +3370,7 @@ app.get("/api/stats", (c) => {
   const romanNumeralConverterSize = fs.existsSync(romanNumeralConverterWasmPath) ? fs.statSync(romanNumeralConverterWasmPath).size : 0;
   const textToBinarySize = fs.existsSync(textToBinaryWasmPath) ? fs.statSync(textToBinaryWasmPath).size : 0;
   const textToUnicodeSize = fs.existsSync(textToUnicodeWasmPath) ? fs.statSync(textToUnicodeWasmPath).size : 0;
+  const markdownToHtmlSize = fs.existsSync(markdownToHtmlWasmPath) ? fs.statSync(markdownToHtmlWasmPath).size : 0;
   return c.json({
     rust: {
       file: "rs.wasm",
@@ -3393,6 +3526,11 @@ app.get("/api/stats", (c) => {
       file: "text-to-unicode.wasm",
       sizeBytes: textToUnicodeSize,
       sizeFormatted: `${(textToUnicodeSize / 1024).toFixed(2)} KB`,
+    },
+    markdownToHtml: {
+      file: "markdown-to-html.wasm",
+      sizeBytes: markdownToHtmlSize,
+      sizeFormatted: `${(markdownToHtmlSize / 1024).toFixed(2)} KB`,
     },
   });
 });

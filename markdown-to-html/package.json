@@ -1,0 +1,13 @@
+{
+  "name": "@wasm-forge/markdown-to-html",
+  "version": "0.1.0",
+  "description": "High-performance CommonMark Markdown to HTML Renderer in pure WebAssembly",
+  "type": "module",
+  "scripts": {
+    "build": "cargo build --target wasm32-unknown-unknown --release",
+    "test": "cargo test"
+  },
+  "keywords": ["wasm", "converter", "markdown", "html", "pulldown-cmark", "commonmark"],
+  "author": "WasmForge",
+  "license": "MIT"
+}
