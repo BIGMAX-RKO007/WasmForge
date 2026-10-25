@@ -1013,6 +1013,123 @@
       </div>
     </div>
 
+    <!-- ================= 核心工具 1.8: HMAC Generator & Verifier ================= -->
+    <div class="card" style="margin-bottom: 32px; border: 1px solid rgba(249, 115, 22, 0.3); background: rgba(15, 23, 42, 0.85);">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px;">
+        <div>
+          <h2 style="margin:0 0 4px; display:flex; align-items:center; gap:10px;">
+            <span>🛡️ 1.8 基于密钥的消息认证码 (HMAC / 5 大哈希认证算法)</span>
+            <span class="tag tag-rust" style="background:rgba(249,115,22,0.2); color:#fb923c; border-color:rgba(249,115,22,0.4);">hmac-generator.wasm (~220 KB)</span>
+          </h2>
+          <p style="color:var(--text-muted); font-size:13px; margin:0;">
+            RFC 2104 / RFC 4231 工业级标准：覆盖 MD5、SHA1、SHA256、SHA512、SHA3-256 五大认证哈希，内置恒定时间防时序侧信道比对。
+          </p>
+        </div>
+        <div style="font-size:12px; font-family:var(--font-mono); color:#fb923c; background:rgba(249, 115, 22, 0.1); padding:4px 10px; border-radius:6px; border:1px solid rgba(249, 115, 22, 0.2);">
+          C-ABI: alloc / dealloc / dispatch
+        </div>
+      </div>
+
+      <!-- HMAC 全量生成表单 -->
+      <form id="hmac-gen-form" hx-post="/api/backend/hmac/all" hx-target="#backend-hmac-all-result" hx-swap="innerHTML" style="margin-top:20px;">
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:16px;">
+          <div style="grid-column: 1 / -1;">
+            <label style="display:block; font-size:13px; margin-bottom:6px; color:var(--text-muted);">原始消息 (Message / Text):</label>
+            <input type="text" id="hmac-input-text" name="text" value="The quick brown fox jumps over the lazy dog" style="width:100%; padding:8px 12px; background:#1e293b; border:1px solid rgba(255,255,255,0.1); color:#fff; border-radius:6px; box-sizing:border-box;">
+          </div>
+          <div>
+            <label style="display:block; font-size:13px; margin-bottom:6px; color:var(--text-muted);">认证私钥 / 密钥 (Secret Key):</label>
+            <input type="text" id="hmac-input-key" name="secretKey" value="key" style="width:100%; padding:8px 12px; background:#1e293b; border:1px solid rgba(255,255,255,0.1); color:#fff; border-radius:6px; box-sizing:border-box;">
+          </div>
+          <div>
+            <label style="display:block; font-size:13px; margin-bottom:6px; color:var(--text-muted);">编码格式 (Format):</label>
+            <select id="hmac-format" name="format" style="width:100%; padding:8px 12px; background:#1e293b; border:1px solid rgba(255,255,255,0.1); color:#fff; border-radius:6px;">
+              <option value="hex" selected>Hex (十六进制小写)</option>
+              <option value="base64">Base64</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:12px; margin-top:16px; flex-wrap:wrap;">
+          <button type="submit" style="padding:8px 16px; background:linear-gradient(135deg, #f97316, #ea580c); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600; display:flex; align-items:center; gap:6px;">
+            <span>🖥️ HTMX 提交后端计算</span>
+            <span class="htmx-indicator">⏳</span>
+          </button>
+          <button type="button" onclick="runFrontendHmacAll()" style="padding:8px 16px; background:linear-gradient(135deg, #ea580c, #c2410c); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600;">
+            🌐 浏览器前端本地直算
+          </button>
+        </div>
+      </form>
+
+      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:16px; margin-top:16px;">
+        <div>
+          <div style="font-size:12px; color:var(--text-muted); margin-bottom:4px;">后端运算结果 (Hono HTMX):</div>
+          <div id="backend-hmac-all-result" class="result-container">
+            <div class="result-box" style="opacity:0.5;">点击上方橙色按钮计算</div>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:12px; color:var(--text-muted); margin-bottom:4px;">前端运算结果 (Browser WASM):</div>
+          <div id="frontend-hmac-all-result" class="result-container">
+            <div class="result-box" style="opacity:0.5;">点击上方红橙色按钮计算</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- HMAC 恒定时间校验表单 -->
+      <hr style="border:0; border-top:1px solid rgba(255,255,255,0.1); margin:24px 0 16px;">
+      <div>
+        <h3 style="margin:0 0 10px; font-size:15px; color:#fb923c;">🔍 HMAC 恒定时间比对核验 (Constant-time Verification)</h3>
+        <form id="hmac-val-form" hx-post="/api/backend/hmac/verify" hx-target="#backend-hmac-val-result" hx-swap="innerHTML">
+          <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:12px;">
+            <div>
+              <label style="display:block; font-size:12px; margin-bottom:4px; color:var(--text-muted);">哈希算法:</label>
+              <select id="hmac-val-algo" name="algorithm" style="width:100%; padding:8px 12px; background:#1e293b; border:1px solid rgba(255,255,255,0.1); color:#fff; border-radius:6px;">
+                <option value="sha256" selected>HMAC-SHA256</option>
+                <option value="sha512">HMAC-SHA512</option>
+                <option value="sha3_256">HMAC-SHA3-256</option>
+                <option value="sha1">HMAC-SHA1</option>
+                <option value="md5">HMAC-MD5</option>
+              </select>
+            </div>
+            <div style="grid-column: 1 / -1;">
+              <label style="display:block; font-size:12px; margin-bottom:4px; color:var(--text-muted);">待比对 HMAC 摘要签名:</label>
+              <input type="text" id="hmac-val-input" name="hmac" value="f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8" style="width:100%; padding:8px 12px; background:#1e293b; border:1px solid rgba(255,255,255,0.1); color:#fff; border-radius:6px; font-family:var(--font-mono); font-size:13px; box-sizing:border-box;">
+            </div>
+            <div style="display:none;">
+              <input type="hidden" id="hmac-val-text-hidden" name="text" value="The quick brown fox jumps over the lazy dog">
+              <input type="hidden" id="hmac-val-key-hidden" name="secretKey" value="key">
+              <input type="hidden" id="hmac-val-fmt-hidden" name="format" value="hex">
+            </div>
+          </div>
+
+          <div style="display:flex; gap:12px; margin-top:14px; flex-wrap:wrap;">
+            <button type="submit" style="padding:8px 16px; background:linear-gradient(135deg, #f97316, #ea580c); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600;">
+              🖥️ 后端恒定时间校验
+            </button>
+            <button type="button" onclick="runFrontendHmacVerify()" style="padding:8px 16px; background:linear-gradient(135deg, #ea580c, #c2410c); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600;">
+              🌐 前端恒定时间校验
+            </button>
+          </div>
+        </form>
+
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:16px; margin-top:14px;">
+          <div>
+            <div style="font-size:12px; color:var(--text-muted); margin-bottom:4px;">后端校验输出 (Hono HTMX):</div>
+            <div id="backend-hmac-val-result" class="result-container">
+              <div class="result-box" style="opacity:0.5;">输入 HMAC 并点击校验</div>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:12px; color:var(--text-muted); margin-bottom:4px;">前端校验输出 (Browser WASM):</div>
+            <div id="frontend-hmac-val-result" class="result-container">
+              <div class="result-box" style="opacity:0.5;">输入 HMAC 并点击校验</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- ================= 区域 3: 4 象限综合矩阵基准测试 ================= -->
     <div class="matrix-card">
       <h2>📊 4 维度跨场景一致性与性能矩阵</h2>
@@ -1052,6 +1169,7 @@
       ulidReady: false,
       encryptionReady: false,
       bip39Ready: false,
+      hmacReady: false,
       rust: null,
       ts: null,
       tokenGenerator: null,
@@ -1061,6 +1179,7 @@
       ulidGenerator: null,
       encryption: null,
       bip39: null,
+      hmac: null,
       activeFrontendEngine: "rust",
       activeBackendEngine: "rust"
     };
@@ -1076,6 +1195,7 @@
         const ulidEngine = await loadWasmFromUrl("./wasm/ulid-generator.wasm");
         const encEngine = await loadWasmFromUrl("./wasm/encryption.wasm");
         const bipEngine = await loadWasmFromUrl("./wasm/bip39-generator.wasm");
+        const hmacEngine = await loadWasmFromUrl("./wasm/hmac-generator.wasm");
 
         window.wasmContext.rust = rsEngine;
         window.wasmContext.ts = tsEngine;
@@ -1086,6 +1206,7 @@
         window.wasmContext.ulidGenerator = ulidEngine;
         window.wasmContext.encryption = encEngine;
         window.wasmContext.bip39 = bipEngine;
+        window.wasmContext.hmac = hmacEngine;
         window.wasmContext.rustReady = true;
         window.wasmContext.tsReady = true;
         window.wasmContext.tokenReady = true;
@@ -1095,11 +1216,12 @@
         window.wasmContext.ulidReady = true;
         window.wasmContext.encryptionReady = true;
         window.wasmContext.bip39Ready = true;
+        window.wasmContext.hmacReady = true;
 
         const statusEl = document.getElementById("frontend-status");
-        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载 9 大模块: rs, ts, token-gen, hash-text, bcrypt, uuid-gen, ulid-gen, encryption & bip39)`;
+        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载 10 大模块: rs, ts, token-gen, hash-text, bcrypt, uuid-gen, ulid-gen, encryption, bip39 & hmac)`;
 
-        // 初始自动运行一次前端计算、Token、Hash、Bcrypt、UUID、ULID、AES、BIP-39
+        // 初始自动运行一次前端计算、Token、Hash、Bcrypt、UUID、ULID、AES、BIP-39、HMAC
         window.runFrontendCalc();
         window.runFrontendGreet();
         window.runFrontendTokenGen();
@@ -1109,6 +1231,7 @@
         window.runFrontendUlidGen();
         window.runFrontendAesEncrypt();
         window.runFrontendBip39Gen();
+        window.runFrontendHmacAll();
       } catch (err) {
         console.error("加载浏览器端 WASM 失败:", err);
         const statusEl = document.getElementById("frontend-status");
@@ -1839,6 +1962,138 @@
             <div style="font-size:12px; color:var(--text-muted); margin-top:6px;">派生种子 (512-bit Seed):</div>
             <div class="result-value" style="font-size:11px; color:#38bdf8; word-break:break-all;">${seedHex}</div>
           ` : ''}
+        </div>
+      `;
+    };
+
+    // 前端 HMAC 全量生成计算器调用 (hmac/all)
+    window.runFrontendHmacAll = function() {
+      const engine = window.wasmContext.hmac;
+      if (!engine) {
+        document.getElementById("frontend-hmac-all-result").innerHTML = `
+          <div class="result-box error">hmac-generator.wasm 尚未加载完毕</div>
+        `;
+        return;
+      }
+
+      const text = document.getElementById("hmac-input-text").value || "";
+      const secretKey = document.getElementById("hmac-input-key").value || "";
+      const format = document.getElementById("hmac-format").value || "hex";
+
+      // 同步更新校验隐藏域的输入
+      const syncText = document.getElementById("hmac-val-text-hidden");
+      if (syncText) syncText.value = text;
+      const syncKey = document.getElementById("hmac-val-key-hidden");
+      if (syncKey) syncKey.value = secretKey;
+      const syncFmt = document.getElementById("hmac-val-fmt-hidden");
+      if (syncFmt) syncFmt.value = format;
+
+      const t0 = performance.now();
+      const response = engine.dispatch({
+        action: "hmac/all",
+        requestId: `req-front-${Date.now()}`,
+        params: { text, secretKey, format }
+      });
+      const duration = (performance.now() - t0).toFixed(4);
+
+      if (response.code !== 0) {
+        document.getElementById("frontend-hmac-all-result").innerHTML = `
+          <div class="result-box error"><strong>计算失败:</strong> ${response.msg}</div>
+        `;
+        return;
+      }
+
+      const d = response.data;
+
+      // 默认将 SHA-256 HMAC 填入校验输入框
+      const valInput = document.getElementById("hmac-val-input");
+      if (valInput) valInput.value = d.sha256;
+
+      document.getElementById("frontend-hmac-all-result").innerHTML = `
+        <div class="result-box">
+          <div class="result-header">
+            <span class="tag tag-rust">🦀 Browser WASM: HMAC 5 大算法</span>
+            <span class="badge-time">⚡ ${duration} ms (纯前端内存直算)</span>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:8px; margin:8px 0;">
+            <div class="hash-row" style="display:flex; align-items:center; justify-content:space-between; background:rgba(0,0,0,0.3); padding:6px 12px; border-radius:6px; font-size:13px; font-family:var(--font-mono);">
+              <span style="color:#f97316; font-weight:bold; width:110px;">HMAC-MD5</span>
+              <span id="cli-hmac-md5" style="color:#f1f5f9; word-break:break-all; flex:1;">${d.md5}</span>
+              <button type="button" class="btn-copy" style="margin-left:8px; padding:2px 8px; border-radius:4px; background:#1e293b; color:#fff; border:1px solid rgba(255,255,255,0.2); cursor:pointer;" onclick="navigator.clipboard.writeText(document.getElementById('cli-hmac-md5').innerText); this.innerText='已复制!'; setTimeout(()=>this.innerText='复制', 1500)">复制</button>
+            </div>
+            <div class="hash-row" style="display:flex; align-items:center; justify-content:space-between; background:rgba(0,0,0,0.3); padding:6px 12px; border-radius:6px; font-size:13px; font-family:var(--font-mono);">
+              <span style="color:#38bdf8; font-weight:bold; width:110px;">HMAC-SHA1</span>
+              <span id="cli-hmac-sha1" style="color:#f1f5f9; word-break:break-all; flex:1;">${d.sha1}</span>
+              <button type="button" class="btn-copy" style="margin-left:8px; padding:2px 8px; border-radius:4px; background:#1e293b; color:#fff; border:1px solid rgba(255,255,255,0.2); cursor:pointer;" onclick="navigator.clipboard.writeText(document.getElementById('cli-hmac-sha1').innerText); this.innerText='已复制!'; setTimeout(()=>this.innerText='复制', 1500)">复制</button>
+            </div>
+            <div class="hash-row" style="display:flex; align-items:center; justify-content:space-between; background:rgba(0,0,0,0.3); padding:6px 12px; border-radius:6px; font-size:13px; font-family:var(--font-mono);">
+              <span style="color:#34d399; font-weight:bold; width:110px;">HMAC-SHA256</span>
+              <span id="cli-hmac-sha256" style="color:#34d399; word-break:break-all; flex:1; font-weight:bold;">${d.sha256}</span>
+              <button type="button" class="btn-copy" style="margin-left:8px; padding:2px 8px; border-radius:4px; background:#1e293b; color:#fff; border:1px solid #34d399; cursor:pointer;" onclick="navigator.clipboard.writeText(document.getElementById('cli-hmac-sha256').innerText); this.innerText='已复制!'; setTimeout(()=>this.innerText='复制', 1500)">复制</button>
+            </div>
+            <div class="hash-row" style="display:flex; align-items:center; justify-content:space-between; background:rgba(0,0,0,0.3); padding:6px 12px; border-radius:6px; font-size:13px; font-family:var(--font-mono);">
+              <span style="color:#eab308; font-weight:bold; width:110px;">HMAC-SHA512</span>
+              <span id="cli-hmac-sha512" style="color:#f1f5f9; word-break:break-all; flex:1; font-size:11px;">${d.sha512}</span>
+              <button type="button" class="btn-copy" style="margin-left:8px; padding:2px 8px; border-radius:4px; background:#1e293b; color:#fff; border:1px solid rgba(255,255,255,0.2); cursor:pointer;" onclick="navigator.clipboard.writeText(document.getElementById('cli-hmac-sha512').innerText); this.innerText='已复制!'; setTimeout(()=>this.innerText='复制', 1500)">复制</button>
+            </div>
+            <div class="hash-row" style="display:flex; align-items:center; justify-content:space-between; background:rgba(0,0,0,0.3); padding:6px 12px; border-radius:6px; font-size:13px; font-family:var(--font-mono);">
+              <span style="color:#a855f7; font-weight:bold; width:110px;">HMAC-SHA3-256</span>
+              <span id="cli-hmac-sha3" style="color:#f1f5f9; word-break:break-all; flex:1;">${d.sha3_256}</span>
+              <button type="button" class="btn-copy" style="margin-left:8px; padding:2px 8px; border-radius:4px; background:#1e293b; color:#fff; border:1px solid rgba(255,255,255,0.2); cursor:pointer;" onclick="navigator.clipboard.writeText(document.getElementById('cli-hmac-sha3').innerText); this.innerText='已复制!'; setTimeout(()=>this.innerText='复制', 1500)">复制</button>
+            </div>
+          </div>
+          <div class="token-meta" style="display:flex; gap:16px; font-size:12px; color:var(--text-muted);">
+            <span>编码: <strong style="color:#fff;">${d.format.toUpperCase()}</strong></span>
+            <span>密钥长度: <strong style="color:#38bdf8;">${secretKey.length} 字符</strong></span>
+          </div>
+        </div>
+      `;
+    };
+
+    // 前端 HMAC 恒定时间校验 (hmac/verify)
+    window.runFrontendHmacVerify = function() {
+      const engine = window.wasmContext.hmac;
+      if (!engine) {
+        document.getElementById("frontend-hmac-val-result").innerHTML = `
+          <div class="result-box error">hmac-generator.wasm 尚未加载完毕</div>
+        `;
+        return;
+      }
+
+      const text = document.getElementById("hmac-input-text").value || "";
+      const secretKey = document.getElementById("hmac-input-key").value || "";
+      const format = document.getElementById("hmac-format").value || "hex";
+      const hmac = (document.getElementById("hmac-val-input").value || "").trim();
+      const algorithm = document.getElementById("hmac-val-algo").value || "sha256";
+
+      const t0 = performance.now();
+      const response = engine.dispatch({
+        action: "hmac/verify",
+        requestId: `req-front-${Date.now()}`,
+        params: { text, secretKey, hmac, algorithm, format }
+      });
+      const duration = (performance.now() - t0).toFixed(4);
+
+      if (response.code !== 0) {
+        document.getElementById("frontend-hmac-val-result").innerHTML = `
+          <div class="result-box error"><strong>校验异常:</strong> ${response.msg}</div>
+        `;
+        return;
+      }
+
+      const { valid } = response.data;
+      const badgeColor = valid ? "#34d399" : "#ef4444";
+      const statusText = valid ? `✅ HMAC 恒定时间比对通过：消息认证完全有效 (${algorithm.toUpperCase()})` : `❌ HMAC 比对失败：消息被篡改或密钥错误 (${algorithm.toUpperCase()})`;
+
+      document.getElementById("frontend-hmac-val-result").innerHTML = `
+        <div class="result-box" style="border-color:${badgeColor};">
+          <div class="result-header">
+            <span class="tag tag-rust">🦀 Browser WASM: 恒定时间校验</span>
+            <span class="badge-time">⚡ ${duration} ms (纯前端防侧信道比对)</span>
+          </div>
+          <div style="font-size:14px; font-weight:bold; color:${badgeColor}; margin:4px 0;">
+            ${statusText}
+          </div>
         </div>
       `;
     };

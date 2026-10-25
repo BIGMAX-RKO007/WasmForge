@@ -19,6 +19,7 @@ const uuidWasmPath = path.resolve(__dirname, "../public/wasm/uuid-generator.wasm
 const ulidWasmPath = path.resolve(__dirname, "../public/wasm/ulid-generator.wasm");
 const encryptionWasmPath = path.resolve(__dirname, "../public/wasm/encryption.wasm");
 const bip39WasmPath = path.resolve(__dirname, "../public/wasm/bip39-generator.wasm");
+const hmacWasmPath = path.resolve(__dirname, "../public/wasm/hmac-generator.wasm");
 
 let rsEngine = null;
 let tsEngine = null;
@@ -29,6 +30,7 @@ let uuidEngine = null;
 let ulidEngine = null;
 let encryptionEngine = null;
 let bip39Engine = null;
+let hmacEngine = null;
 
 async function initEngines() {
   try {
@@ -93,6 +95,13 @@ async function initEngines() {
       console.log("✅ [Backend Infra] 纯单一文件 bip39-generator.wasm 加载成功");
     } else {
       console.warn("⚠️ bip39-generator.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    if (fs.existsSync(hmacWasmPath)) {
+      hmacEngine = await loadWasmFromDisk(hmacWasmPath);
+      console.log("✅ [Backend Infra] 纯单一文件 hmac-generator.wasm 加载成功");
+    } else {
+      console.warn("⚠️ hmac-generator.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
     }
   } catch (err) {
     console.error("❌ 后端 WASM 基础设施初始化失败:", err);
@@ -859,6 +868,130 @@ app.post("/api/backend/bip39/validate", async (c) => {
   }
 });
 
+// API: 后端 HMAC 全量生成 (由 HTMX 调用)
+app.post("/api/backend/hmac/all", async (c) => {
+  try {
+    if (!hmacEngine) {
+      throw new Error("hmac-generator.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    const body = await c.req.parseBody();
+    const text = (body.text || "").toString();
+    const secretKey = (body.secretKey || "").toString();
+    const format = (body.format || "hex").toString();
+
+    const t0 = performance.now();
+    const response = hmacEngine.dispatch({
+      action: "hmac/all",
+      requestId: `srv-${Date.now()}`,
+      params: { text, secretKey, format }
+    });
+    const duration = (performance.now() - t0).toFixed(4);
+
+    if (response.code !== 0) {
+      throw new Error(response.msg);
+    }
+
+    const d = response.data;
+
+    return c.html(`
+      <div class="result-box">
+        <div class="result-header">
+          <span class="tag tag-rust">🦀 Rust WASM: HMAC 5 大算法矩阵</span>
+          <span class="badge-time">⚡ ${duration} ms (Hono 后端原生极速运算)</span>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:8px; margin:8px 0;">
+          <div class="hash-row" style="display:flex; align-items:center; justify-content:space-between; background:rgba(0,0,0,0.3); padding:6px 12px; border-radius:6px; font-size:13px; font-family:var(--font-mono);">
+            <span style="color:#f97316; font-weight:bold; width:110px;">HMAC-MD5</span>
+            <span id="srv-hmac-md5" style="color:#f1f5f9; word-break:break-all; flex:1;">${d.md5}</span>
+            <button type="button" class="btn-copy" style="margin-left:8px; padding:2px 8px; border-radius:4px; background:#1e293b; color:#fff; border:1px solid rgba(255,255,255,0.2); cursor:pointer;" onclick="navigator.clipboard.writeText(document.getElementById('srv-hmac-md5').innerText); this.innerText='已复制!'; setTimeout(()=>this.innerText='复制', 1500)">复制</button>
+          </div>
+          <div class="hash-row" style="display:flex; align-items:center; justify-content:space-between; background:rgba(0,0,0,0.3); padding:6px 12px; border-radius:6px; font-size:13px; font-family:var(--font-mono);">
+            <span style="color:#38bdf8; font-weight:bold; width:110px;">HMAC-SHA1</span>
+            <span id="srv-hmac-sha1" style="color:#f1f5f9; word-break:break-all; flex:1;">${d.sha1}</span>
+            <button type="button" class="btn-copy" style="margin-left:8px; padding:2px 8px; border-radius:4px; background:#1e293b; color:#fff; border:1px solid rgba(255,255,255,0.2); cursor:pointer;" onclick="navigator.clipboard.writeText(document.getElementById('srv-hmac-sha1').innerText); this.innerText='已复制!'; setTimeout(()=>this.innerText='复制', 1500)">复制</button>
+          </div>
+          <div class="hash-row" style="display:flex; align-items:center; justify-content:space-between; background:rgba(0,0,0,0.3); padding:6px 12px; border-radius:6px; font-size:13px; font-family:var(--font-mono);">
+            <span style="color:#34d399; font-weight:bold; width:110px;">HMAC-SHA256</span>
+            <span id="srv-hmac-sha256" style="color:#34d399; word-break:break-all; flex:1; font-weight:bold;">${d.sha256}</span>
+            <button type="button" class="btn-copy" style="margin-left:8px; padding:2px 8px; border-radius:4px; background:#1e293b; color:#fff; border:1px solid #34d399; cursor:pointer;" onclick="navigator.clipboard.writeText(document.getElementById('srv-hmac-sha256').innerText); this.innerText='已复制!'; setTimeout(()=>this.innerText='复制', 1500)">复制</button>
+          </div>
+          <div class="hash-row" style="display:flex; align-items:center; justify-content:space-between; background:rgba(0,0,0,0.3); padding:6px 12px; border-radius:6px; font-size:13px; font-family:var(--font-mono);">
+            <span style="color:#eab308; font-weight:bold; width:110px;">HMAC-SHA512</span>
+            <span id="srv-hmac-sha512" style="color:#f1f5f9; word-break:break-all; flex:1; font-size:11px;">${d.sha512}</span>
+            <button type="button" class="btn-copy" style="margin-left:8px; padding:2px 8px; border-radius:4px; background:#1e293b; color:#fff; border:1px solid rgba(255,255,255,0.2); cursor:pointer;" onclick="navigator.clipboard.writeText(document.getElementById('srv-hmac-sha512').innerText); this.innerText='已复制!'; setTimeout(()=>this.innerText='复制', 1500)">复制</button>
+          </div>
+          <div class="hash-row" style="display:flex; align-items:center; justify-content:space-between; background:rgba(0,0,0,0.3); padding:6px 12px; border-radius:6px; font-size:13px; font-family:var(--font-mono);">
+            <span style="color:#a855f7; font-weight:bold; width:110px;">HMAC-SHA3-256</span>
+            <span id="srv-hmac-sha3" style="color:#f1f5f9; word-break:break-all; flex:1;">${d.sha3_256}</span>
+            <button type="button" class="btn-copy" style="margin-left:8px; padding:2px 8px; border-radius:4px; background:#1e293b; color:#fff; border:1px solid rgba(255,255,255,0.2); cursor:pointer;" onclick="navigator.clipboard.writeText(document.getElementById('srv-hmac-sha3').innerText); this.innerText='已复制!'; setTimeout(()=>this.innerText='复制', 1500)">复制</button>
+          </div>
+        </div>
+        <div class="token-meta" style="display:flex; gap:16px; font-size:12px; color:var(--text-muted);">
+          <span>编码: <strong style="color:#fff;">${d.format.toUpperCase()}</strong></span>
+          <span>密钥长度: <strong style="color:#38bdf8;">${secretKey.length} 字符</strong></span>
+        </div>
+      </div>
+    `);
+  } catch (err) {
+    return c.html(`
+      <div class="result-box error">
+        <strong>计算失败:</strong> ${err.message}
+      </div>
+    `, 400);
+  }
+});
+
+// API: 后端 HMAC 恒定时间校验 (由 HTMX 调用)
+app.post("/api/backend/hmac/verify", async (c) => {
+  try {
+    if (!hmacEngine) {
+      throw new Error("hmac-generator.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    const body = await c.req.parseBody();
+    const text = (body.text || "").toString();
+    const secretKey = (body.secretKey || "").toString();
+    const hmac = (body.hmac || "").toString().trim();
+    const algorithm = (body.algorithm || "sha256").toString();
+    const format = (body.format || "hex").toString();
+
+    const t0 = performance.now();
+    const response = hmacEngine.dispatch({
+      action: "hmac/verify",
+      requestId: `srv-${Date.now()}`,
+      params: { text, secretKey, hmac, algorithm, format }
+    });
+    const duration = (performance.now() - t0).toFixed(4);
+
+    if (response.code !== 0) {
+      throw new Error(response.msg);
+    }
+
+    const { valid } = response.data;
+    const badgeColor = valid ? "#34d399" : "#ef4444";
+    const statusText = valid ? `✅ HMAC 恒定时间比对通过：消息认证完全有效 (${algorithm.toUpperCase()})` : `❌ HMAC 比对失败：消息被篡改或密钥错误 (${algorithm.toUpperCase()})`;
+
+    return c.html(`
+      <div class="result-box" style="border-color:${badgeColor};">
+        <div class="result-header">
+          <span class="tag tag-rust">🦀 Rust WASM: 恒定时间校验</span>
+          <span class="badge-time">⚡ ${duration} ms (防时序侧信道)</span>
+        </div>
+        <div style="font-size:14px; font-weight:bold; color:${badgeColor}; margin:4px 0;">
+          ${statusText}
+        </div>
+      </div>
+    `);
+  } catch (err) {
+    return c.html(`
+      <div class="result-box error">
+        <strong>校验失败:</strong> ${err.message}
+      </div>
+    `, 400);
+  }
+});
+
 // API: 模块统计信息
 app.get("/api/stats", (c) => {
   const rsSize = fs.existsSync(rsWasmPath) ? fs.statSync(rsWasmPath).size : 0;
@@ -870,6 +1003,7 @@ app.get("/api/stats", (c) => {
   const ulidSize = fs.existsSync(ulidWasmPath) ? fs.statSync(ulidWasmPath).size : 0;
   const encryptionSize = fs.existsSync(encryptionWasmPath) ? fs.statSync(encryptionWasmPath).size : 0;
   const bip39Size = fs.existsSync(bip39WasmPath) ? fs.statSync(bip39WasmPath).size : 0;
+  const hmacSize = fs.existsSync(hmacWasmPath) ? fs.statSync(hmacWasmPath).size : 0;
   return c.json({
     rust: {
       file: "rs.wasm",
@@ -915,6 +1049,11 @@ app.get("/api/stats", (c) => {
       file: "bip39-generator.wasm",
       sizeBytes: bip39Size,
       sizeFormatted: `${(bip39Size / 1024).toFixed(2)} KB`,
+    },
+    hmac: {
+      file: "hmac-generator.wasm",
+      sizeBytes: hmacSize,
+      sizeFormatted: `${(hmacSize / 1024).toFixed(2)} KB`,
     },
   });
 });

@@ -1,0 +1,14 @@
+{
+  "name": "@wasmforge/hmac-generator",
+  "version": "1.0.0",
+  "description": "Pure WebAssembly HMAC generator and verifier conforming to WasmForge Envelope Protocol",
+  "main": "dist/hmac-generator.wasm",
+  "scripts": {
+    "test": "cargo test",
+    "build": "cargo build --target wasm32-unknown-unknown --release",
+    "export": "copy target\\wasm32-unknown-unknown\\release\\hmac_generator.wasm ..\\hono-htmx\\public\\wasm\\hmac-generator.wasm"
+  },
+  "keywords": ["wasm", "webassembly", "hmac", "sha256", "sha512", "md5", "sha1", "sha3"],
+  "author": "WasmForge Team",
+  "license": "MIT"
+}
