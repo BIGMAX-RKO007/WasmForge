@@ -3145,6 +3145,63 @@ spec:
       </div>
     </div>
 
+    <!-- ================= 卡片 3.8: Crontab 表达式解析与计划时序推算 (Crontab Generator & Inspector) ================= -->
+    <div class="card" style="margin-bottom: 24px;">
+      <div class="card-header">
+        <div>
+          <h3>卡片 3.8: Crontab 表达式解析与计划时序推算 (Crontab Inspector)</h3>
+          <p style="margin:0; font-size:12px; color:var(--text-muted);">
+            纯 WASM 离线 Cron 表达式解析器，支持中英文语义翻译、五段式字段分解，以及未来 N 次运行时间点（毫秒级推算）。
+          </p>
+        </div>
+        <span class="tag tag-rust">Tool #40: crontab-generator</span>
+      </div>
+
+      <div style="margin-top:16px;">
+        <form hx-post="/api/backend/cron/evaluate" hx-target="#backend-cron-result" hx-swap="innerHTML">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:8px;">
+            <div style="display:flex; gap:12px; align-items:center;">
+              <label style="font-size:12px; font-weight:600; color:var(--text-muted);">常用预设:</label>
+              <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                <button type="button" onclick="loadCronPreset('* * * * *')" style="padding:2px 8px; font-size:11px; background:#1e293b; color:#fff; border:1px solid rgba(255,255,255,0.2); border-radius:4px; cursor:pointer;">每分钟</button>
+                <button type="button" onclick="loadCronPreset('*/15 * * * *')" style="padding:2px 8px; font-size:11px; background:#1e293b; color:#fff; border:1px solid rgba(255,255,255,0.2); border-radius:4px; cursor:pointer;">每15分钟</button>
+                <button type="button" onclick="loadCronPreset('0 * * * *')" style="padding:2px 8px; font-size:11px; background:#1e293b; color:#fff; border:1px solid rgba(255,255,255,0.2); border-radius:4px; cursor:pointer;">每小时整</button>
+                <button type="button" onclick="loadCronPreset('0 0 * * *')" style="padding:2px 8px; font-size:11px; background:#1e293b; color:#fff; border:1px solid rgba(255,255,255,0.2); border-radius:4px; cursor:pointer;">每天午夜</button>
+                <button type="button" onclick="loadCronPreset('0 9 * * 1-5')" style="padding:2px 8px; font-size:11px; background:#1e293b; color:#fff; border:1px solid rgba(255,255,255,0.2); border-radius:4px; cursor:pointer;">工作日早9点</button>
+                <button type="button" onclick="loadCronPreset('0 0 * * 0')" style="padding:2px 8px; font-size:11px; background:#1e293b; color:#fff; border:1px solid rgba(255,255,255,0.2); border-radius:4px; cursor:pointer;">每周日午夜</button>
+                <button type="button" onclick="loadCronPreset('0 0 1 * *')" style="padding:2px 8px; font-size:11px; background:#1e293b; color:#fff; border:1px solid rgba(255,255,255,0.2); border-radius:4px; cursor:pointer;">每月1日</button>
+              </div>
+            </div>
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span style="font-size:12px; color:var(--text-muted);">推算次数:</span>
+              <input type="number" id="cron-count" name="count" value="5" min="1" max="20" style="width:55px; padding:3px 6px; background:#1e293b; border:1px solid rgba(255,255,255,0.2); color:#fff; border-radius:4px; font-family:var(--font-mono); font-size:12px;" />
+            </div>
+          </div>
+
+          <div style="display:flex; gap:10px;">
+            <input type="text" id="cron-expression" name="expression" value="*/15 * * * *" placeholder="输入五段式 Cron 表达式，如: */15 * * * *" style="flex:1; padding:8px 12px; background:#1e293b; border:1px solid rgba(255,255,255,0.1); color:#fff; border-radius:6px; font-family:var(--font-mono); font-size:14px; box-sizing:border-box;" />
+            <button type="submit" style="padding:6px 14px; background:linear-gradient(135deg, #0284c7, #0369a1); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:12px;">
+              🖥️ 后端解析推算
+            </button>
+            <button type="button" onclick="runFrontendCronEvaluate()" style="padding:6px 14px; background:linear-gradient(135deg, #0ea5e9, #0284c7); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:12px;">
+              🌐 前端解析推算
+            </button>
+          </div>
+        </form>
+
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:16px; margin-top:16px;">
+          <div>
+            <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px;">后端投影输出:</div>
+            <div id="backend-cron-result" class="result-container"><div class="result-box" style="opacity:0.5; font-size:12px;">等待解析...</div></div>
+          </div>
+          <div>
+            <div style="font-size:11px; color:var(--text-muted); margin-top:0px; margin-bottom:4px;">前端投影输出:</div>
+            <div id="frontend-cron-result" class="result-container"><div class="result-box" style="opacity:0.5; font-size:12px;">等待解析...</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- ================= 区域 3: 4 象限综合矩阵基准测试 ================= -->
     <div class="matrix-card">
       <h2>📊 4 维度跨场景一致性与性能矩阵</h2>
@@ -3249,6 +3306,16 @@ spec:
       xmlFormatterReady: false,
       jsonMinify: null,
       jsonMinifyReady: false,
+      jsonViewer: null,
+      jsonViewerReady: false,
+      yamlViewer: null,
+      yamlViewerReady: false,
+      regexTester: null,
+      regexTesterReady: false,
+      regexMemo: null,
+      regexMemoReady: false,
+      crontabGenerator: null,
+      crontabGeneratorReady: false,
       activeFrontendEngine: "rust",
       activeBackendEngine: "rust"
     };
@@ -3296,6 +3363,7 @@ spec:
         const yamlViewerEngine = await loadWasmFromUrl("./wasm/yaml-viewer.wasm");
         const regexTesterEngine = await loadWasmFromUrl("./wasm/regex-tester.wasm");
         const regexMemoEngine = await loadWasmFromUrl("./wasm/regex-memo.wasm");
+        const crontabGeneratorEngine = await loadWasmFromUrl("./wasm/crontab-generator.wasm");
 
         window.wasmContext.rust = rsEngine;
         window.wasmContext.ts = tsEngine;
@@ -3338,6 +3406,7 @@ spec:
         window.wasmContext.yamlViewer = yamlViewerEngine;
         window.wasmContext.regexTester = regexTesterEngine;
         window.wasmContext.regexMemo = regexMemoEngine;
+        window.wasmContext.crontabGenerator = crontabGeneratorEngine;
         window.wasmContext.rustReady = true;
         window.wasmContext.tsReady = true;
         window.wasmContext.tokenReady = true;
@@ -3379,9 +3448,10 @@ spec:
         window.wasmContext.yamlViewerReady = true;
         window.wasmContext.regexTesterReady = true;
         window.wasmContext.regexMemoReady = true;
+        window.wasmContext.crontabGeneratorReady = true;
 
         const statusEl = document.getElementById("frontend-status");
-        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载 41 大模块: rs, ts, token-gen, hash-text, bcrypt, uuid-gen, ulid-gen, encryption, bip39, hmac, rsa, password-strength, pdf-sig, yaml-to-json, yaml-to-toml, json-to-yaml, json-to-toml, toml-to-json, toml-to-yaml, xml-to-json, json-to-xml, json-to-csv, base64-string, base64-file, color-converter, case-converter, date-time-converter, integer-base-converter, roman-numeral-converter, text-to-binary, text-to-unicode, markdown-to-html, list-converter, text-to-nato, sql-prettify, xml-formatter, json-minify, json-viewer, yaml-viewer, regex-tester & regex-memo)`;
+        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载 42 大模块: rs, ts, token-gen, hash-text, bcrypt, uuid-gen, ulid-gen, encryption, bip39, hmac, rsa, password-strength, pdf-sig, yaml-to-json, yaml-to-toml, json-to-yaml, json-to-toml, toml-to-json, toml-to-yaml, xml-to-json, json-to-xml, json-to-csv, base64-string, base64-file, color-converter, case-converter, date-time-converter, integer-base-converter, roman-numeral-converter, text-to-binary, text-to-unicode, markdown-to-html, list-converter, text-to-nato, sql-prettify, xml-formatter, json-minify, json-viewer, yaml-viewer, regex-tester, regex-memo & crontab-generator)`;
 
         // 初始自动运行一次前端计算
         window.runFrontendCalc();
@@ -3407,6 +3477,8 @@ spec:
         window.loadJsonXmlSample();
         window.loadJsonCsvSample();
         window.loadBase64Sample();
+        if (window.runFrontendRegexMemo) window.runFrontendRegexMemo();
+        if (window.runFrontendCronEvaluate) window.runFrontendCronEvaluate();
       } catch (err) {
         console.error("加载浏览器端 WASM 失败:", err);
         const statusEl = document.getElementById("frontend-status");
@@ -7135,6 +7207,119 @@ spec:
 
           <div style="max-height:280px; overflow-y:auto;">
             ${itemRows || '<div style="padding:10px; color:var(--text-muted); font-size:12px;">未匹配到相关正则语法条目</div>'}
+          </div>
+        </div>
+      `;
+    };
+
+    // 载入 Cron 常用预设
+    window.loadCronPreset = function(expr) {
+      document.getElementById("cron-expression").value = expr;
+      window.runFrontendCronEvaluate();
+    };
+
+    // 前端执行 Cron 解析与时序推算
+    window.runFrontendCronEvaluate = function() {
+      const engine = window.wasmContext.crontabGenerator;
+      if (!engine) {
+        document.getElementById("frontend-cron-result").innerHTML = `
+          <div class="result-box error">crontab-generator.wasm 尚未加载完毕</div>
+        `;
+        return;
+      }
+
+      const expression = (document.getElementById("cron-expression").value || "").trim();
+      const count = parseInt(document.getElementById("cron-count").value || "5", 10);
+      const referenceTime = Math.floor(Date.now() / 1000);
+
+      if (!expression) {
+        document.getElementById("frontend-cron-result").innerHTML = `
+          <div class="result-box error">Cron 表达式不能为空</div>
+        `;
+        return;
+      }
+
+      const t0 = performance.now();
+      const response = engine.dispatch({
+        action: "cron/evaluate",
+        requestId: `req-front-${Date.now()}`,
+        params: { expression, referenceTime, count }
+      });
+      const duration = (performance.now() - t0).toFixed(4);
+
+      if (response.code !== 0) {
+        document.getElementById("frontend-cron-result").innerHTML = `
+          <div class="result-box error"><strong>Cron 语法解析错误:</strong> ${response.msg}</div>
+        `;
+        return;
+      }
+
+      function escapeHtmlFront(str) {
+        return (str || "").replace(/[&<>"']/g, (m) => ({
+          "&": "&amp;",
+          "<": "&lt;",
+          ">": "&gt;",
+          '"': "&quot;",
+          "'": "&#39;"
+        }[m]));
+      }
+
+      const d = response.data;
+      const b = d.breakdown;
+
+      const runRows = d.nextRuns.map((r) => `
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:5px 8px; border-bottom:1px solid rgba(255,255,255,0.05); font-family:var(--font-mono); font-size:12px;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span style="color:#f59e0b; font-weight:600;">#${r.index}</span>
+            <span style="color:#34d399;">${escapeHtmlFront(r.utcTime)}</span>
+          </div>
+          <span style="color:var(--text-muted); font-size:11px;">${escapeHtmlFront(r.readable)}</span>
+        </div>
+      `).join("");
+
+      document.getElementById("frontend-cron-result").innerHTML = `
+        <div class="result-box">
+          <div class="result-header">
+            <span class="tag tag-rust">🦀 Browser WASM: Cron 表达式解析成功</span>
+            <span class="badge-time">⚡ ${duration} ms (纯前端内存)</span>
+          </div>
+
+          <div style="margin-bottom:12px; display:flex; flex-direction:column; gap:4px;">
+            <div style="font-size:14px; font-weight:600; color:#38bdf8;">
+              📢 ${escapeHtmlFront(d.humanZh)}
+              <span style="font-size:12px; font-weight:400; color:var(--text-muted); margin-left:8px;">(${escapeHtmlFront(d.humanEn)})</span>
+            </div>
+          </div>
+
+          <!-- 字段分解条 -->
+          <div style="display:grid; grid-template-columns: repeat(5, 1fr); gap:6px; margin-bottom:12px; font-family:var(--font-mono); font-size:12px; text-align:center;">
+            <div style="background:rgba(255,255,255,0.04); padding:6px 2px; border-radius:4px; border:1px solid rgba(255,255,255,0.08);">
+              <div style="font-size:10px; color:var(--text-muted);">分钟 (Min)</div>
+              <div style="color:#38bdf8; font-weight:700;">${escapeHtmlFront(b.minute)}</div>
+            </div>
+            <div style="background:rgba(255,255,255,0.04); padding:6px 2px; border-radius:4px; border:1px solid rgba(255,255,255,0.08);">
+              <div style="font-size:10px; color:var(--text-muted);">小时 (Hour)</div>
+              <div style="color:#38bdf8; font-weight:700;">${escapeHtmlFront(b.hour)}</div>
+            </div>
+            <div style="background:rgba(255,255,255,0.04); padding:6px 2px; border-radius:4px; border:1px solid rgba(255,255,255,0.08);">
+              <div style="font-size:10px; color:var(--text-muted);">日期 (Day)</div>
+              <div style="color:#38bdf8; font-weight:700;">${escapeHtmlFront(b.dayOfMonth)}</div>
+            </div>
+            <div style="background:rgba(255,255,255,0.04); padding:6px 2px; border-radius:4px; border:1px solid rgba(255,255,255,0.08);">
+              <div style="font-size:10px; color:var(--text-muted);">月份 (Month)</div>
+              <div style="color:#38bdf8; font-weight:700;">${escapeHtmlFront(b.month)}</div>
+            </div>
+            <div style="background:rgba(255,255,255,0.04); padding:6px 2px; border-radius:4px; border:1px solid rgba(255,255,255,0.08);">
+              <div style="font-size:10px; color:var(--text-muted);">星期 (Week)</div>
+              <div style="color:#38bdf8; font-weight:700;">${escapeHtmlFront(b.dayOfWeek)}</div>
+            </div>
+          </div>
+
+          <div>
+            <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px;">未来 ${d.nextRuns.length} 次调度触发时序 (UTC):</div>
+            <div style="background:rgba(255,255,255,0.02); border-radius:6px; border:1px solid rgba(255,255,255,0.08); max-height:160px; overflow-y:auto;">
+              ${runRows || '<div style="padding:10px; color:var(--text-muted); font-size:12px;">无计划运行</div>'}
+            </div>
           </div>
         </div>
       `;

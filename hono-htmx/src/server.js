@@ -51,6 +51,7 @@ const jsonViewerWasmPath = path.resolve(__dirname, "../public/wasm/json-viewer.w
 const yamlViewerWasmPath = path.resolve(__dirname, "../public/wasm/yaml-viewer.wasm");
 const regexTesterWasmPath = path.resolve(__dirname, "../public/wasm/regex-tester.wasm");
 const regexMemoWasmPath = path.resolve(__dirname, "../public/wasm/regex-memo.wasm");
+const crontabGeneratorWasmPath = path.resolve(__dirname, "../public/wasm/crontab-generator.wasm");
 
 let rsEngine = null;
 let tsEngine = null;
@@ -93,6 +94,7 @@ let jsonViewerEngine = null;
 let yamlViewerEngine = null;
 let regexTesterEngine = null;
 let regexMemoEngine = null;
+let crontabGeneratorEngine = null;
 
 async function initEngines() {
   try {
@@ -381,6 +383,13 @@ async function initEngines() {
       console.log("✅ [Backend Infra] 纯单一文件 regex-memo.wasm 加载成功");
     } else {
       console.warn("⚠️ regex-memo.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    if (fs.existsSync(crontabGeneratorWasmPath)) {
+      crontabGeneratorEngine = await loadWasmFromDisk(crontabGeneratorWasmPath);
+      console.log("✅ [Backend Infra] 纯单一文件 crontab-generator.wasm 加载成功");
+    } else {
+      console.warn("⚠️ crontab-generator.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
     }
   } catch (err) {
     console.error("❌ 后端 WASM 基础设施初始化失败:", err);
@@ -4576,6 +4585,149 @@ const handleRegexMemo = async (c) => {
 app.get("/api/backend/regex/memo", handleRegexMemo);
 app.post("/api/backend/regex/memo", handleRegexMemo);
 
+// API: HTMX 提交 Cron 表达式解析与未来运行推算
+app.post("/api/backend/cron/evaluate", async (c) => {
+  try {
+    let expression = "";
+    let referenceTime = Math.floor(Date.now() / 1000);
+    let count = 5;
+
+    const contentType = c.req.header("content-type") || "";
+    if (contentType.includes("application/json")) {
+      const json = await c.req.json().catch(() => ({}));
+      expression = (json.expression || "").toString();
+      if (json.referenceTime !== undefined) referenceTime = Number(json.referenceTime);
+      if (json.count !== undefined) count = Number(json.count);
+    } else {
+      const body = await c.req.parseBody().catch(() => ({}));
+      expression = (body.expression || "").toString();
+      if (body.referenceTime) referenceTime = Number(body.referenceTime);
+      if (body.count) count = Number(body.count);
+    }
+
+    if (!expression) {
+      if (contentType.includes("application/json") && !c.req.header("HX-Request")) {
+        return c.json({ code: 400, msg: "Cron 表达式不能为空", data: null }, 400);
+      }
+      return c.html(`
+        <div class="result-box error">
+          <strong>解析失败:</strong> Cron 表达式不能为空
+        </div>
+      `, 400);
+    }
+
+    if (!crontabGeneratorEngine) {
+      throw new Error("crontab-generator WASM 引擎未就绪");
+    }
+
+    const t0 = performance.now();
+    const response = crontabGeneratorEngine.dispatch({
+      action: "cron/evaluate",
+      requestId: `srv-${Date.now()}`,
+      params: { expression, referenceTime, count }
+    });
+    const duration = (performance.now() - t0).toFixed(4);
+
+    if (contentType.includes("application/json") && !c.req.header("HX-Request")) {
+      return c.json(response);
+    }
+
+    if (response.code !== 0) {
+      return c.html(`
+        <div class="result-box error">
+          <strong>Cron 语法解析错误:</strong> ${escapeHtml(response.msg)}
+        </div>
+      `, 400);
+    }
+
+    const d = response.data;
+    const b = d.breakdown;
+
+    const runRows = d.nextRuns.map((r) => `
+      <div style="display:flex; justify-content:space-between; align-items:center; padding:5px 8px; border-bottom:1px solid rgba(255,255,255,0.05); font-family:var(--font-mono); font-size:12px;">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span style="color:#f59e0b; font-weight:600;">#${r.index}</span>
+          <span style="color:#34d399;">${escapeHtml(r.utcTime)}</span>
+        </div>
+        <span style="color:var(--text-muted); font-size:11px;">${escapeHtml(r.readable)}</span>
+      </div>
+    `).join("");
+
+    return c.html(`
+      <div class="result-box">
+        <div class="result-header">
+          <span class="tag tag-rust">🦀 Rust WASM: Cron 表达式解析成功</span>
+          <span class="badge-time">⚡ ${duration} ms (Hono 后端原生)</span>
+        </div>
+
+        <div style="margin-bottom:12px; display:flex; flex-direction:column; gap:4px;">
+          <div style="font-size:14px; font-weight:600; color:#38bdf8;">
+            📢 ${escapeHtml(d.humanZh)}
+            <span style="font-size:12px; font-weight:400; color:var(--text-muted); margin-left:8px;">(${escapeHtml(d.humanEn)})</span>
+          </div>
+        </div>
+
+        <!-- 字段分解条 -->
+        <div style="display:grid; grid-template-columns: repeat(5, 1fr); gap:6px; margin-bottom:12px; font-family:var(--font-mono); font-size:12px; text-align:center;">
+          <div style="background:rgba(255,255,255,0.04); padding:6px 2px; border-radius:4px; border:1px solid rgba(255,255,255,0.08);">
+            <div style="font-size:10px; color:var(--text-muted);">分钟 (Min)</div>
+            <div style="color:#38bdf8; font-weight:700;">${escapeHtml(b.minute)}</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.04); padding:6px 2px; border-radius:4px; border:1px solid rgba(255,255,255,0.08);">
+            <div style="font-size:10px; color:var(--text-muted);">小时 (Hour)</div>
+            <div style="color:#38bdf8; font-weight:700;">${escapeHtml(b.hour)}</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.04); padding:6px 2px; border-radius:4px; border:1px solid rgba(255,255,255,0.08);">
+            <div style="font-size:10px; color:var(--text-muted);">日期 (Day)</div>
+            <div style="color:#38bdf8; font-weight:700;">${escapeHtml(b.dayOfMonth)}</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.04); padding:6px 2px; border-radius:4px; border:1px solid rgba(255,255,255,0.08);">
+            <div style="font-size:10px; color:var(--text-muted);">月份 (Month)</div>
+            <div style="color:#38bdf8; font-weight:700;">${escapeHtml(b.month)}</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.04); padding:6px 2px; border-radius:4px; border:1px solid rgba(255,255,255,0.08);">
+            <div style="font-size:10px; color:var(--text-muted);">星期 (Week)</div>
+            <div style="color:#38bdf8; font-weight:700;">${escapeHtml(b.dayOfWeek)}</div>
+          </div>
+        </div>
+
+        <div>
+          <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px;">未来 ${d.nextRuns.length} 次调度触发时序 (UTC):</div>
+          <div style="background:rgba(255,255,255,0.02); border-radius:6px; border:1px solid rgba(255,255,255,0.08); max-height:160px; overflow-y:auto;">
+            ${runRows || '<div style="padding:10px; color:var(--text-muted); font-size:12px;">无计划运行</div>'}
+          </div>
+        </div>
+      </div>
+    `);
+  } catch (err) {
+    return c.html(`
+      <div class="result-box error">
+        <strong>处理失败:</strong> ${err.message}
+      </div>
+    `, 400);
+  }
+});
+
+// API: 获取 Cron 常用预设列表
+app.get("/api/backend/cron/presets", async (c) => {
+  try {
+    if (!crontabGeneratorEngine) {
+      throw new Error("crontab-generator WASM 引擎未就绪");
+    }
+    const response = crontabGeneratorEngine.dispatch({
+      action: "cron/presets",
+      requestId: `srv-${Date.now()}`,
+      params: {}
+    });
+    if (response.code !== 0) {
+      throw new Error(response.msg || "获取预设失败");
+    }
+    return c.json(response.data);
+  } catch (err) {
+    return c.json({ presets: [] }, 500);
+  }
+});
+
 // API: 获取 Markdown 示例
 app.get("/api/backend/markdown/sample", async (c) => {
   try {
@@ -4739,6 +4891,7 @@ app.get("/api/stats", (c) => {
   const yamlViewerSize = fs.existsSync(yamlViewerWasmPath) ? fs.statSync(yamlViewerWasmPath).size : 0;
   const regexTesterSize = fs.existsSync(regexTesterWasmPath) ? fs.statSync(regexTesterWasmPath).size : 0;
   const regexMemoSize = fs.existsSync(regexMemoWasmPath) ? fs.statSync(regexMemoWasmPath).size : 0;
+  const crontabGeneratorSize = fs.existsSync(crontabGeneratorWasmPath) ? fs.statSync(crontabGeneratorWasmPath).size : 0;
   return c.json({
     rust: {
       file: "rs.wasm",
@@ -4944,6 +5097,11 @@ app.get("/api/stats", (c) => {
       file: "regex-memo.wasm",
       sizeBytes: regexMemoSize,
       sizeFormatted: `${(regexMemoSize / 1024).toFixed(2)} KB`,
+    },
+    crontabGenerator: {
+      file: "crontab-generator.wasm",
+      sizeBytes: crontabGeneratorSize,
+      sizeFormatted: `${(crontabGeneratorSize / 1024).toFixed(2)} KB`,
     },
   });
 });

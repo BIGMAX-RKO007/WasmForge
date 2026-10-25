@@ -1,0 +1,25 @@
+{
+  "name": "@wasmforge/crontab-generator",
+  "version": "0.1.0",
+  "description": "Pure standalone WebAssembly module for Cron schedule parsing, human description and next run calculations",
+  "main": "pkg/crontab_generator.js",
+  "types": "pkg/crontab_generator.d.ts",
+  "files": [
+    "pkg",
+    "src"
+  ],
+  "scripts": {
+    "build": "cargo build --target wasm32-unknown-unknown --release",
+    "test": "cargo test"
+  },
+  "keywords": [
+    "wasm",
+    "webassembly",
+    "cron",
+    "crontab",
+    "scheduler",
+    "generator",
+    "rust"
+  ],
+  "license": "MIT"
+}
