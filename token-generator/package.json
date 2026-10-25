@@ -1,0 +1,15 @@
+{
+  "name": "token-generator",
+  "version": "1.0.0",
+  "description": "Token & Password Generator WASM Module for WasmForge",
+  "type": "module",
+  "scripts": {
+    "build:wasm": "cargo build --target wasm32-unknown-unknown --release",
+    "export": "powershell -Command \"Copy-Item target/wasm32-unknown-unknown/release/token_generator.wasm ../hono-htmx/public/wasm/token-generator.wasm\"",
+    "deploy": "npm run build:wasm ; npm run export",
+    "test": "cargo test"
+  },
+  "keywords": ["wasm", "rust", "webassembly", "token-generator", "password-generator"],
+  "author": "",
+  "license": "MIT"
+}

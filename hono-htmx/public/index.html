@@ -390,6 +390,90 @@
         <div id="frontend-greet-result" class="result-container">
           <div class="result-box" style="opacity:0.5;">等待执行...</div>
         </div>
+    </div>
+
+    <!-- ================= 核心工具 1.1: Token Generator (令牌/密码生成器) ================= -->
+    <div class="card" style="margin-bottom: 32px; border: 1px solid rgba(56, 189, 248, 0.3); background: rgba(15, 23, 42, 0.85);">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px;">
+        <div>
+          <h2 style="margin:0 0 4px; display:flex; align-items:center; gap:10px;">
+            <span>🔐 1.1 令牌与密码生成器 (Token Generator)</span>
+            <span class="tag tag-rust">token-generator.wasm (~187 KB)</span>
+          </h2>
+          <p style="color:var(--text-muted); font-size:13px; margin:0;">
+            基于 Rust 纯独立编译的 WebAssembly 模块与统一信封通信协议 (Envelope Protocol)，支持前后端跨场景零差异生成强随机令牌与密码熵值评估。
+          </p>
+        </div>
+        <div style="font-size:12px; font-family:var(--font-mono); color:#34d399; background:rgba(52, 211, 153, 0.1); padding:4px 10px; border-radius:6px; border:1px solid rgba(52, 211, 153, 0.2);">
+          C-ABI: alloc / dealloc / dispatch
+        </div>
+      </div>
+
+      <form id="token-form" hx-post="/api/backend/token/generate" hx-target="#backend-token-result" hx-swap="innerHTML" style="margin-top:20px;">
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:16px;">
+          <!-- 长度调节 -->
+          <div>
+            <label style="display:block; font-size:13px; margin-bottom:6px; color:var(--text-muted);">
+              令牌长度 (Length): <strong id="token-len-display" style="color:#38bdf8;">32</strong>
+            </label>
+            <div style="display:flex; align-items:center; gap:12px;">
+              <input type="range" id="token-len-range" name="length" min="4" max="256" value="32" style="flex:1;" oninput="document.getElementById('token-len-display').innerText=this.value; document.getElementById('token-len-num').value=this.value;">
+              <input type="number" id="token-len-num" value="32" min="4" max="256" style="width:70px; padding:6px; background:#1e293b; border:1px solid rgba(255,255,255,0.1); color:#fff; border-radius:6px;" oninput="document.getElementById('token-len-display').innerText=this.value; document.getElementById('token-len-range').value=this.value;">
+            </div>
+          </div>
+
+          <!-- 字符集选项 -->
+          <div>
+            <label style="display:block; font-size:13px; margin-bottom:6px; color:var(--text-muted);">字符集选项 (Character Sets):</label>
+            <div style="display:flex; flex-wrap:wrap; gap:12px; font-size:13px; margin-top:8px;">
+              <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+                <input type="checkbox" id="tok-upper" name="withUppercase" checked> 大写字母 (A-Z)
+              </label>
+              <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+                <input type="checkbox" id="tok-lower" name="withLowercase" checked> 小写字母 (a-z)
+              </label>
+              <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+                <input type="checkbox" id="tok-num" name="withNumbers" checked> 数字 (0-9)
+              </label>
+              <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
+                <input type="checkbox" id="tok-sym" name="withSymbols"> 特殊符号 (!@#...)
+              </label>
+            </div>
+          </div>
+
+          <!-- 自定义字符集 -->
+          <div style="grid-column: 1 / -1;">
+            <label style="display:block; font-size:13px; margin-bottom:6px; color:var(--text-muted);">自定义专用字符表 (可选，填写后将覆盖上方开关):</label>
+            <input type="text" id="tok-custom" name="customAlphabet" placeholder="留空使用标准配置，例如: ABCDEF012345" style="width:100%; padding:8px 12px; background:#1e293b; border:1px solid rgba(255,255,255,0.1); color:#fff; border-radius:6px; font-family:var(--font-mono);">
+          </div>
+        </div>
+
+        <!-- 触发动作按钮组 -->
+        <div style="display:flex; gap:12px; margin-top:20px; flex-wrap:wrap;">
+          <button type="submit" style="padding:10px 18px; background:linear-gradient(135deg, #f97316, #ea580c); color:#fff; border:none; border-radius:8px; cursor:pointer; font-weight:600; display:flex; align-items:center; gap:8px;">
+            <span>🖥️ HTMX 提交到后端 (Hono + WASM)</span>
+            <span class="htmx-indicator">⏳</span>
+          </button>
+          <button type="button" onclick="runFrontendTokenGen()" style="padding:10px 18px; background:linear-gradient(135deg, #0284c7, #0369a1); color:#fff; border:none; border-radius:8px; cursor:pointer; font-weight:600;">
+            🌐 前端浏览器本地直算 (Browser WASM)
+          </button>
+        </div>
+      </form>
+
+      <!-- 结果对比区 -->
+      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:16px; margin-top:16px;">
+        <div>
+          <div style="font-size:12px; color:var(--text-muted); margin-bottom:4px;">后端运行结果 (Hono Server via HTMX):</div>
+          <div id="backend-token-result" class="result-container">
+            <div class="result-box" style="opacity:0.5;">点击上方橙色按钮由 Hono 宿主调用 token-generator.wasm</div>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:12px; color:var(--text-muted); margin-bottom:4px;">前端运行结果 (Browser WASM In-Memory):</div>
+          <div id="frontend-token-result" class="result-container">
+            <div class="result-box" style="opacity:0.5;">点击上方蓝色按钮由浏览器本地直接执行计算</div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -425,8 +509,10 @@
     window.wasmContext = {
       rustReady: false,
       tsReady: false,
+      tokenReady: false,
       rust: null,
       ts: null,
+      tokenGenerator: null,
       activeFrontendEngine: "rust",
       activeBackendEngine: "rust"
     };
@@ -435,18 +521,22 @@
       try {
         const rsEngine = await loadWasmFromUrl("./wasm/rs.wasm");
         const tsEngine = await loadWasmFromUrl("./wasm/ts.wasm");
+        const tokenEngine = await loadWasmFromUrl("./wasm/token-generator.wasm");
 
         window.wasmContext.rust = rsEngine;
         window.wasmContext.ts = tsEngine;
+        window.wasmContext.tokenGenerator = tokenEngine;
         window.wasmContext.rustReady = true;
         window.wasmContext.tsReady = true;
+        window.wasmContext.tokenReady = true;
 
         const statusEl = document.getElementById("frontend-status");
-        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载单一 rs.wasm & ts.wasm)`;
+        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载 rs.wasm, ts.wasm & token-generator.wasm)`;
 
-        // 初始自动运行一次前端计算
+        // 初始自动运行一次前端计算与 Token 生成
         window.runFrontendCalc();
         window.runFrontendGreet();
+        window.runFrontendTokenGen();
       } catch (err) {
         console.error("加载浏览器端 WASM 失败:", err);
         const statusEl = document.getElementById("frontend-status");
@@ -533,6 +623,67 @@
             <span class="badge-time">⚡ ${duration} ms (客户端瞬时完成)</span>
           </div>
           <div class="result-value">${res}</div>
+        </div>
+      `;
+    };
+
+    // 前端 Token 生成器调用 (Envelope Protocol: token/generate)
+    window.runFrontendTokenGen = function() {
+      const engine = window.wasmContext.tokenGenerator;
+      if (!engine) {
+        document.getElementById("frontend-token-result").innerHTML = `
+          <div class="result-box error">token-generator.wasm 尚未加载完毕</div>
+        `;
+        return;
+      }
+
+      const length = parseInt(document.getElementById("token-len-num").value) || 32;
+      const withUppercase = document.getElementById("tok-upper").checked;
+      const withLowercase = document.getElementById("tok-lower").checked;
+      const withNumbers = document.getElementById("tok-num").checked;
+      const withSymbols = document.getElementById("tok-sym").checked;
+      const customAlphabet = document.getElementById("tok-custom").value.trim() || undefined;
+
+      const t0 = performance.now();
+      const response = engine.dispatch({
+        action: "token/generate",
+        requestId: `req-front-${Date.now()}`,
+        params: {
+          length,
+          withUppercase,
+          withLowercase,
+          withNumbers,
+          withSymbols,
+          customAlphabet,
+          seed: Math.floor(Math.random() * 0xFFFFFFFF)
+        }
+      });
+      const duration = (performance.now() - t0).toFixed(4);
+
+      if (response.code !== 0) {
+        document.getElementById("frontend-token-result").innerHTML = `
+          <div class="result-box error"><strong>执行失败:</strong> ${response.msg}</div>
+        `;
+        return;
+      }
+
+      const { token, entropyBits, charsetSize } = response.data;
+
+      document.getElementById("frontend-token-result").innerHTML = `
+        <div class="result-box">
+          <div class="result-header">
+            <span class="tag tag-rust">🦀 Browser WASM: token-generator</span>
+            <span class="badge-time">⚡ ${duration} ms (纯前端内存计算)</span>
+          </div>
+          <div class="token-display-wrap" style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,0.3); padding:10px 14px; border-radius:8px; margin:8px 0;">
+            <div class="result-value" id="client-token-text" style="font-size:15px; color:#34d399; word-break:break-all; flex:1;">${token}</div>
+            <button type="button" class="btn-copy" style="margin-left:12px; padding:6px 12px; border-radius:6px; background:#1e293b; color:#fff; border:1px solid #34d399; cursor:pointer;" onclick="navigator.clipboard.writeText(document.getElementById('client-token-text').innerText); this.innerText='已复制!'; setTimeout(()=>this.innerText='复制', 1500)">复制</button>
+          </div>
+          <div class="token-meta" style="display:flex; gap:16px; font-size:12px; color:var(--text-muted); margin-top:6px;">
+            <span>📏 长度: <strong style="color:#fff;">${length}</strong></span>
+            <span>🔤 字符集大小: <strong style="color:#fff;">${charsetSize}</strong></span>
+            <span>🔐 密码熵: <strong style="color:#34d399;">${entropyBits.toFixed(1)} bits</strong></span>
+          </div>
         </div>
       `;
     };

@@ -42,4 +42,38 @@ export class WasmEngine {
 
     return result;
   }
+
+  /**
+   * 通用信封协议调度 (Envelope Protocol)
+   * @param {Object} envelope { action, requestId, params }
+   * @returns {Object} response { code, msg, requestId, data }
+   */
+  dispatch(envelope) {
+    if (typeof this.exports.dispatch !== "function") {
+      throw new Error("WASM 模块未导出 dispatch 函数");
+    }
+
+    const jsonStr = typeof envelope === "string" ? envelope : JSON.stringify(envelope);
+    const encoder = new TextEncoder();
+    const encoded = encoder.encode(jsonStr);
+    const inLen = encoded.length;
+
+    const inPtr = this.exports.alloc(inLen);
+    const memory = this.exports.memory;
+    new Uint8Array(memory.buffer, inPtr, inLen).set(encoded);
+
+    const packed = BigInt(this.exports.dispatch(inPtr, inLen));
+    const outPtr = Number(packed >> 32n);
+    const outLen = Number(packed & 0xFFFFFFFFn);
+
+    const outBytes = new Uint8Array(memory.buffer, outPtr, outLen);
+    const responseJson = new TextDecoder().decode(outBytes);
+
+    if (typeof this.exports.dealloc === "function") {
+      this.exports.dealloc(inPtr, inLen);
+      this.exports.dealloc(outPtr, outLen);
+    }
+
+    return JSON.parse(responseJson);
+  }
 }
