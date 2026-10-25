@@ -59,6 +59,7 @@ const gitMemoWasmPath = path.resolve(__dirname, "../public/wasm/git-memo.wasm");
 const randomPortWasmPath = path.resolve(__dirname, "../public/wasm/random-port.wasm");
 const textDiffWasmPath = path.resolve(__dirname, "../public/wasm/text-diff.wasm");
 const textStatisticsWasmPath = path.resolve(__dirname, "../public/wasm/text-statistics.wasm");
+const stringObfuscatorWasmPath = path.resolve(__dirname, "../public/wasm/string-obfuscator.wasm");
 
 let rsEngine = null;
 let tsEngine = null;
@@ -109,6 +110,7 @@ let gitMemoEngine = null;
 let randomPortEngine = null;
 let textDiffEngine = null;
 let textStatisticsEngine = null;
+let stringObfuscatorEngine = null;
 
 async function initEngines() {
   try {
@@ -453,6 +455,13 @@ async function initEngines() {
       console.log("✅ [Backend Infra] 纯单一文件 text-statistics.wasm 加载成功");
     } else {
       console.warn("⚠️ text-statistics.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    if (fs.existsSync(stringObfuscatorWasmPath)) {
+      stringObfuscatorEngine = await loadWasmFromDisk(stringObfuscatorWasmPath);
+      console.log("✅ [Backend Infra] 纯单一文件 string-obfuscator.wasm 加载成功");
+    } else {
+      console.warn("⚠️ string-obfuscator.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
     }
   } catch (err) {
     console.error("❌ 后端 WASM 基础设施初始化失败:", err);
@@ -5794,6 +5803,159 @@ app.get("/api/backend/text/samples", async (c) => {
   }
 });
 
+// API: 敏感字符串脱敏与混淆处理 (String Obfuscator)
+app.post("/api/backend/obfuscate/process", async (c) => {
+  try {
+    const contentType = c.req.header("Content-Type") || "";
+    let action = "obfuscate/mask";
+    let text = "";
+    let strategy = "email";
+    let mode = "leet";
+    let maskChar = "*";
+    let unmaskedPrefix = 2;
+    let unmaskedSuffix = 2;
+
+    if (contentType.includes("application/json")) {
+      const json = await c.req.json().catch(() => ({}));
+      action = json.action || "obfuscate/mask";
+      text = (json.text || "").toString();
+      strategy = json.strategy || "email";
+      mode = json.mode || "leet";
+      maskChar = json.maskChar || "*";
+      unmaskedPrefix = typeof json.unmaskedPrefix === "number" ? json.unmaskedPrefix : 2;
+      unmaskedSuffix = typeof json.unmaskedSuffix === "number" ? json.unmaskedSuffix : 2;
+    } else {
+      const body = await c.req.parseBody().catch(() => ({}));
+      const opType = (body.opType || "mask").toString();
+      if (opType === "sanitize") {
+        action = "obfuscate/sanitize-log";
+      } else if (opType === "transform") {
+        action = "obfuscate/transform";
+      } else {
+        action = "obfuscate/mask";
+      }
+      text = (body.text || "").toString();
+      strategy = (body.strategy || "email").toString();
+      mode = (body.mode || "leet").toString();
+      maskChar = (body.maskChar || "*").toString().charAt(0) || "*";
+      unmaskedPrefix = parseInt(body.unmaskedPrefix || "2", 10);
+      unmaskedSuffix = parseInt(body.unmaskedSuffix || "2", 10);
+    }
+
+    if (!stringObfuscatorEngine) {
+      throw new Error("string-obfuscator WASM 引擎未就绪");
+    }
+
+    const t0 = performance.now();
+    const response = stringObfuscatorEngine.dispatch({
+      action,
+      requestId: `srv-${Date.now()}`,
+      params: {
+        text,
+        strategy,
+        mode,
+        maskChar,
+        unmaskedPrefix,
+        unmaskedSuffix,
+      }
+    });
+    const duration = (performance.now() - t0).toFixed(4);
+
+    if (contentType.includes("application/json") && !c.req.header("HX-Request")) {
+      return c.json(response);
+    }
+
+    if (response.code !== 0) {
+      return c.html(`
+        <div class="result-box error">
+          <strong>处理失败:</strong> ${escapeHtml(response.msg)}
+        </div>
+      `, 400);
+    }
+
+    const d = response.data;
+
+    if (action === "obfuscate/sanitize-log") {
+      const detectionsHtml = d.detections.length > 0 ? `
+        <div style="margin-top:10px;">
+          <div style="font-size:12px; color:var(--text-muted); margin-bottom:6px; font-weight:600;">已捕获并脱敏敏感特征项清单 (${d.redactionsCount} 项):</div>
+          <div style="max-height:160px; overflow-y:auto; display:flex; flex-direction:column; gap:4px;">
+            ${d.detections.map(det => `
+              <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:4px; padding:4px 8px; font-size:11px; font-family:var(--font-mono);">
+                <div>
+                  <span style="color:#f59e0b; font-weight:600;">[行 ${det.line}]</span>
+                  <span style="color:#38bdf8; margin-left:6px;">${escapeHtml(det.kind)}:</span>
+                </div>
+                <div style="display:flex; gap:8px;">
+                  <span style="color:var(--text-muted); text-decoration:line-through;">${escapeHtml(det.original)}</span>
+                  <span style="color:#34d399; font-weight:600;">➜ ${escapeHtml(det.masked)}</span>
+                </div>
+              </div>
+            `).join("")}
+          </div>
+        </div>
+      ` : `<div style="font-size:12px; color:#34d399; margin-top:8px;">✅ 未在文本中检测到已知的高危敏感格式。</div>`;
+
+      return c.html(`
+        <div class="result-box">
+          <div class="result-header">
+            <span class="tag tag-rust">🦀 Rust WASM: 全局日志敏感词脱敏完成</span>
+            <span class="badge-time">⚡ ${duration} ms (Hono 后端原生)</span>
+          </div>
+          <textarea readonly style="width:100%; padding:10px; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1); border-radius:6px; font-family:var(--font-mono); font-size:12px; color:#34d399; box-sizing:border-box; resize:vertical;" rows="5">${escapeHtml(d.sanitizedText)}</textarea>
+          ${detectionsHtml}
+        </div>
+      `);
+    } else if (action === "obfuscate/transform") {
+      return c.html(`
+        <div class="result-box">
+          <div class="result-header">
+            <span class="tag tag-rust">🦀 Rust WASM: 字符混淆转换完成 (${escapeHtml(d.mode)})</span>
+            <span class="badge-time">⚡ ${duration} ms (Hono 后端原生)</span>
+          </div>
+          <textarea readonly style="width:100%; padding:10px; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1); border-radius:6px; font-family:var(--font-mono); font-size:13px; color:#38bdf8; box-sizing:border-box; resize:vertical;" rows="4">${escapeHtml(d.result)}</textarea>
+        </div>
+      `);
+    } else {
+      return c.html(`
+        <div class="result-box">
+          <div class="result-header">
+            <span class="tag tag-rust">🦀 Rust WASM: 单项脱敏完成 (${escapeHtml(d.strategy)})</span>
+            <span class="badge-time">⚡ ${duration} ms (Hono 后端原生)</span>
+          </div>
+          <div style="margin-bottom:8px; font-size:12px; color:var(--text-muted);">
+            原文本长度: <strong>${d.originalLength} 字符</strong>
+          </div>
+          <input type="text" readonly value="${escapeHtml(d.maskedText)}" style="width:100%; padding:10px; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1); border-radius:6px; font-family:var(--font-mono); font-size:14px; color:#34d399; box-sizing:border-box;" />
+        </div>
+      `);
+    }
+  } catch (err) {
+    return c.html(`
+      <div class="result-box error">
+        <strong>执行失败:</strong> ${escapeHtml(err.message)}
+      </div>
+    `, 500);
+  }
+});
+
+// API: 获取脱敏与混淆预设示例
+app.get("/api/backend/obfuscate/samples", async (c) => {
+  try {
+    if (!stringObfuscatorEngine) {
+      throw new Error("string-obfuscator WASM 引擎未就绪");
+    }
+    const response = stringObfuscatorEngine.dispatch({
+      action: "obfuscate/samples",
+      requestId: `srv-${Date.now()}`,
+      params: {}
+    });
+    return c.json(response);
+  } catch (err) {
+    return c.json({ code: 500, msg: err.message, data: null }, 500);
+  }
+});
+
 // API: 获取 Markdown 示例
 app.get("/api/backend/markdown/sample", async (c) => {
   try {
@@ -5965,6 +6127,7 @@ app.get("/api/stats", (c) => {
   const randomPortSize = fs.existsSync(randomPortWasmPath) ? fs.statSync(randomPortWasmPath).size : 0;
   const textDiffSize = fs.existsSync(textDiffWasmPath) ? fs.statSync(textDiffWasmPath).size : 0;
   const textStatisticsSize = fs.existsSync(textStatisticsWasmPath) ? fs.statSync(textStatisticsWasmPath).size : 0;
+  const stringObfuscatorSize = fs.existsSync(stringObfuscatorWasmPath) ? fs.statSync(stringObfuscatorWasmPath).size : 0;
   return c.json({
     rust: {
       file: "rs.wasm",
@@ -6210,6 +6373,11 @@ app.get("/api/stats", (c) => {
       file: "text-statistics.wasm",
       sizeBytes: textStatisticsSize,
       sizeFormatted: `${(textStatisticsSize / 1024).toFixed(2)} KB`,
+    },
+    stringObfuscator: {
+      file: "string-obfuscator.wasm",
+      sizeBytes: stringObfuscatorSize,
+      sizeFormatted: `${(stringObfuscatorSize / 1024).toFixed(2)} KB`,
     },
   });
 });

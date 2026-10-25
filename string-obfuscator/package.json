@@ -1,0 +1,27 @@
+{
+  "name": "@wasm-forge/string-obfuscator",
+  "version": "0.1.0",
+  "description": "Pure Standalone WebAssembly Sensitive String Masking, Desensitization, and Obfuscation Engine",
+  "type": "module",
+  "main": "pkg/string_obfuscator.wasm",
+  "files": [
+    "pkg/string_obfuscator.wasm",
+    "README.md"
+  ],
+  "scripts": {
+    "build:wasm": "cargo build --target wasm32-unknown-unknown --release",
+    "test": "cargo test"
+  },
+  "keywords": [
+    "wasm",
+    "webassembly",
+    "obfuscator",
+    "masking",
+    "desensitization",
+    "privacy",
+    "gdpr",
+    "sanitizer"
+  ],
+  "author": "WasmForge",
+  "license": "MIT"
+}

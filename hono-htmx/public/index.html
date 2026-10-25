@@ -3668,6 +3668,103 @@ spec:
           </div>
         </div>
       </div>
+
+      <!-- Card 4.3: 敏感信息脱敏与文本混淆 (String Obfuscator) -->
+      <div class="card" id="card-string-obfuscator">
+        <div class="card-header">
+          <div>
+            <div class="card-title">🛡️ 敏感数据脱敏与文本混淆 (String Obfuscator)</div>
+            <div class="card-desc">纯单一文件 Rust WASM 驱动的敏感 PII 识别、邮箱/手机/卡号/API密钥脱敏、黑客语转换与日志全量净化引擎</div>
+          </div>
+          <span class="tag tag-rust">Tool #48: string-obfuscator</span>
+        </div>
+
+        <form id="form-string-obfuscator" hx-post="/api/backend/obfuscate/process" hx-target="#backend-obfuscate-result" hx-swap="innerHTML">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:8px;">
+            <div style="display:flex; align-items:center; gap:16px;">
+              <span style="font-size:12px; color:var(--text-muted); font-weight:600;">操作模式:</span>
+              <label style="font-size:12px; cursor:pointer; color:#38bdf8; display:flex; align-items:center; gap:4px;">
+                <input type="radio" name="opType" value="sanitize" id="op-sanitize" checked onchange="updateObfuscatorUI(); runFrontendObfuscate();" />
+                <span>全局日志脱敏 (Sanitize)</span>
+              </label>
+              <label style="font-size:12px; cursor:pointer; color:#34d399; display:flex; align-items:center; gap:4px;">
+                <input type="radio" name="opType" value="mask" id="op-mask" onchange="updateObfuscatorUI(); runFrontendObfuscate();" />
+                <span>单项精准脱敏 (Mask)</span>
+              </label>
+              <label style="font-size:12px; cursor:pointer; color:#f59e0b; display:flex; align-items:center; gap:4px;">
+                <input type="radio" name="opType" value="transform" id="op-transform" onchange="updateObfuscatorUI(); runFrontendObfuscate();" />
+                <span>字符混淆变形 (Transform)</span>
+              </label>
+            </div>
+            <div style="display:flex; gap:6px; font-size:11px;">
+              <span style="color:var(--text-muted); padding:3px 0;">快速填充:</span>
+              <button type="button" onclick="loadObfuscateSample('api-access-log')" style="background:rgba(255,255,255,0.06); color:#38bdf8; border:1px solid rgba(56,189,248,0.3); border-radius:4px; padding:3px 8px; cursor:pointer;">📋 API 访问日志</button>
+              <button type="button" onclick="loadObfuscateSample('customer-pii')" style="background:rgba(255,255,255,0.06); color:#34d399; border:1px solid rgba(52,211,153,0.3); border-radius:4px; padding:3px 8px; cursor:pointer;">👤 客户 PII</button>
+              <button type="button" onclick="loadObfuscateSample('social-leet')" style="background:rgba(255,255,255,0.06); color:#f59e0b; border:1px solid rgba(245,158,11,0.3); border-radius:4px; padding:3px 8px; cursor:pointer;">👾 黑客 Leet 语</button>
+            </div>
+          </div>
+
+          <!-- 单项脱敏配置面板 -->
+          <div id="panel-mask-options" style="display:none; margin-bottom:10px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06); border-radius:6px; padding:8px 12px; gap:16px; flex-wrap:wrap; align-items:center;">
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span style="font-size:11px; color:var(--text-muted);">目标类型:</span>
+              <select name="strategy" id="obfuscate-strategy" onchange="runFrontendObfuscate()" style="background:#0f172a; color:#f8fafc; border:1px solid rgba(255,255,255,0.15); border-radius:4px; padding:4px 8px; font-size:12px;">
+                <option value="email">电子邮箱 (Email)</option>
+                <option value="phone">手机 / 电话 (Phone)</option>
+                <option value="credit-card">银行卡 / 信用卡 (Credit Card)</option>
+                <option value="api-key">API 密钥 / Bearer Token</option>
+                <option value="ssn">身份证 / SSN</option>
+                <option value="custom">自定义前后保留位数 (Custom)</option>
+              </select>
+            </div>
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span style="font-size:11px; color:var(--text-muted);">脱敏遮罩符:</span>
+              <input type="text" name="maskChar" id="obfuscate-mask-char" value="*" maxlength="1" oninput="runFrontendObfuscate()" style="width:30px; text-align:center; background:#0f172a; color:#f8fafc; border:1px solid rgba(255,255,255,0.15); border-radius:4px; padding:4px; font-size:12px;" />
+            </div>
+            <div id="custom-len-box" style="display:none; align-items:center; gap:8px;">
+              <span style="font-size:11px; color:var(--text-muted);">保留前缀:</span>
+              <input type="number" name="unmaskedPrefix" id="obfuscate-prefix" value="2" min="0" max="20" oninput="runFrontendObfuscate()" style="width:45px; background:#0f172a; color:#f8fafc; border:1px solid rgba(255,255,255,0.15); border-radius:4px; padding:4px; font-size:12px;" />
+              <span style="font-size:11px; color:var(--text-muted);">保留后缀:</span>
+              <input type="number" name="unmaskedSuffix" id="obfuscate-suffix" value="2" min="0" max="20" oninput="runFrontendObfuscate()" style="width:45px; background:#0f172a; color:#f8fafc; border:1px solid rgba(255,255,255,0.15); border-radius:4px; padding:4px; font-size:12px;" />
+            </div>
+          </div>
+
+          <!-- 混淆变形配置面板 -->
+          <div id="panel-transform-options" style="display:none; margin-bottom:10px; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06); border-radius:6px; padding:8px 12px; gap:16px; align-items:center;">
+            <span style="font-size:11px; color:var(--text-muted);">变形算法:</span>
+            <select name="mode" id="obfuscate-mode" onchange="runFrontendObfuscate()" style="background:#0f172a; color:#f8fafc; border:1px solid rgba(255,255,255,0.15); border-radius:4px; padding:4px 8px; font-size:12px;">
+              <option value="leet">Leet Speak (黑客数字混淆: E->3, A->4, T->7)</option>
+              <option value="rot13">ROT13 (Caesar 经典回转13位密文)</option>
+              <option value="reverse">字符串镜像翻转 (Reverse)</option>
+              <option value="hex">16 进制转义流 (\xHH)</option>
+              <option value="unicode-escape">Unicode 实体转义 (\u{XXXX})</option>
+              <option value="zero-width">防爬虫零宽字符混淆 (Zero-Width Space Injection)</option>
+            </select>
+          </div>
+
+          <textarea name="text" id="obfuscate-input" rows="5" placeholder="在此粘贴日志、待脱敏信息或测试文案..." style="width:100%; box-sizing:border-box; background:#0f172a; color:#f8fafc; border:1px solid rgba(255,255,255,0.15); border-radius:6px; padding:8px 12px; font-size:12px; font-family:var(--font-mono); margin-bottom:12px;" oninput="runFrontendObfuscate()"></textarea>
+
+          <div style="display:flex; gap:8px;">
+            <button type="submit" style="padding:8px 16px; background:linear-gradient(135deg, #3b82f6, #1d4ed8); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:12px;">
+              🖥️ 后端脱敏执行 (HTMX)
+            </button>
+            <button type="button" onclick="runFrontendObfuscate()" style="padding:8px 16px; background:linear-gradient(135deg, #10b981, #059669); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:12px;">
+              🌐 前端闪电净化
+            </button>
+          </div>
+        </form>
+
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:16px; margin-top:16px;">
+          <div>
+            <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px;">后端投影输出:</div>
+            <div id="backend-obfuscate-result" class="result-container"><div class="result-box" style="opacity:0.5; font-size:12px;">等待执行脱敏...</div></div>
+          </div>
+          <div>
+            <div style="font-size:11px; color:var(--text-muted); margin-top:0px; margin-bottom:4px;">前端投影输出:</div>
+            <div id="frontend-obfuscate-result" class="result-container"><div class="result-box" style="opacity:0.5; font-size:12px;">等待执行脱敏...</div></div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- ================= 区域 3: 4 象限综合矩阵基准测试 ================= -->
@@ -3845,6 +3942,7 @@ spec:
         const randomPortEngine = await loadWasmFromUrl("./wasm/random-port.wasm");
         const textDiffEngine = await loadWasmFromUrl("./wasm/text-diff.wasm");
         const textStatisticsEngine = await loadWasmFromUrl("./wasm/text-statistics.wasm");
+        const stringObfuscatorEngine = await loadWasmFromUrl("./wasm/string-obfuscator.wasm");
 
         window.wasmContext.rust = rsEngine;
         window.wasmContext.ts = tsEngine;
@@ -3895,6 +3993,7 @@ spec:
         window.wasmContext.randomPort = randomPortEngine;
         window.wasmContext.textDiff = textDiffEngine;
         window.wasmContext.textStatistics = textStatisticsEngine;
+        window.wasmContext.stringObfuscator = stringObfuscatorEngine;
         window.wasmContext.rustReady = true;
         window.wasmContext.tsReady = true;
         window.wasmContext.tokenReady = true;
@@ -3944,9 +4043,10 @@ spec:
         window.wasmContext.randomPortReady = true;
         window.wasmContext.textDiffReady = true;
         window.wasmContext.textStatisticsReady = true;
+        window.wasmContext.stringObfuscatorReady = true;
 
         const statusEl = document.getElementById("frontend-status");
-        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载 49 大模块: rs, ts, token-gen, hash-text, bcrypt, uuid-gen, ulid-gen, encryption, bip39, hmac, rsa, password-strength, pdf-sig, yaml-to-json, yaml-to-toml, json-to-yaml, json-to-toml, toml-to-json, toml-to-yaml, xml-to-json, json-to-xml, json-to-csv, base64-string, base64-file, color-converter, case-converter, date-time-converter, integer-base-converter, roman-numeral-converter, text-to-binary, text-to-unicode, markdown-to-html, list-converter, text-to-nato, sql-prettify, xml-formatter, json-minify, json-viewer, yaml-viewer, regex-tester, regex-memo, crontab-generator, chmod-calculator, docker-run-to-compose, email-normalizer, git-memo, random-port, text-diff & text-statistics)`;
+        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载 50 大模块: rs, ts, token-gen, hash-text, bcrypt, uuid-gen, ulid-gen, encryption, bip39, hmac, rsa, password-strength, pdf-sig, yaml-to-json, yaml-to-toml, json-to-yaml, json-to-toml, toml-to-json, toml-to-yaml, xml-to-json, json-to-xml, json-to-csv, base64-string, base64-file, color-converter, case-converter, date-time-converter, integer-base-converter, roman-numeral-converter, text-to-binary, text-to-unicode, markdown-to-html, list-converter, text-to-nato, sql-prettify, xml-formatter, json-minify, json-viewer, yaml-viewer, regex-tester, regex-memo, crontab-generator, chmod-calculator, docker-run-to-compose, email-normalizer, git-memo, random-port, text-diff, text-statistics & string-obfuscator)`;
 
         // 初始自动运行一次前端计算
         window.runFrontendCalc();
@@ -8664,6 +8764,143 @@ spec:
           ` : ''}
         </div>
       `;
+    };
+
+    // String Obfuscator 前端交互与闪电脱敏
+    const obfuscateSamplePresets = {
+      "api-access-log": "2026-10-25T14:20:11Z [INFO] Auth request from user alice.wonderland@techcorp.io with token Bearer sk_live_89437298417298374921\n2026-10-25T14:20:12Z [INFO] Payment checkout initiated: card 4532 9821 3456 9012, phone +86 13800138000\n2026-10-25T14:20:13Z [DEBUG] Webhook triggered with secret ghp_912384918237498237491823749218",
+      "customer-pii": "Customer: Robert Davis\nEmail: robert.davis@securemail.com\nMobile: 13912345678\nBilling Card: 5412751234567890\nSSN: 123-45-6789",
+      "social-leet": "WebAssembly is blazing fast and standalone without javascript glue!"
+    };
+
+    window.updateObfuscatorUI = function() {
+      const op = document.querySelector('input[name="opType"]:checked').value;
+      const maskPanel = document.getElementById("panel-mask-options");
+      const transformPanel = document.getElementById("panel-transform-options");
+      const customLenBox = document.getElementById("custom-len-box");
+      const strategy = document.getElementById("obfuscate-strategy").value;
+
+      maskPanel.style.display = op === "mask" ? "flex" : "none";
+      transformPanel.style.display = op === "transform" ? "flex" : "none";
+      customLenBox.style.display = (op === "mask" && strategy === "custom") ? "flex" : "none";
+    };
+
+    window.loadObfuscateSample = function(sampleId) {
+      const content = obfuscateSamplePresets[sampleId];
+      if (content) {
+        document.getElementById("obfuscate-input").value = content;
+        if (sampleId === "social-leet") {
+          document.getElementById("op-transform").checked = true;
+        } else {
+          document.getElementById("op-sanitize").checked = true;
+        }
+        window.updateObfuscatorUI();
+        window.runFrontendObfuscate();
+      }
+    };
+
+    window.runFrontendObfuscate = function() {
+      if (!window.wasmContext.stringObfuscatorReady || !window.wasmContext.stringObfuscator) {
+        document.getElementById("frontend-obfuscate-result").innerHTML = `
+          <div class="result-box error">string-obfuscator.wasm 尚未加载完毕</div>
+        `;
+        return;
+      }
+
+      window.updateObfuscatorUI();
+      const op = document.querySelector('input[name="opType"]:checked').value;
+      const text = document.getElementById("obfuscate-input").value;
+      const strategy = document.getElementById("obfuscate-strategy").value;
+      const mode = document.getElementById("obfuscate-mode").value;
+      const maskChar = (document.getElementById("obfuscate-mask-char").value || "*").charAt(0) || "*";
+      const unmaskedPrefix = parseInt(document.getElementById("obfuscate-prefix").value || "2", 10);
+      const unmaskedSuffix = parseInt(document.getElementById("obfuscate-suffix").value || "2", 10);
+
+      let action = "obfuscate/sanitize-log";
+      if (op === "mask") {
+        action = "obfuscate/mask";
+      } else if (op === "transform") {
+        action = "obfuscate/transform";
+      }
+
+      const t0 = performance.now();
+      const response = window.wasmContext.stringObfuscator.dispatch({
+        action,
+        requestId: `front-${Date.now()}`,
+        params: {
+          text,
+          strategy,
+          mode,
+          maskChar,
+          unmaskedPrefix,
+          unmaskedSuffix
+        }
+      });
+      const duration = (performance.now() - t0).toFixed(4);
+
+      if (response.code !== 0) {
+        document.getElementById("frontend-obfuscate-result").innerHTML = `
+          <div class="result-box error">处理失败: ${escapeHtmlFront(response.msg)}</div>
+        `;
+        return;
+      }
+
+      const d = response.data;
+      if (action === "obfuscate/sanitize-log") {
+        const detectionsHtml = d.detections.length > 0 ? `
+          <div style="margin-top:10px;">
+            <div style="font-size:12px; color:var(--text-muted); margin-bottom:6px; font-weight:600;">已捕获并脱敏敏感特征项清单 (${d.redactionsCount} 项):</div>
+            <div style="max-height:160px; overflow-y:auto; display:flex; flex-direction:column; gap:4px;">
+              ${d.detections.map(det => `
+                <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:4px; padding:4px 8px; font-size:11px; font-family:var(--font-mono);">
+                  <div>
+                    <span style="color:#f59e0b; font-weight:600;">[行 ${det.line}]</span>
+                    <span style="color:#38bdf8; margin-left:6px;">${escapeHtmlFront(det.kind)}:</span>
+                  </div>
+                  <div style="display:flex; gap:8px;">
+                    <span style="color:var(--text-muted); text-decoration:line-through;">${escapeHtmlFront(det.original)}</span>
+                    <span style="color:#34d399; font-weight:600;">➜ ${escapeHtmlFront(det.masked)}</span>
+                  </div>
+                </div>
+              `).join("")}
+            </div>
+          </div>
+        ` : `<div style="font-size:12px; color:#34d399; margin-top:8px;">✅ 未在文本中检测到已知的高危敏感格式。</div>`;
+
+        document.getElementById("frontend-obfuscate-result").innerHTML = `
+          <div class="result-box">
+            <div class="result-header">
+              <span class="tag tag-rust">🦀 Browser WASM: 全局日志敏感词脱敏完成</span>
+              <span class="badge-time">⚡ ${duration} ms (纯前端内存)</span>
+            </div>
+            <textarea readonly style="width:100%; padding:10px; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1); border-radius:6px; font-family:var(--font-mono); font-size:12px; color:#34d399; box-sizing:border-box; resize:vertical;" rows="5">${escapeHtmlFront(d.sanitizedText)}</textarea>
+            ${detectionsHtml}
+          </div>
+        `;
+      } else if (action === "obfuscate/transform") {
+        document.getElementById("frontend-obfuscate-result").innerHTML = `
+          <div class="result-box">
+            <div class="result-header">
+              <span class="tag tag-rust">🦀 Browser WASM: 字符混淆转换完成 (${escapeHtmlFront(d.mode)})</span>
+              <span class="badge-time">⚡ ${duration} ms (纯前端内存)</span>
+            </div>
+            <textarea readonly style="width:100%; padding:10px; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1); border-radius:6px; font-family:var(--font-mono); font-size:13px; color:#38bdf8; box-sizing:border-box; resize:vertical;" rows="4">${escapeHtmlFront(d.result)}</textarea>
+          </div>
+        `;
+      } else {
+        document.getElementById("frontend-obfuscate-result").innerHTML = `
+          <div class="result-box">
+            <div class="result-header">
+              <span class="tag tag-rust">🦀 Browser WASM: 单项脱敏完成 (${escapeHtmlFront(d.strategy)})</span>
+              <span class="badge-time">⚡ ${duration} ms (纯前端内存)</span>
+            </div>
+            <div style="margin-bottom:8px; font-size:12px; color:var(--text-muted);">
+              原文本长度: <strong>${d.originalLength} 字符</strong>
+            </div>
+            <input type="text" readonly value="${escapeHtmlFront(d.maskedText)}" style="width:100%; padding:10px; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1); border-radius:6px; font-family:var(--font-mono); font-size:14px; color:#34d399; box-sizing:border-box;" />
+          </div>
+        `;
+      }
     };
 
     // 全矩阵对比测试
