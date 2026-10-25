@@ -21,6 +21,7 @@ const encryptionWasmPath = path.resolve(__dirname, "../public/wasm/encryption.wa
 const bip39WasmPath = path.resolve(__dirname, "../public/wasm/bip39-generator.wasm");
 const hmacWasmPath = path.resolve(__dirname, "../public/wasm/hmac-generator.wasm");
 const rsaWasmPath = path.resolve(__dirname, "../public/wasm/rsa-key-pair.wasm");
+const passwordStrengthWasmPath = path.resolve(__dirname, "../public/wasm/password-strength.wasm");
 
 let rsEngine = null;
 let tsEngine = null;
@@ -33,6 +34,7 @@ let encryptionEngine = null;
 let bip39Engine = null;
 let hmacEngine = null;
 let rsaEngine = null;
+let passwordStrengthEngine = null;
 
 async function initEngines() {
   try {
@@ -111,6 +113,13 @@ async function initEngines() {
       console.log("✅ [Backend Infra] 纯单一文件 rsa-key-pair.wasm 加载成功");
     } else {
       console.warn("⚠️ rsa-key-pair.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    if (fs.existsSync(passwordStrengthWasmPath)) {
+      passwordStrengthEngine = await loadWasmFromDisk(passwordStrengthWasmPath);
+      console.log("✅ [Backend Infra] 纯单一文件 password-strength.wasm 加载成功");
+    } else {
+      console.warn("⚠️ password-strength.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
     }
   } catch (err) {
     console.error("❌ 后端 WASM 基础设施初始化失败:", err);
@@ -1069,6 +1078,80 @@ app.post("/api/backend/rsa/generate", async (c) => {
   }
 });
 
+// API: 后端密码强度评估 (由 HTMX 调用)
+app.post("/api/backend/password/analyze", async (c) => {
+  try {
+    if (!passwordStrengthEngine) {
+      throw new Error("password-strength.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    const body = await c.req.parseBody();
+    const password = (body.password || "").toString();
+
+    const t0 = performance.now();
+    const response = passwordStrengthEngine.dispatch({
+      action: "password/analyze",
+      requestId: `srv-${Date.now()}`,
+      params: { password }
+    });
+    const duration = (performance.now() - t0).toFixed(4);
+
+    if (response.code !== 0) {
+      throw new Error(response.msg);
+    }
+
+    const d = response.data;
+    const scoreColors = ["#ef4444", "#f97316", "#eab308", "#38bdf8", "#34d399"];
+    const scorePercent = [15, 35, 60, 85, 100][d.score];
+    const color = scoreColors[d.score];
+
+    return c.html(`
+      <div class="result-box" style="border-color:${color};">
+        <div class="result-header">
+          <span class="tag tag-rust">🦀 Rust WASM: ${d.scoreText} (${d.score} / 4)</span>
+          <span class="badge-time">⚡ ${duration} ms (Hono 原生极速分析)</span>
+        </div>
+        
+        <!-- 强度进度条 -->
+        <div style="background:rgba(255,255,255,0.1); height:8px; border-radius:4px; overflow:hidden; margin:10px 0;">
+          <div style="background:${color}; width:${scorePercent}%; height:100%; transition:width 0.3s ease;"></div>
+        </div>
+
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:10px; margin:10px 0; font-size:12px;">
+          <div style="background:rgba(0,0,0,0.3); padding:8px 12px; border-radius:6px;">
+            <span style="color:var(--text-muted);">香农密码熵:</span> <strong style="color:${color};">${d.entropyBits.toFixed(1)} bits</strong>
+          </div>
+          <div style="background:rgba(0,0,0,0.3); padding:8px 12px; border-radius:6px;">
+            <span style="color:var(--text-muted);">在线暴力破解 (100次/秒):</span> <strong style="color:#fff;">${d.crackTimes.online100PerSec}</strong>
+          </div>
+          <div style="background:rgba(0,0,0,0.3); padding:8px 12px; border-radius:6px;">
+            <span style="color:var(--text-muted);">离线慢速哈希 (1万次/秒):</span> <strong style="color:#fff;">${d.crackTimes.offlineSlowHash10kPerSec}</strong>
+          </div>
+          <div style="background:rgba(0,0,0,0.3); padding:8px 12px; border-radius:6px;">
+            <span style="color:var(--text-muted);">离线 GPU 集群 (百亿次/秒):</span> <strong style="color:#fff;">${d.crackTimes.offlineFastHash10GPerSec}</strong>
+          </div>
+        </div>
+
+        ${d.warning ? `
+          <div style="background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.3); padding:8px 12px; border-radius:6px; font-size:12px; color:#fca5a5; margin-top:8px;">
+            ⚠️ <strong>风险预警:</strong> ${d.warning}
+          </div>
+        ` : ''}
+
+        <div style="margin-top:8px; font-size:12px; color:var(--text-muted);">
+          💡 <strong>改进建议:</strong> ${d.suggestions.join(" | ")}
+        </div>
+      </div>
+    `);
+  } catch (err) {
+    return c.html(`
+      <div class="result-box error">
+        <strong>评估失败:</strong> ${err.message}
+      </div>
+    `, 400);
+  }
+});
+
 // API: 模块统计信息
 app.get("/api/stats", (c) => {
   const rsSize = fs.existsSync(rsWasmPath) ? fs.statSync(rsWasmPath).size : 0;
@@ -1082,6 +1165,7 @@ app.get("/api/stats", (c) => {
   const bip39Size = fs.existsSync(bip39WasmPath) ? fs.statSync(bip39WasmPath).size : 0;
   const hmacSize = fs.existsSync(hmacWasmPath) ? fs.statSync(hmacWasmPath).size : 0;
   const rsaSize = fs.existsSync(rsaWasmPath) ? fs.statSync(rsaWasmPath).size : 0;
+  const passwordStrengthSize = fs.existsSync(passwordStrengthWasmPath) ? fs.statSync(passwordStrengthWasmPath).size : 0;
   return c.json({
     rust: {
       file: "rs.wasm",
@@ -1137,6 +1221,11 @@ app.get("/api/stats", (c) => {
       file: "rsa-key-pair.wasm",
       sizeBytes: rsaSize,
       sizeFormatted: `${(rsaSize / 1024).toFixed(2)} KB`,
+    },
+    passwordStrength: {
+      file: "password-strength.wasm",
+      sizeBytes: passwordStrengthSize,
+      sizeFormatted: `${(passwordStrengthSize / 1024).toFixed(2)} KB`,
     },
   });
 });

@@ -1190,6 +1190,55 @@
           </div>
         </div>
       </div>
+    <!-- ================= 核心工具 1.10: Password Strength Evaluator ================= -->
+    <div class="card" style="margin-bottom: 32px; border: 1px solid rgba(56, 189, 248, 0.3); background: rgba(15, 23, 42, 0.85);">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px;">
+        <div>
+          <h2 style="margin:0 0 4px; display:flex; align-items:center; gap:10px;">
+            <span>🛡️ 1.10 密码强度综合评估器 (Shannon Entropy & Crack Times)</span>
+            <span class="tag tag-rust" style="background:rgba(56,189,248,0.2); color:#38bdf8; border-color:rgba(56,189,248,0.4);">password-strength.wasm (~125 KB)</span>
+          </h2>
+          <p style="color:var(--text-muted); font-size:13px; margin:0;">
+            高精度香农密码熵测算、常见字典弱口令与键盘连续序列检测、多级别离线 GPU 暴力破解耗时估算与安全评级 (0-4)。
+          </p>
+        </div>
+        <div style="font-size:12px; font-family:var(--font-mono); color:#38bdf8; background:rgba(56, 189, 248, 0.1); padding:4px 10px; border-radius:6px; border:1px solid rgba(56, 189, 248, 0.2);">
+          C-ABI: alloc / dealloc / dispatch
+        </div>
+      </div>
+
+      <!-- 密码评估表单 -->
+      <form id="pwd-analyze-form" hx-post="/api/backend/password/analyze" hx-target="#backend-pwd-result" hx-swap="innerHTML" style="margin-top:20px;">
+        <div>
+          <label style="display:block; font-size:13px; margin-bottom:6px; color:var(--text-muted);">待评估密码 (Password to Test):</label>
+          <input type="text" id="pwd-input-text" name="password" value="P@ssw0rd2026!#Safe" oninput="runFrontendPasswordAnalyze()" style="width:100%; padding:8px 12px; background:#1e293b; border:1px solid rgba(255,255,255,0.1); color:#fff; border-radius:6px; font-family:var(--font-mono); font-size:14px; box-sizing:border-box;">
+        </div>
+
+        <div style="display:flex; gap:12px; margin-top:16px; flex-wrap:wrap;">
+          <button type="submit" style="padding:8px 16px; background:linear-gradient(135deg, #0284c7, #0369a1); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600; display:flex; align-items:center; gap:6px;">
+            <span>🖥️ HTMX 提交后端评估</span>
+            <span class="htmx-indicator">⏳</span>
+          </button>
+          <button type="button" onclick="runFrontendPasswordAnalyze()" style="padding:8px 16px; background:linear-gradient(135deg, #0369a1, #075985); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600;">
+            🌐 浏览器前端实时分析
+          </button>
+        </div>
+      </form>
+
+      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:16px; margin-top:16px;">
+        <div>
+          <div style="font-size:12px; color:var(--text-muted); margin-bottom:4px;">后端评估输出 (Hono HTMX):</div>
+          <div id="backend-pwd-result" class="result-container">
+            <div class="result-box" style="opacity:0.5;">输入密码并点击上方按钮</div>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:12px; color:var(--text-muted); margin-bottom:4px;">前端评估输出 (Browser WASM):</div>
+          <div id="frontend-pwd-result" class="result-container">
+            <div class="result-box" style="opacity:0.5;">输入密码即时联动评估</div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- ================= 区域 3: 4 象限综合矩阵基准测试 ================= -->
@@ -1233,6 +1282,7 @@
       bip39Ready: false,
       hmacReady: false,
       rsaReady: false,
+      passwordStrengthReady: false,
       rust: null,
       ts: null,
       tokenGenerator: null,
@@ -1244,6 +1294,7 @@
       bip39: null,
       hmac: null,
       rsa: null,
+      passwordStrength: null,
       activeFrontendEngine: "rust",
       activeBackendEngine: "rust"
     };
@@ -1261,6 +1312,7 @@
         const bipEngine = await loadWasmFromUrl("./wasm/bip39-generator.wasm");
         const hmacEngine = await loadWasmFromUrl("./wasm/hmac-generator.wasm");
         const rsaEngine = await loadWasmFromUrl("./wasm/rsa-key-pair.wasm");
+        const pwdEngine = await loadWasmFromUrl("./wasm/password-strength.wasm");
 
         window.wasmContext.rust = rsEngine;
         window.wasmContext.ts = tsEngine;
@@ -1273,6 +1325,7 @@
         window.wasmContext.bip39 = bipEngine;
         window.wasmContext.hmac = hmacEngine;
         window.wasmContext.rsa = rsaEngine;
+        window.wasmContext.passwordStrength = pwdEngine;
         window.wasmContext.rustReady = true;
         window.wasmContext.tsReady = true;
         window.wasmContext.tokenReady = true;
@@ -1284,11 +1337,12 @@
         window.wasmContext.bip39Ready = true;
         window.wasmContext.hmacReady = true;
         window.wasmContext.rsaReady = true;
+        window.wasmContext.passwordStrengthReady = true;
 
         const statusEl = document.getElementById("frontend-status");
-        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载 11 大模块: rs, ts, token-gen, hash-text, bcrypt, uuid-gen, ulid-gen, encryption, bip39, hmac & rsa)`;
+        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载 12 大模块: rs, ts, token-gen, hash-text, bcrypt, uuid-gen, ulid-gen, encryption, bip39, hmac, rsa & password-strength)`;
 
-        // 初始自动运行一次前端计算、Token、Hash、Bcrypt、UUID、ULID、AES、BIP-39、HMAC、RSA
+        // 初始自动运行一次前端计算、Token、Hash、Bcrypt、UUID、ULID、AES、BIP-39、HMAC、RSA、密码评估
         window.runFrontendCalc();
         window.runFrontendGreet();
         window.runFrontendTokenGen();
@@ -1300,6 +1354,7 @@
         window.runFrontendBip39Gen();
         window.runFrontendHmacAll();
         window.runFrontendRsaGen();
+        window.runFrontendPasswordAnalyze();
       } catch (err) {
         console.error("加载浏览器端 WASM 失败:", err);
         const statusEl = document.getElementById("frontend-status");
@@ -2227,6 +2282,78 @@
             <span>模长: <strong style="color:#fff;">${d.bits} bits</strong></span>
             <span>标准: <strong style="color:#38bdf8;">${format.toUpperCase()} PEM</strong></span>
             <span>算法: <strong style="color:#c084fc;">RSA (PKCS#1 / PKCS#8)</strong></span>
+          </div>
+        </div>
+      `;
+    };
+
+    // 前端密码强度评估 (password/analyze)
+    window.runFrontendPasswordAnalyze = function() {
+      const engine = window.wasmContext.passwordStrength;
+      if (!engine) {
+        document.getElementById("frontend-pwd-result").innerHTML = `
+          <div class="result-box error">password-strength.wasm 尚未加载完毕</div>
+        `;
+        return;
+      }
+
+      const password = document.getElementById("pwd-input-text").value || "";
+
+      const t0 = performance.now();
+      const response = engine.dispatch({
+        action: "password/analyze",
+        requestId: `req-front-${Date.now()}`,
+        params: { password }
+      });
+      const duration = (performance.now() - t0).toFixed(4);
+
+      if (response.code !== 0) {
+        document.getElementById("frontend-pwd-result").innerHTML = `
+          <div class="result-box error"><strong>评估失败:</strong> ${response.msg}</div>
+        `;
+        return;
+      }
+
+      const d = response.data;
+      const scoreColors = ["#ef4444", "#f97316", "#eab308", "#38bdf8", "#34d399"];
+      const scorePercent = [15, 35, 60, 85, 100][d.score];
+      const color = scoreColors[d.score];
+
+      document.getElementById("frontend-pwd-result").innerHTML = `
+        <div class="result-box" style="border-color:${color};">
+          <div class="result-header">
+            <span class="tag tag-rust">🦀 Browser WASM: ${d.scoreText} (${d.score} / 4)</span>
+            <span class="badge-time">⚡ ${duration} ms (纯前端内存即时评估)</span>
+          </div>
+          
+          <!-- 强度进度条 -->
+          <div style="background:rgba(255,255,255,0.1); height:8px; border-radius:4px; overflow:hidden; margin:10px 0;">
+            <div style="background:${color}; width:${scorePercent}%; height:100%; transition:width 0.3s ease;"></div>
+          </div>
+
+          <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:10px; margin:10px 0; font-size:12px;">
+            <div style="background:rgba(0,0,0,0.3); padding:8px 12px; border-radius:6px;">
+              <span style="color:var(--text-muted);">香农密码熵:</span> <strong style="color:${color};">${d.entropyBits.toFixed(1)} bits</strong>
+            </div>
+            <div style="background:rgba(0,0,0,0.3); padding:8px 12px; border-radius:6px;">
+              <span style="color:var(--text-muted);">在线暴力破解 (100次/秒):</span> <strong style="color:#fff;">${d.crackTimes.online100PerSec}</strong>
+            </div>
+            <div style="background:rgba(0,0,0,0.3); padding:8px 12px; border-radius:6px;">
+              <span style="color:var(--text-muted);">离线慢速哈希 (1万次/秒):</span> <strong style="color:#fff;">${d.crackTimes.offlineSlowHash10kPerSec}</strong>
+            </div>
+            <div style="background:rgba(0,0,0,0.3); padding:8px 12px; border-radius:6px;">
+              <span style="color:var(--text-muted);">离线 GPU 集群 (百亿次/秒):</span> <strong style="color:#fff;">${d.crackTimes.offlineFastHash10GPerSec}</strong>
+            </div>
+          </div>
+
+          ${d.warning ? `
+            <div style="background:rgba(239,68,68,0.15); border:1px solid rgba(239,68,68,0.3); padding:8px 12px; border-radius:6px; font-size:12px; color:#fca5a5; margin-top:8px;">
+              ⚠️ <strong>风险预警:</strong> ${d.warning}
+            </div>
+          ` : ''}
+
+          <div style="margin-top:8px; font-size:12px; color:var(--text-muted);">
+            💡 <strong>改进建议:</strong> ${d.suggestions.join(" | ")}
           </div>
         </div>
       `;
