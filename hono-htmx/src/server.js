@@ -29,6 +29,7 @@ const jsonToYamlWasmPath = path.resolve(__dirname, "../public/wasm/json-to-yaml.
 const jsonToTomlWasmPath = path.resolve(__dirname, "../public/wasm/json-to-toml.wasm");
 const tomlToJsonWasmPath = path.resolve(__dirname, "../public/wasm/toml-to-json.wasm");
 const tomlToYamlWasmPath = path.resolve(__dirname, "../public/wasm/toml-to-yaml.wasm");
+const xmlToJsonWasmPath = path.resolve(__dirname, "../public/wasm/xml-to-json.wasm");
 
 let rsEngine = null;
 let tsEngine = null;
@@ -49,6 +50,7 @@ let jsonToYamlEngine = null;
 let jsonToTomlEngine = null;
 let tomlToJsonEngine = null;
 let tomlToYamlEngine = null;
+let xmlToJsonEngine = null;
 
 async function initEngines() {
   try {
@@ -183,6 +185,13 @@ async function initEngines() {
       console.log("✅ [Backend Infra] 纯单一文件 toml-to-yaml.wasm 加载成功");
     } else {
       console.warn("⚠️ toml-to-yaml.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    if (fs.existsSync(xmlToJsonWasmPath)) {
+      xmlToJsonEngine = await loadWasmFromDisk(xmlToJsonWasmPath);
+      console.log("✅ [Backend Infra] 纯单一文件 xml-to-json.wasm 加载成功");
+    } else {
+      console.warn("⚠️ xml-to-json.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
     }
   } catch (err) {
     console.error("❌ 后端 WASM 基础设施初始化失败:", err);
@@ -1729,6 +1738,84 @@ app.get("/api/backend/toml-to-yaml/sample", async (c) => {
   }
 });
 
+// API: HTMX 提交 XML 转 JSON
+app.post("/api/backend/xml/to-json", async (c) => {
+  try {
+    const body = await c.req.parseBody();
+    const xml = (body.xml || "").toString();
+    const indent = parseInt(body.indent || "2", 10);
+
+    if (!xml.trim()) {
+      return c.html(`
+        <div class="result-box error">
+          <strong>转换失败:</strong> 输入的 XML 内容不能为空
+        </div>
+      `, 400);
+    }
+
+    if (!xmlToJsonEngine) {
+      throw new Error("xml-to-json WASM 引擎未就绪");
+    }
+
+    const t0 = performance.now();
+    const response = xmlToJsonEngine.dispatch({
+      action: "xml/to-json",
+      requestId: `srv-${Date.now()}`,
+      params: { xml, indent }
+    });
+    const duration = (performance.now() - t0).toFixed(4);
+
+    if (response.code !== 0) {
+      return c.html(`
+        <div class="result-box error">
+          <strong>XML 解析转换失败:</strong> ${response.msg}
+        </div>
+      `, 400);
+    }
+
+    const d = response.data;
+    return c.html(`
+      <div class="result-box">
+        <div class="result-header">
+          <span class="tag tag-rust">🦀 Rust WASM: XML ➜ JSON (缩进: ${d.indent} 空格)</span>
+          <span class="badge-time">⚡ ${duration} ms (Hono 后端原生)</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; font-size:12px; color:var(--text-muted);">
+          <span>输入 XML 大小: <strong>${d.sourceSizeBytes} 字节</strong></span>
+          <span>转换 JSON 大小: <strong>${d.targetSizeBytes} 字节</strong></span>
+        </div>
+        <pre class="code-preview" style="max-height:280px; overflow-y:auto; background:rgba(0,0,0,0.4); padding:10px; border-radius:6px; font-size:12px; font-family:var(--font-mono); color:#38bdf8;"><code>${d.json.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</code></pre>
+      </div>
+    `);
+  } catch (err) {
+    return c.html(`
+      <div class="result-box error">
+        <strong>XML 转 JSON 失败:</strong> ${err.message}
+      </div>
+    `, 400);
+  }
+});
+
+// API: 获取 XML 示例模版
+app.get("/api/backend/xml-to-json/sample", async (c) => {
+  try {
+    if (!xmlToJsonEngine) {
+      throw new Error("xml-to-json WASM 引擎未就绪");
+    }
+    const response = xmlToJsonEngine.dispatch({
+      action: "xml/sample",
+      requestId: `srv-${Date.now()}`,
+      params: {}
+    });
+    if (response.code !== 0) {
+      throw new Error(response.msg || "获取示例失败");
+    }
+    return c.text(response.data.xml);
+  } catch (err) {
+    return c.text("<!-- 获取示例失败: " + err.message + " -->", 500);
+  }
+});
+
 // API: 模块统计信息
 app.get("/api/stats", (c) => {
   const rsSize = fs.existsSync(rsWasmPath) ? fs.statSync(rsWasmPath).size : 0;
@@ -1750,6 +1837,7 @@ app.get("/api/stats", (c) => {
   const jsonToTomlSize = fs.existsSync(jsonToTomlWasmPath) ? fs.statSync(jsonToTomlWasmPath).size : 0;
   const tomlToJsonSize = fs.existsSync(tomlToJsonWasmPath) ? fs.statSync(tomlToJsonWasmPath).size : 0;
   const tomlToYamlSize = fs.existsSync(tomlToYamlWasmPath) ? fs.statSync(tomlToYamlWasmPath).size : 0;
+  const xmlToJsonSize = fs.existsSync(xmlToJsonWasmPath) ? fs.statSync(xmlToJsonWasmPath).size : 0;
   return c.json({
     rust: {
       file: "rs.wasm",
@@ -1845,6 +1933,11 @@ app.get("/api/stats", (c) => {
       file: "toml-to-yaml.wasm",
       sizeBytes: tomlToYamlSize,
       sizeFormatted: `${(tomlToYamlSize / 1024).toFixed(2)} KB`,
+    },
+    xmlToJson: {
+      file: "xml-to-json.wasm",
+      sizeBytes: xmlToJsonSize,
+      sizeFormatted: `${(xmlToJsonSize / 1024).toFixed(2)} KB`,
     },
   });
 });
