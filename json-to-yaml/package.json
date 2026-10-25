@@ -1,0 +1,21 @@
+{
+  "name": "@wasmforge/json-to-yaml",
+  "version": "0.1.0",
+  "description": "Pure WebAssembly JSON to YAML converter module following WasmForge Universal Envelope Protocol",
+  "main": "dist/json-to-yaml.wasm",
+  "type": "module",
+  "scripts": {
+    "build": "cargo build --target wasm32-unknown-unknown --release",
+    "test": "cargo test"
+  },
+  "keywords": [
+    "wasm",
+    "webassembly",
+    "json",
+    "yaml",
+    "converter",
+    "pure-c-abi"
+  ],
+  "author": "Antigravity Pair Programmer",
+  "license": "MIT"
+}

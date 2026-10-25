@@ -1416,6 +1416,59 @@
       </div>
     </div>
 
+    <!-- 2.3 JSON ➜ YAML 转换器卡片 -->
+    <div class="tool-card">
+      <div class="tool-header">
+        <div>
+          <h2 style="margin:0 0 4px; font-size:18px; color:#fbbf24;">2.3 JSON ➜ YAML 配置文件转换器 (JSON to YAML)</h2>
+          <p style="color:var(--text-muted); font-size:13px; margin:0;">
+            高容错、纯静态 WebAssembly 模块，解析标准或嵌套 JSON 语法树，自动生成语义清晰、层级缩进标准的 YAML 配置文件。
+          </p>
+        </div>
+        <div style="font-size:12px; font-family:var(--font-mono); color:#fbbf24; background:rgba(251, 191, 36, 0.1); padding:4px 10px; border-radius:6px; border:1px solid rgba(251, 191, 36, 0.2);">
+          json-to-yaml.wasm (~203 KB)
+        </div>
+      </div>
+
+      <!-- 表单 -->
+      <form id="json-to-yaml-form" hx-post="/api/backend/json/to-yaml" hx-target="#backend-json-yaml-result" hx-swap="innerHTML" style="margin-top:20px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <label style="font-size:13px; color:var(--text-muted);">输入 JSON 文本:</label>
+          <div style="display:flex; gap:10px; align-items:center;">
+            <button type="button" onclick="loadJsonYamlSample()" style="padding:4px 10px; font-size:12px; background:rgba(251,191,36,0.15); color:#fbbf24; border:1px solid rgba(251,191,36,0.3); border-radius:4px; cursor:pointer;">
+              📂 载入示例 JSON
+            </button>
+          </div>
+        </div>
+        <textarea id="json-yaml-input" name="json" rows="8" placeholder="在此粘贴或输入 JSON 格式内容..." style="width:100%; padding:10px; background:#1e293b; border:1px solid rgba(255,255,255,0.1); color:#fff; border-radius:6px; font-family:var(--font-mono); font-size:12px; box-sizing:border-box; resize:vertical;"></textarea>
+
+        <div style="display:flex; gap:12px; margin-top:16px; flex-wrap:wrap;">
+          <button type="submit" style="padding:8px 16px; background:linear-gradient(135deg, #d97706, #b45309); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600; display:flex; align-items:center; gap:6px;">
+            <span>🖥️ HTMX 提交后端转换</span>
+            <span class="htmx-indicator">⏳</span>
+          </button>
+          <button type="button" onclick="runFrontendJsonToYaml()" style="padding:8px 16px; background:linear-gradient(135deg, #f59e0b, #d97706); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600;">
+            🌐 浏览器前端本地直转
+          </button>
+        </div>
+      </form>
+
+      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:16px; margin-top:16px;">
+        <div>
+          <div style="font-size:12px; color:var(--text-muted); margin-bottom:4px;">后端转换输出 (Hono HTMX):</div>
+          <div id="backend-json-yaml-result" class="result-container">
+            <div class="result-box" style="opacity:0.5;">输入 JSON 并点击转换</div>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:12px; color:var(--text-muted); margin-bottom:4px;">前端转换输出 (Browser WASM):</div>
+          <div id="frontend-json-yaml-result" class="result-container">
+            <div class="result-box" style="opacity:0.5;">输入 JSON 并点击转换</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- ================= 区域 3: 4 象限综合矩阵基准测试 ================= -->
     <div class="matrix-card">
       <h2>📊 4 维度跨场景一致性与性能矩阵</h2>
@@ -1476,6 +1529,8 @@
       yamlToJsonReady: false,
       yamlToToml: null,
       yamlToTomlReady: false,
+      jsonToYaml: null,
+      jsonToYamlReady: false,
       activeFrontendEngine: "rust",
       activeBackendEngine: "rust"
     };
@@ -1497,6 +1552,7 @@
         const pdfEngine = await loadWasmFromUrl("./wasm/pdf-signature.wasm");
         const yamlEngine = await loadWasmFromUrl("./wasm/yaml-to-json.wasm");
         const tomlEngine = await loadWasmFromUrl("./wasm/yaml-to-toml.wasm");
+        const jsonYamlEngine = await loadWasmFromUrl("./wasm/json-to-yaml.wasm");
 
         window.wasmContext.rust = rsEngine;
         window.wasmContext.ts = tsEngine;
@@ -1513,6 +1569,7 @@
         window.wasmContext.pdfSignature = pdfEngine;
         window.wasmContext.yamlToJson = yamlEngine;
         window.wasmContext.yamlToToml = tomlEngine;
+        window.wasmContext.jsonToYaml = jsonYamlEngine;
         window.wasmContext.rustReady = true;
         window.wasmContext.tsReady = true;
         window.wasmContext.tokenReady = true;
@@ -1528,9 +1585,10 @@
         window.wasmContext.pdfSignatureReady = true;
         window.wasmContext.yamlToJsonReady = true;
         window.wasmContext.yamlToTomlReady = true;
+        window.wasmContext.jsonToYamlReady = true;
 
         const statusEl = document.getElementById("frontend-status");
-        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载 15 大模块: rs, ts, token-gen, hash-text, bcrypt, uuid-gen, ulid-gen, encryption, bip39, hmac, rsa, password-strength, pdf-sig, yaml-to-json & yaml-to-toml)`;
+        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载 16 大模块: rs, ts, token-gen, hash-text, bcrypt, uuid-gen, ulid-gen, encryption, bip39, hmac, rsa, password-strength, pdf-sig, yaml-to-json, yaml-to-toml & json-to-yaml)`;
 
         // 初始自动运行一次前端计算
         window.runFrontendCalc();
@@ -1548,6 +1606,7 @@
         window.loadPdfSample();
         window.loadYamlSample();
         window.loadYamlTomlSample();
+        window.loadJsonYamlSample();
       } catch (err) {
         console.error("加载浏览器端 WASM 失败:", err);
         const statusEl = document.getElementById("frontend-status");
@@ -2772,6 +2831,66 @@
             <span>转换 TOML 大小: <strong>${d.targetSizeBytes} 字节</strong></span>
           </div>
           <pre class="code-preview" style="max-height:280px; overflow-y:auto; background:rgba(0,0,0,0.4); padding:10px; border-radius:6px; font-size:12px; font-family:var(--font-mono); color:#a7f3d0;"><code>${d.toml.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</code></pre>
+        </div>
+      `;
+    };
+
+    // 载入 JSON ➜ YAML 示例
+    window.loadJsonYamlSample = async function() {
+      const engine = window.wasmContext.jsonToYaml;
+      const inputEl = document.getElementById("json-yaml-input");
+      if (engine && inputEl) {
+        const resp = engine.dispatch({
+          action: "json/sample",
+          requestId: `req-sample-${Date.now()}`,
+          params: {}
+        });
+        if (resp.code === 0 && resp.data?.json) {
+          inputEl.value = resp.data.json;
+          window.runFrontendJsonToYaml();
+        }
+      }
+    };
+
+    // 前端执行 JSON 转 YAML (json/to-yaml)
+    window.runFrontendJsonToYaml = function() {
+      const engine = window.wasmContext.jsonToYaml;
+      if (!engine) {
+        document.getElementById("frontend-json-yaml-result").innerHTML = `
+          <div class="result-box error">json-to-yaml.wasm 尚未加载完毕</div>
+        `;
+        return;
+      }
+
+      const json = (document.getElementById("json-yaml-input").value || "").trim();
+
+      const t0 = performance.now();
+      const response = engine.dispatch({
+        action: "json/to-yaml",
+        requestId: `req-front-${Date.now()}`,
+        params: { json }
+      });
+      const duration = (performance.now() - t0).toFixed(4);
+
+      if (response.code !== 0) {
+        document.getElementById("frontend-json-yaml-result").innerHTML = `
+          <div class="result-box error"><strong>转换失败:</strong> ${response.msg}</div>
+        `;
+        return;
+      }
+
+      const d = response.data;
+      document.getElementById("frontend-json-yaml-result").innerHTML = `
+        <div class="result-box">
+          <div class="result-header">
+            <span class="tag tag-rust">🦀 Browser WASM: JSON ➜ YAML (${d.lineCount} 行)</span>
+            <span class="badge-time">⚡ ${duration} ms (纯前端内存解析)</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; font-size:12px; color:var(--text-muted);">
+            <span>输入 JSON 大小: <strong>${d.sourceSizeBytes} 字节</strong></span>
+            <span>转换 YAML 大小: <strong>${d.targetSizeBytes} 字节</strong></span>
+          </div>
+          <pre class="code-preview" style="max-height:280px; overflow-y:auto; background:rgba(0,0,0,0.4); padding:10px; border-radius:6px; font-size:12px; font-family:var(--font-mono); color:#fbbf24;"><code>${d.yaml.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</code></pre>
         </div>
       `;
     };
