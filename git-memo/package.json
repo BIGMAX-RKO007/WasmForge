@@ -1,0 +1,21 @@
+{
+  "name": "@wasmforge/git-memo",
+  "version": "0.1.0",
+  "description": "Interactive Git commands cheatsheet, search engine, and scenario recipe generator in WebAssembly",
+  "main": "git-memo.wasm",
+  "types": "index.d.ts",
+  "scripts": {
+    "build": "cargo build --target wasm32-unknown-unknown --release",
+    "test": "cargo test"
+  },
+  "keywords": [
+    "wasm",
+    "git",
+    "cheatsheet",
+    "memo",
+    "recipes",
+    "wasmforge"
+  ],
+  "author": "BIGMAX-RKO007",
+  "license": "MIT"
+}

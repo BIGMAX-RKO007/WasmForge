@@ -55,6 +55,7 @@ const crontabGeneratorWasmPath = path.resolve(__dirname, "../public/wasm/crontab
 const chmodCalculatorWasmPath = path.resolve(__dirname, "../public/wasm/chmod-calculator.wasm");
 const dockerRunToComposeWasmPath = path.resolve(__dirname, "../public/wasm/docker-run-to-compose.wasm");
 const emailNormalizerWasmPath = path.resolve(__dirname, "../public/wasm/email-normalizer.wasm");
+const gitMemoWasmPath = path.resolve(__dirname, "../public/wasm/git-memo.wasm");
 
 let rsEngine = null;
 let tsEngine = null;
@@ -101,6 +102,7 @@ let crontabGeneratorEngine = null;
 let chmodCalculatorEngine = null;
 let dockerRunToComposeEngine = null;
 let emailNormalizerEngine = null;
+let gitMemoEngine = null;
 
 async function initEngines() {
   try {
@@ -417,6 +419,13 @@ async function initEngines() {
       console.log("✅ [Backend Infra] 纯单一文件 email-normalizer.wasm 加载成功");
     } else {
       console.warn("⚠️ email-normalizer.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    if (fs.existsSync(gitMemoWasmPath)) {
+      gitMemoEngine = await loadWasmFromDisk(gitMemoWasmPath);
+      console.log("✅ [Backend Infra] 纯单一文件 git-memo.wasm 加载成功");
+    } else {
+      console.warn("⚠️ git-memo.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
     }
   } catch (err) {
     console.error("❌ 后端 WASM 基础设施初始化失败:", err);
@@ -5196,6 +5205,185 @@ app.get("/api/backend/email/samples", async (c) => {
   }
 });
 
+// API: Git Memo 类别列表
+app.get("/api/backend/git/categories", async (c) => {
+  try {
+    if (!gitMemoEngine) {
+      throw new Error("git-memo WASM 引擎未就绪");
+    }
+    const response = gitMemoEngine.dispatch({
+      action: "git/categories",
+      requestId: `srv-${Date.now()}`,
+      params: {}
+    });
+    return c.json(response);
+  } catch (err) {
+    return c.json({ code: 500, msg: err.message, data: null }, 500);
+  }
+});
+
+// API: Git Memo 命令列表与过滤
+app.get("/api/backend/git/list", async (c) => {
+  try {
+    if (!gitMemoEngine) {
+      throw new Error("git-memo WASM 引擎未就绪");
+    }
+    const category = c.req.query("category") || "";
+    const keyword = c.req.query("keyword") || "";
+    const response = gitMemoEngine.dispatch({
+      action: "git/list",
+      requestId: `srv-${Date.now()}`,
+      params: { category, keyword }
+    });
+    return c.json(response);
+  } catch (err) {
+    return c.json({ code: 500, msg: err.message, data: null }, 500);
+  }
+});
+
+// API: Git Memo 实战问题场景解决方案
+app.get("/api/backend/git/scenarios", async (c) => {
+  try {
+    if (!gitMemoEngine) {
+      throw new Error("git-memo WASM 引擎未就绪");
+    }
+    const keyword = c.req.query("keyword") || "";
+    const response = gitMemoEngine.dispatch({
+      action: "git/scenarios",
+      requestId: `srv-${Date.now()}`,
+      params: { keyword }
+    });
+    return c.json(response);
+  } catch (err) {
+    return c.json({ code: 500, msg: err.message, data: null }, 500);
+  }
+});
+
+// API: Git Memo 搜索（支持 HTMX 交互与 JSON）
+app.post("/api/backend/git/search", async (c) => {
+  try {
+    const contentType = c.req.header("Content-Type") || "";
+    let keyword = "";
+    let category = "all";
+
+    if (contentType.includes("application/json")) {
+      const json = await c.req.json().catch(() => ({}));
+      keyword = (json.keyword || json.query || "").toString();
+      if (json.category) category = json.category.toString();
+    } else {
+      const body = await c.req.parseBody().catch(() => ({}));
+      keyword = (body.keyword || body.query || "").toString();
+      if (body.category) category = body.category.toString();
+    }
+
+    if (!gitMemoEngine) {
+      throw new Error("git-memo WASM 引擎未就绪");
+    }
+
+    const t0 = performance.now();
+    let response;
+    if (category && category !== "all" && !keyword.trim()) {
+      response = gitMemoEngine.dispatch({
+        action: "git/list",
+        requestId: `srv-${Date.now()}`,
+        params: { category, keyword: "" }
+      });
+    } else {
+      response = gitMemoEngine.dispatch({
+        action: "git/search",
+        requestId: `srv-${Date.now()}`,
+        params: { keyword }
+      });
+    }
+    const duration = (performance.now() - t0).toFixed(4);
+
+    if (contentType.includes("application/json") && !c.req.header("HX-Request")) {
+      return c.json(response);
+    }
+
+    if (response.code !== 0) {
+      return c.html(`
+        <div class="result-box error">
+          <strong>检索失败:</strong> ${escapeHtml(response.msg)}
+        </div>
+      `, 400);
+    }
+
+    // HTMX 卡片式渲染
+    const data = response.data;
+    let commands = [];
+    let scenarios = [];
+    if (data.matchedCommands) {
+      commands = data.matchedCommands;
+      scenarios = data.matchedScenarios || [];
+    } else if (data.commands) {
+      commands = data.commands;
+    }
+
+    if (category && category !== "all") {
+      commands = commands.filter(c => c.category === category);
+    }
+
+    let cmdHtml = commands.map(cmd => `
+      <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:12px; margin-bottom:10px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+          <span style="font-weight:600; font-size:13px; color:#f1f5f9;">${escapeHtml(cmd.title)}</span>
+          <div style="display:flex; gap:6px;">
+            <span style="font-size:11px; padding:2px 6px; border-radius:4px; background:rgba(56,189,248,0.15); color:#38bdf8;">${escapeHtml(cmd.category)}</span>
+            ${cmd.isDestructive ? '<span style="font-size:11px; padding:2px 6px; border-radius:4px; background:rgba(239,68,68,0.2); color:#ef4444; font-weight:600;">⚠️ 谨慎执行</span>' : ''}
+          </div>
+        </div>
+        <p style="font-size:12px; color:var(--text-muted); margin:0 0 8px 0;">${escapeHtml(cmd.description)}</p>
+        <div style="background:rgba(0,0,0,0.35); padding:8px 10px; border-radius:6px; font-family:var(--font-mono); font-size:12px; color:#a5f3fc; border:1px solid rgba(255,255,255,0.05); white-space:pre-wrap;">${escapeHtml(cmd.command)}</div>
+      </div>
+    `).join("");
+
+    let scenHtml = "";
+    if (scenarios.length > 0) {
+      scenHtml = `
+        <div style="margin-top:16px;">
+          <h4 style="font-size:13px; color:#f59e0b; margin:0 0 10px 0;">💡 实战场景与解决方案 (${scenarios.length})</h4>
+          ${scenarios.map(sc => `
+            <div style="background:rgba(245,158,11,0.05); border:1px solid rgba(245,158,11,0.2); border-radius:8px; padding:12px; margin-bottom:10px;">
+              <div style="font-weight:600; font-size:13px; color:#fcd34d; margin-bottom:4px;">Q: ${escapeHtml(sc.problem)}</div>
+              <div style="font-size:12px; color:var(--text-muted); margin-bottom:8px;">${escapeHtml(sc.explanation)}</div>
+              ${sc.commands.map(c => `
+                <div style="background:rgba(0,0,0,0.4); padding:6px 10px; border-radius:4px; font-family:var(--font-mono); font-size:12px; color:#34d399; margin-bottom:4px; border:1px solid rgba(255,255,255,0.05);">${escapeHtml(c)}</div>
+              `).join("")}
+            </div>
+          `).join("")}
+        </div>
+      `;
+    }
+
+    if (commands.length === 0 && scenarios.length === 0) {
+      cmdHtml = `<div style="text-align:center; padding:24px; color:var(--text-muted); font-size:13px;">未匹配到相关 Git 命令或场景</div>`;
+    }
+
+    return c.html(`
+      <div class="result-box">
+        <div class="result-header">
+          <span class="tag tag-rust">🦀 Rust WASM: Git 命令检索</span>
+          <span class="badge-time">⚡ ${duration} ms (Hono 后端原生)</span>
+        </div>
+        <div style="font-size:12px; color:var(--text-muted); margin-bottom:12px;">
+          匹配命令: <strong style="color:#38bdf8;">${commands.length}</strong> 条 | 场景对策: <strong style="color:#f59e0b;">${scenarios.length}</strong> 条
+        </div>
+        <div style="max-height:360px; overflow-y:auto; padding-right:4px;">
+          ${cmdHtml}
+          ${scenHtml}
+        </div>
+      </div>
+    `);
+  } catch (err) {
+    return c.html(`
+      <div class="result-box error">
+        <strong>执行失败:</strong> ${escapeHtml(err.message)}
+      </div>
+    `, 500);
+  }
+});
+
 // API: 获取 Markdown 示例
 app.get("/api/backend/markdown/sample", async (c) => {
   try {
@@ -5363,6 +5551,7 @@ app.get("/api/stats", (c) => {
   const chmodCalculatorSize = fs.existsSync(chmodCalculatorWasmPath) ? fs.statSync(chmodCalculatorWasmPath).size : 0;
   const dockerRunToComposeSize = fs.existsSync(dockerRunToComposeWasmPath) ? fs.statSync(dockerRunToComposeWasmPath).size : 0;
   const emailNormalizerSize = fs.existsSync(emailNormalizerWasmPath) ? fs.statSync(emailNormalizerWasmPath).size : 0;
+  const gitMemoSize = fs.existsSync(gitMemoWasmPath) ? fs.statSync(gitMemoWasmPath).size : 0;
   return c.json({
     rust: {
       file: "rs.wasm",
@@ -5588,6 +5777,11 @@ app.get("/api/stats", (c) => {
       file: "email-normalizer.wasm",
       sizeBytes: emailNormalizerSize,
       sizeFormatted: `${(emailNormalizerSize / 1024).toFixed(2)} KB`,
+    },
+    gitMemo: {
+      file: "git-memo.wasm",
+      sizeBytes: gitMemoSize,
+      sizeFormatted: `${(gitMemoSize / 1024).toFixed(2)} KB`,
     },
   });
 });

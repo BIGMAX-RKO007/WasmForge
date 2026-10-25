@@ -3425,6 +3425,67 @@ spec:
           </div>
         </div>
       </div>
+
+      <!-- Card 3.12: Git Memo & Scenario Cheatsheet -->
+      <div class="card" id="card-git-memo">
+        <div class="card-header">
+          <div>
+            <div class="card-title">📦 Git Memo & 场景速查速记</div>
+            <div class="card-desc">纯单一文件 Rust WASM 驱动的 Git 命令全集检索、分类手册与实战场景对策引擎</div>
+          </div>
+          <span class="tag tag-rust">Tool #44: git-memo</span>
+        </div>
+
+        <form id="form-git-memo" hx-post="/api/backend/git/search" hx-target="#backend-git-result" hx-swap="innerHTML">
+          <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; align-items:center;">
+            <label style="font-size:12px; color:var(--text-muted); font-weight:600;">分类过滤:</label>
+            <select name="category" id="git-category-select" onchange="runFrontendGitSearch()" style="background:#0f172a; color:#f8fafc; border:1px solid rgba(255,255,255,0.15); border-radius:6px; padding:6px 12px; font-size:12px;">
+              <option value="all">🌐 全部命令 (All Categories)</option>
+              <option value="setup">⚙️ Setup & Config</option>
+              <option value="basic">📝 Basic Workflow</option>
+              <option value="branch">🌿 Branching & Merging</option>
+              <option value="stash">📦 Stashing</option>
+              <option value="history">📜 History & Logs</option>
+              <option value="undo">⏪ Undoing & Reset</option>
+              <option value="remote">☁️ Remote & Sync</option>
+              <option value="advanced">🚀 Advanced & Tags</option>
+            </select>
+
+            <div style="flex:1; min-width:200px;">
+              <input type="text" name="keyword" id="git-keyword-input" placeholder="输入命令、参数或关键词 (如: amend, undo, squash, reflog, stash)..." oninput="runFrontendGitSearch()" style="width:100%; box-sizing:border-box; background:#0f172a; color:#f8fafc; border:1px solid rgba(255,255,255,0.15); border-radius:6px; padding:6px 12px; font-size:12px;">
+            </div>
+          </div>
+
+          <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:14px; font-size:11px;">
+            <span style="color:var(--text-muted); padding:3px 0;">常见高频场景:</span>
+            <button type="button" onclick="setGitScenario('undo-commit-keep-changes', 'reset --soft')" style="background:rgba(255,255,255,0.06); color:#38bdf8; border:1px solid rgba(56,189,248,0.3); border-radius:4px; padding:3px 8px; cursor:pointer;">⏪ 撤销提交保留修改</button>
+            <button type="button" onclick="setGitScenario('fix-commit-message', 'amend')" style="background:rgba(255,255,255,0.06); color:#38bdf8; border:1px solid rgba(56,189,248,0.3); border-radius:4px; padding:3px 8px; cursor:pointer;">✏️ 修改最后提交信息</button>
+            <button type="button" onclick="setGitScenario('stash-include-untracked', 'stash push -u')" style="background:rgba(255,255,255,0.06); color:#38bdf8; border:1px solid rgba(56,189,248,0.3); border-radius:4px; padding:3px 8px; cursor:pointer;">📦 储藏含新文件</button>
+            <button type="button" onclick="setGitScenario('recover-deleted-commit', 'reflog')" style="background:rgba(255,255,255,0.06); color:#f59e0b; border:1px solid rgba(245,158,11,0.3); border-radius:4px; padding:3px 8px; cursor:pointer;">🔍 找回误删提交</button>
+            <button type="button" onclick="setGitScenario('squash-commits-into-one', 'rebase -i')" style="background:rgba(255,255,255,0.06); color:#34d399; border:1px solid rgba(52,211,153,0.3); border-radius:4px; padding:3px 8px; cursor:pointer;">🗜️ 压缩多个提交</button>
+          </div>
+
+          <div style="display:flex; gap:8px;">
+            <button type="submit" style="padding:8px 16px; background:linear-gradient(135deg, #3b82f6, #1d4ed8); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:12px;">
+              🖥️ 后端检索 (HTMX)
+            </button>
+            <button type="button" onclick="runFrontendGitSearch()" style="padding:8px 16px; background:linear-gradient(135deg, #0ea5e9, #0284c7); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:12px;">
+              🌐 前端极速检索
+            </button>
+          </div>
+        </form>
+
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:16px; margin-top:16px;">
+          <div>
+            <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px;">后端投影输出:</div>
+            <div id="backend-git-result" class="result-container"><div class="result-box" style="opacity:0.5; font-size:12px;">等待检索...</div></div>
+          </div>
+          <div>
+            <div style="font-size:11px; color:var(--text-muted); margin-top:0px; margin-bottom:4px;">前端投影输出:</div>
+            <div id="frontend-git-result" class="result-container"><div class="result-box" style="opacity:0.5; font-size:12px;">等待检索...</div></div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- ================= 区域 3: 4 象限综合矩阵基准测试 ================= -->
@@ -3598,6 +3659,7 @@ spec:
         const chmodCalculatorEngine = await loadWasmFromUrl("./wasm/chmod-calculator.wasm");
         const dockerRunToComposeEngine = await loadWasmFromUrl("./wasm/docker-run-to-compose.wasm");
         const emailNormalizerEngine = await loadWasmFromUrl("./wasm/email-normalizer.wasm");
+        const gitMemoEngine = await loadWasmFromUrl("./wasm/git-memo.wasm");
 
         window.wasmContext.rust = rsEngine;
         window.wasmContext.ts = tsEngine;
@@ -3644,6 +3706,7 @@ spec:
         window.wasmContext.chmodCalculator = chmodCalculatorEngine;
         window.wasmContext.dockerRunToCompose = dockerRunToComposeEngine;
         window.wasmContext.emailNormalizer = emailNormalizerEngine;
+        window.wasmContext.gitMemo = gitMemoEngine;
         window.wasmContext.rustReady = true;
         window.wasmContext.tsReady = true;
         window.wasmContext.tokenReady = true;
@@ -3689,9 +3752,10 @@ spec:
         window.wasmContext.chmodCalculatorReady = true;
         window.wasmContext.dockerRunToComposeReady = true;
         window.wasmContext.emailNormalizerReady = true;
+        window.wasmContext.gitMemoReady = true;
 
         const statusEl = document.getElementById("frontend-status");
-        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载 45 大模块: rs, ts, token-gen, hash-text, bcrypt, uuid-gen, ulid-gen, encryption, bip39, hmac, rsa, password-strength, pdf-sig, yaml-to-json, yaml-to-toml, json-to-yaml, json-to-toml, toml-to-json, toml-to-yaml, xml-to-json, json-to-xml, json-to-csv, base64-string, base64-file, color-converter, case-converter, date-time-converter, integer-base-converter, roman-numeral-converter, text-to-binary, text-to-unicode, markdown-to-html, list-converter, text-to-nato, sql-prettify, xml-formatter, json-minify, json-viewer, yaml-viewer, regex-tester, regex-memo, crontab-generator, chmod-calculator, docker-run-to-compose & email-normalizer)`;
+        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载 46 大模块: rs, ts, token-gen, hash-text, bcrypt, uuid-gen, ulid-gen, encryption, bip39, hmac, rsa, password-strength, pdf-sig, yaml-to-json, yaml-to-toml, json-to-yaml, json-to-toml, toml-to-json, toml-to-yaml, xml-to-json, json-to-xml, json-to-csv, base64-string, base64-file, color-converter, case-converter, date-time-converter, integer-base-converter, roman-numeral-converter, text-to-binary, text-to-unicode, markdown-to-html, list-converter, text-to-nato, sql-prettify, xml-formatter, json-minify, json-viewer, yaml-viewer, regex-tester, regex-memo, crontab-generator, chmod-calculator, docker-run-to-compose, email-normalizer & git-memo)`;
 
         // 初始自动运行一次前端计算
         window.runFrontendCalc();
@@ -3722,6 +3786,7 @@ spec:
         if (window.runFrontendChmodCalculate) window.runFrontendChmodCalculate();
         if (window.runFrontendDockerToCompose) window.runFrontendDockerToCompose();
         if (window.runFrontendEmailNormalize) window.runFrontendEmailNormalize();
+        if (window.runFrontendGitSearch) window.runFrontendGitSearch();
       } catch (err) {
         console.error("加载浏览器端 WASM 失败:", err);
         const statusEl = document.getElementById("frontend-status");
@@ -7965,6 +8030,118 @@ spec:
             ${d.stripped_dots ? '<span style="color:#38bdf8;">• 已去除 Gmail 点号</span>' : ''}
             ${d.domain_aliased ? '<span style="color:#38bdf8;">• googlemail 映射为 gmail</span>' : ''}
             ${d.has_alias ? '<span style="color:#f59e0b;">• 已剥离别名标签</span>' : ''}
+          </div>
+        </div>
+      `;
+    };
+
+    // Git Memo 场景快捷选择与前端搜索
+    window.setGitScenario = function(scenarioId, fallbackKw) {
+      document.getElementById("git-category-select").value = "all";
+      document.getElementById("git-keyword-input").value = fallbackKw;
+      window.runFrontendGitSearch();
+    };
+
+    window.runFrontendGitSearch = function() {
+      if (!window.wasmContext.gitMemoReady || !window.wasmContext.gitMemo) {
+        document.getElementById("frontend-git-result").innerHTML = `
+          <div class="result-box error">git-memo.wasm 尚未加载完毕</div>
+        `;
+        return;
+      }
+
+      const category = document.getElementById("git-category-select").value;
+      const keyword = (document.getElementById("git-keyword-input").value || "").trim();
+
+      const t0 = performance.now();
+      let response;
+      if (category && category !== "all" && !keyword) {
+        response = window.wasmContext.gitMemo.dispatch({
+          action: "git/list",
+          requestId: `front-${Date.now()}`,
+          params: { category, keyword: "" }
+        });
+      } else {
+        response = window.wasmContext.gitMemo.dispatch({
+          action: "git/search",
+          requestId: `front-${Date.now()}`,
+          params: { keyword }
+        });
+      }
+      const duration = (performance.now() - t0).toFixed(4);
+
+      if (response.code !== 0) {
+        document.getElementById("frontend-git-result").innerHTML = `
+          <div class="result-box error">检索失败: ${escapeHtmlFront(response.msg)}</div>
+        `;
+        return;
+      }
+
+      const data = response.data;
+      let commands = [];
+      let scenarios = [];
+      if (data.matchedCommands) {
+        commands = data.matchedCommands;
+        scenarios = data.matchedScenarios || [];
+      } else if (data.commands) {
+        commands = data.commands;
+      }
+
+      if (category && category !== "all") {
+        commands = commands.filter(c => c.category === category);
+      }
+
+      let cmdHtml = commands.map(cmd => `
+        <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:12px; margin-bottom:10px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+            <span style="font-weight:600; font-size:13px; color:#f1f5f9;">${escapeHtmlFront(cmd.title)}</span>
+            <div style="display:flex; gap:6px;">
+              <span style="font-size:11px; padding:2px 6px; border-radius:4px; background:rgba(56,189,248,0.15); color:#38bdf8;">${escapeHtmlFront(cmd.category)}</span>
+              ${cmd.isDestructive ? '<span style="font-size:11px; padding:2px 6px; border-radius:4px; background:rgba(239,68,68,0.2); color:#ef4444; font-weight:600;">⚠️ 谨慎执行</span>' : ''}
+            </div>
+          </div>
+          <p style="font-size:12px; color:var(--text-muted); margin:0 0 8px 0;">${escapeHtmlFront(cmd.description)}</p>
+          <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,0.35); padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,0.05);">
+            <div style="font-family:var(--font-mono); font-size:12px; color:#a5f3fc; white-space:pre-wrap;">${escapeHtmlFront(cmd.command)}</div>
+            <button type="button" class="btn-copy" style="padding:3px 8px; font-size:11px; background:#1e293b; color:#fff; border:1px solid rgba(255,255,255,0.2); border-radius:4px; cursor:pointer;" onclick="navigator.clipboard.writeText('${cmd.command.replace(/'/g, "\\'")}'); this.innerText='已复制!'; setTimeout(()=>this.innerText='复制', 1500)">复制</button>
+          </div>
+        </div>
+      `).join("");
+
+      let scenHtml = "";
+      if (scenarios.length > 0) {
+        scenHtml = `
+          <div style="margin-top:16px;">
+            <h4 style="font-size:13px; color:#f59e0b; margin:0 0 10px 0;">💡 实战场景与解决方案 (${scenarios.length})</h4>
+            ${scenarios.map(sc => `
+              <div style="background:rgba(245,158,11,0.05); border:1px solid rgba(245,158,11,0.2); border-radius:8px; padding:12px; margin-bottom:10px;">
+                <div style="font-weight:600; font-size:13px; color:#fcd34d; margin-bottom:4px;">Q: ${escapeHtmlFront(sc.problem)}</div>
+                <div style="font-size:12px; color:var(--text-muted); margin-bottom:8px;">${escapeHtmlFront(sc.explanation)}</div>
+                ${sc.commands.map(c => `
+                  <div style="background:rgba(0,0,0,0.4); padding:6px 10px; border-radius:4px; font-family:var(--font-mono); font-size:12px; color:#34d399; margin-bottom:4px; border:1px solid rgba(255,255,255,0.05);">${escapeHtmlFront(c)}</div>
+                `).join("")}
+              </div>
+            `).join("")}
+          </div>
+        `;
+      }
+
+      if (commands.length === 0 && scenarios.length === 0) {
+        cmdHtml = `<div style="text-align:center; padding:24px; color:var(--text-muted); font-size:13px;">未匹配到相关 Git 命令或场景</div>`;
+      }
+
+      document.getElementById("frontend-git-result").innerHTML = `
+        <div class="result-box">
+          <div class="result-header">
+            <span class="tag tag-rust">🦀 Browser WASM: Git 命令检索</span>
+            <span class="badge-time">⚡ ${duration} ms (纯前端内存)</span>
+          </div>
+          <div style="font-size:12px; color:var(--text-muted); margin-bottom:12px;">
+            匹配命令: <strong style="color:#38bdf8;">${commands.length}</strong> 条 | 场景对策: <strong style="color:#f59e0b;">${scenarios.length}</strong> 条
+          </div>
+          <div style="max-height:360px; overflow-y:auto; padding-right:4px;">
+            ${cmdHtml}
+            ${scenHtml}
           </div>
         </div>
       `;
