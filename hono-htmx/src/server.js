@@ -40,6 +40,7 @@ const dateTimeConverterWasmPath = path.resolve(__dirname, "../public/wasm/date-t
 const integerBaseConverterWasmPath = path.resolve(__dirname, "../public/wasm/integer-base-converter.wasm");
 const romanNumeralConverterWasmPath = path.resolve(__dirname, "../public/wasm/roman-numeral-converter.wasm");
 const textToBinaryWasmPath = path.resolve(__dirname, "../public/wasm/text-to-binary.wasm");
+const textToUnicodeWasmPath = path.resolve(__dirname, "../public/wasm/text-to-unicode.wasm");
 
 let rsEngine = null;
 let tsEngine = null;
@@ -71,6 +72,7 @@ let dateTimeConverterEngine = null;
 let integerBaseConverterEngine = null;
 let romanNumeralConverterEngine = null;
 let textToBinaryEngine = null;
+let textToUnicodeEngine = null;
 
 async function initEngines() {
   try {
@@ -282,6 +284,13 @@ async function initEngines() {
       console.log("✅ [Backend Infra] 纯单一文件 text-to-binary.wasm 加载成功");
     } else {
       console.warn("⚠️ text-to-binary.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    if (fs.existsSync(textToUnicodeWasmPath)) {
+      textToUnicodeEngine = await loadWasmFromDisk(textToUnicodeWasmPath);
+      console.log("✅ [Backend Infra] 纯单一文件 text-to-unicode.wasm 加载成功");
+    } else {
+      console.warn("⚠️ text-to-unicode.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
     }
   } catch (err) {
     console.error("❌ 后端 WASM 基础设施初始化失败:", err);
@@ -2990,6 +2999,132 @@ app.post("/api/backend/text-binary/convert", async (c) => {
   }
 });
 
+// API: HTMX 提交 Unicode 互转
+app.post("/api/backend/unicode/convert", async (c) => {
+  try {
+    let input = "";
+    let mode = "auto";
+    let escapeAll = false;
+    const contentType = c.req.header("content-type") || "";
+    if (contentType.includes("application/json")) {
+      const json = await c.req.json().catch(() => ({}));
+      input = (json.input || json.text || json.str || "").toString();
+      if (json.mode) mode = json.mode;
+      if (json.escapeAll !== undefined) escapeAll = Boolean(json.escapeAll);
+    } else {
+      const body = await c.req.parseBody().catch(() => ({}));
+      input = (body.input || body.text || body.str || "").toString();
+      if (body.mode) mode = body.mode;
+      if (body.escape_all !== undefined || body.escapeAll !== undefined) {
+        escapeAll = (body.escape_all === "true" || body.escapeAll === "true" || body.escape_all === "on");
+      }
+    }
+
+    if (!input) {
+      if (contentType.includes("application/json") && !c.req.header("HX-Request")) {
+        return c.json({ code: 400, msg: "输入内容不能为空", data: null }, 400);
+      }
+      return c.html(`
+        <div class="result-box error">
+          <strong>转换失败:</strong> 输入内容不能为空
+        </div>
+      `, 400);
+    }
+
+    if (!textToUnicodeEngine) {
+      throw new Error("text-to-unicode WASM 引擎未就绪");
+    }
+
+    const t0 = performance.now();
+    const response = textToUnicodeEngine.dispatch({
+      action: "unicode/convert",
+      requestId: `srv-${Date.now()}`,
+      params: { input, mode, escapeAll }
+    });
+    const duration = (performance.now() - t0).toFixed(4);
+
+    if (contentType.includes("application/json") && !c.req.header("HX-Request")) {
+      return c.json(response);
+    }
+
+    if (response.code !== 0) {
+      return c.html(`
+        <div class="result-box error">
+          <strong>Unicode 转换失败:</strong> ${response.msg}
+        </div>
+      `, 400);
+    }
+
+    const d = response.data;
+    return c.html(`
+      <div class="result-box">
+        <div class="result-header">
+          <span class="tag tag-rust">🦀 Rust WASM: Unicode 转义与逆转处理成功</span>
+          <span class="badge-time">⚡ ${duration} ms (Hono 后端原生)</span>
+        </div>
+
+        <div style="display:flex; flex-wrap:wrap; gap:16px; margin-bottom:12px; font-size:12px; color:var(--text-muted);">
+          <span>模式: <strong style="color:#38bdf8;">${d.mode === "encode" ? "文本 ➔ 转义序列 (Encode)" : "转义序列 ➔ 还原文本 (Decode)"}</strong></span>
+          <span>总字符数: <strong>${d.totalChars}</strong></span>
+          <span>转义字符数: <strong style="color:#34d399;">${d.escapedChars}</strong></span>
+        </div>
+
+        <div style="margin-bottom:10px;">
+          <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px;">还原明文文本 (Decoded Plain Text):</div>
+          <div style="background:rgba(255,255,255,0.03); padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,0.08); font-family:var(--font-mono); font-size:13px; color:#38bdf8; word-break:break-all;">
+            ${d.text}
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:10px; font-family:var(--font-mono); font-size:12px;">
+          <div style="background:rgba(255,255,255,0.03); padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,0.08);">
+            <div style="font-size:10px; color:var(--text-muted); margin-bottom:2px;">标准 16-bit 转义 (\\uXXXX)</div>
+            <strong style="color:#34d399; word-break:break-all;">${d.standardEscape}</strong>
+          </div>
+          <div style="background:rgba(255,255,255,0.03); padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,0.08);">
+            <div style="font-size:10px; color:var(--text-muted); margin-bottom:2px;">ES6 变宽转义 (\\u{XXXX})</div>
+            <strong style="color:#a78bfa; word-break:break-all;">${d.es6Escape}</strong>
+          </div>
+          <div style="background:rgba(255,255,255,0.03); padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,0.08);">
+            <div style="font-size:10px; color:var(--text-muted); margin-bottom:2px;">HTML 16进制实体 (&#xXXXX;)</div>
+            <strong style="color:#fbbf24; word-break:break-all;">${d.htmlHexEntity}</strong>
+          </div>
+          <div style="background:rgba(255,255,255,0.03); padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,0.08);">
+            <div style="font-size:10px; color:var(--text-muted); margin-bottom:2px;">HTML 10进制实体 (&#DDDD;)</div>
+            <strong style="color:#f43f5e; word-break:break-all;">${d.htmlDecEntity}</strong>
+          </div>
+        </div>
+      </div>
+    `);
+  } catch (err) {
+    return c.html(`
+      <div class="result-box error">
+        <strong>转换失败:</strong> ${err.message}
+      </div>
+    `, 400);
+  }
+});
+
+// API: 获取 Unicode 示例
+app.get("/api/backend/unicode/sample", async (c) => {
+  try {
+    if (!textToUnicodeEngine) {
+      throw new Error("text-to-unicode WASM 引擎未就绪");
+    }
+    const response = textToUnicodeEngine.dispatch({
+      action: "unicode/sample",
+      requestId: `srv-${Date.now()}`,
+      params: {}
+    });
+    if (response.code !== 0) {
+      throw new Error(response.msg || "获取示例失败");
+    }
+    return c.json(response.data);
+  } catch (err) {
+    return c.json({ sampleText: "你好，WasmForge! 🚀", sampleEscape: "\\u4f60\\u597d" }, 500);
+  }
+});
+
 // API: 获取 Binary 示例
 app.get("/api/backend/text-binary/sample", async (c) => {
   try {
@@ -3102,6 +3237,7 @@ app.get("/api/stats", (c) => {
   const integerBaseConverterSize = fs.existsSync(integerBaseConverterWasmPath) ? fs.statSync(integerBaseConverterWasmPath).size : 0;
   const romanNumeralConverterSize = fs.existsSync(romanNumeralConverterWasmPath) ? fs.statSync(romanNumeralConverterWasmPath).size : 0;
   const textToBinarySize = fs.existsSync(textToBinaryWasmPath) ? fs.statSync(textToBinaryWasmPath).size : 0;
+  const textToUnicodeSize = fs.existsSync(textToUnicodeWasmPath) ? fs.statSync(textToUnicodeWasmPath).size : 0;
   return c.json({
     rust: {
       file: "rs.wasm",
@@ -3252,6 +3388,11 @@ app.get("/api/stats", (c) => {
       file: "text-to-binary.wasm",
       sizeBytes: textToBinarySize,
       sizeFormatted: `${(textToBinarySize / 1024).toFixed(2)} KB`,
+    },
+    textToUnicode: {
+      file: "text-to-unicode.wasm",
+      sizeBytes: textToUnicodeSize,
+      sizeFormatted: `${(textToUnicodeSize / 1024).toFixed(2)} KB`,
     },
   });
 });

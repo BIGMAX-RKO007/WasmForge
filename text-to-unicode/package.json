@@ -1,0 +1,13 @@
+{
+  "name": "@wasm-forge/text-to-unicode",
+  "version": "0.1.0",
+  "description": "High-performance Text to Unicode Escape Converter in pure WebAssembly",
+  "type": "module",
+  "scripts": {
+    "build": "cargo build --target wasm32-unknown-unknown --release",
+    "test": "cargo test"
+  },
+  "keywords": ["wasm", "converter", "unicode", "escape", "utf8", "codepoint"],
+  "author": "WasmForge",
+  "license": "MIT"
+}
