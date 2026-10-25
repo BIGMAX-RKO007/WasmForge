@@ -1,0 +1,13 @@
+{
+  "name": "@wasm-forge/integer-base-converter",
+  "version": "0.1.0",
+  "description": "High-performance Arbitrary Integer Base Converter in pure WebAssembly",
+  "type": "module",
+  "scripts": {
+    "build": "cargo build --target wasm32-unknown-unknown --release",
+    "test": "cargo test"
+  },
+  "keywords": ["wasm", "converter", "integer", "base2", "base8", "base16", "hex", "binary", "octal"],
+  "author": "WasmForge",
+  "license": "MIT"
+}

@@ -37,6 +37,7 @@ const base64FileWasmPath = path.resolve(__dirname, "../public/wasm/base64-file.w
 const colorConverterWasmPath = path.resolve(__dirname, "../public/wasm/color-converter.wasm");
 const caseConverterWasmPath = path.resolve(__dirname, "../public/wasm/case-converter.wasm");
 const dateTimeConverterWasmPath = path.resolve(__dirname, "../public/wasm/date-time-converter.wasm");
+const integerBaseConverterWasmPath = path.resolve(__dirname, "../public/wasm/integer-base-converter.wasm");
 
 let rsEngine = null;
 let tsEngine = null;
@@ -65,6 +66,7 @@ let base64FileEngine = null;
 let colorConverterEngine = null;
 let caseConverterEngine = null;
 let dateTimeConverterEngine = null;
+let integerBaseConverterEngine = null;
 
 async function initEngines() {
   try {
@@ -255,6 +257,13 @@ async function initEngines() {
       console.log("✅ [Backend Infra] 纯单一文件 date-time-converter.wasm 加载成功");
     } else {
       console.warn("⚠️ date-time-converter.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    if (fs.existsSync(integerBaseConverterWasmPath)) {
+      integerBaseConverterEngine = await loadWasmFromDisk(integerBaseConverterWasmPath);
+      console.log("✅ [Backend Infra] 纯单一文件 integer-base-converter.wasm 加载成功");
+    } else {
+      console.warn("⚠️ integer-base-converter.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
     }
   } catch (err) {
     console.error("❌ 后端 WASM 基础设施初始化失败:", err);
@@ -2659,6 +2668,141 @@ app.post("/api/backend/datetime/convert", async (c) => {
   }
 });
 
+// API: HTMX 提交进制转换
+app.post("/api/backend/base/convert", async (c) => {
+  try {
+    let input = "";
+    let fromBase = null;
+    const contentType = c.req.header("content-type") || "";
+    if (contentType.includes("application/json")) {
+      const json = await c.req.json().catch(() => ({}));
+      input = (json.input || json.number || json.val || "").toString().trim();
+      if (json.fromBase || json.from_base) fromBase = parseInt(json.fromBase || json.from_base, 10);
+    } else {
+      const body = await c.req.parseBody().catch(() => ({}));
+      input = (body.input || body.number || body.val || "").toString().trim();
+      if (body.fromBase || body.from_base) fromBase = parseInt(body.fromBase || body.from_base, 10);
+    }
+
+    if (!input) {
+      if (contentType.includes("application/json") && !c.req.header("HX-Request")) {
+        return c.json({ code: 400, msg: "输入的整数不能为空", data: null }, 400);
+      }
+      return c.html(`
+        <div class="result-box error">
+          <strong>转换失败:</strong> 输入的数值不能为空
+        </div>
+      `, 400);
+    }
+
+    if (!integerBaseConverterEngine) {
+      throw new Error("integer-base-converter WASM 引擎未就绪");
+    }
+
+    const t0 = performance.now();
+    const response = integerBaseConverterEngine.dispatch({
+      action: "base/convert",
+      requestId: `srv-${Date.now()}`,
+      params: { input, fromBase: isNaN(fromBase) ? null : fromBase }
+    });
+    const duration = (performance.now() - t0).toFixed(4);
+
+    if (contentType.includes("application/json") && !c.req.header("HX-Request")) {
+      return c.json(response);
+    }
+
+    if (response.code !== 0) {
+      return c.html(`
+        <div class="result-box error">
+          <strong>进制转换失败:</strong> ${response.msg}
+        </div>
+      `, 400);
+    }
+
+    const d = response.data;
+    return c.html(`
+      <div class="result-box">
+        <div class="result-header">
+          <span class="tag tag-rust">🦀 Rust WASM: 任意进制转换与位分析成功</span>
+          <span class="badge-time">⚡ ${duration} ms (Hono 后端原生)</span>
+        </div>
+
+        <div style="font-size:12px; color:var(--text-muted); margin-bottom:10px;">
+          识别原进制: <strong style="color:#38bdf8;">Base ${d.detectedBase}</strong> |
+          符号: <strong>${d.isNegative ? "负数 (-)" : "非负数 (+)"}</strong> |
+          位宽 (Bit Length): <strong style="color:#34d399;">${d.bitLength} bits</strong> |
+          有效字节: <strong>${d.byteLength} bytes</strong>
+        </div>
+
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:8px; font-family:var(--font-mono); font-size:12px;">
+          <div style="background:rgba(255,255,255,0.03); padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,0.08);">
+            <div style="font-size:10px; color:var(--text-muted); margin-bottom:2px;">十进制 (Decimal / Base 10)</div>
+            <strong style="color:#38bdf8;">${d.decimal}</strong>
+          </div>
+          <div style="background:rgba(255,255,255,0.03); padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,0.08);">
+            <div style="font-size:10px; color:var(--text-muted); margin-bottom:2px;">二进制 (Binary / Base 2)</div>
+            <strong style="color:#34d399; word-break:break-all;">${d.binary}</strong>
+          </div>
+          <div style="background:rgba(255,255,255,0.03); padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,0.08);">
+            <div style="font-size:10px; color:var(--text-muted); margin-bottom:2px;">八进制 (Octal / Base 8)</div>
+            <strong style="color:#fbbf24;">${d.octal}</strong>
+          </div>
+          <div style="background:rgba(255,255,255,0.03); padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,0.08);">
+            <div style="font-size:10px; color:var(--text-muted); margin-bottom:2px;">十六进制 (Hexadecimal / Base 16)</div>
+            <strong style="color:#f43f5e;">0x${d.hexUpper}</strong>
+          </div>
+          <div style="background:rgba(255,255,255,0.03); padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,0.08);">
+            <div style="font-size:10px; color:var(--text-muted); margin-bottom:2px;">Base 36 (0-9, a-z)</div>
+            <strong style="color:#a78bfa;">${d.base36}</strong>
+          </div>
+          <div style="background:rgba(255,255,255,0.03); padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,0.08);">
+            <div style="font-size:10px; color:var(--text-muted); margin-bottom:2px;">大端序字节序列 (Big-Endian Hex)</div>
+            <strong style="color:#e2e8f0;">${d.beBytesHex}</strong>
+          </div>
+        </div>
+
+        ${d.twocompl8bit || d.twocompl16bit || d.twocompl32bit ? `
+          <div style="margin-top:10px; padding:8px 10px; background:rgba(255,255,255,0.02); border-radius:6px; border:1px dashed rgba(255,255,255,0.1); font-size:11px; font-family:var(--font-mono);">
+            <div style="color:var(--text-muted); margin-bottom:4px;">整型补码投影 (Two's Complement):</div>
+            <div style="display:flex; flex-wrap:wrap; gap:12px;">
+              ${d.twocompl8bit ? `<span>8-bit: <strong style="color:#38bdf8;">${d.twocompl8bit}</strong></span>` : ""}
+              ${d.twocompl16bit ? `<span>16-bit: <strong style="color:#34d399;">${d.twocompl16bit}</strong></span>` : ""}
+              ${d.twocompl32bit ? `<span>32-bit: <strong style="color:#fbbf24;">${d.twocompl32bit}</strong></span>` : ""}
+              ${d.twocompl64bit ? `<span>64-bit: <strong style="color:#f43f5e;">${d.twocompl64bit}</strong></span>` : ""}
+            </div>
+          </div>
+        ` : ""}
+      </div>
+    `);
+  } catch (err) {
+    return c.html(`
+      <div class="result-box error">
+        <strong>进制转换失败:</strong> ${err.message}
+      </div>
+    `, 400);
+  }
+});
+
+// API: 获取 Base 示例
+app.get("/api/backend/base/sample", async (c) => {
+  try {
+    if (!integerBaseConverterEngine) {
+      throw new Error("integer-base-converter WASM 引擎未就绪");
+    }
+    const response = integerBaseConverterEngine.dispatch({
+      action: "base/sample",
+      requestId: `srv-${Date.now()}`,
+      params: {}
+    });
+    if (response.code !== 0) {
+      throw new Error(response.msg || "获取示例失败");
+    }
+    return c.json(response.data);
+  } catch (err) {
+    return c.json({ sample: "0x7F_FF", detectedBase: 16 }, 500);
+  }
+});
+
 // API: 获取 DateTime 示例
 app.get("/api/backend/datetime/sample", async (c) => {
   try {
@@ -2708,6 +2852,7 @@ app.get("/api/stats", (c) => {
   const colorConverterSize = fs.existsSync(colorConverterWasmPath) ? fs.statSync(colorConverterWasmPath).size : 0;
   const caseConverterSize = fs.existsSync(caseConverterWasmPath) ? fs.statSync(caseConverterWasmPath).size : 0;
   const dateTimeConverterSize = fs.existsSync(dateTimeConverterWasmPath) ? fs.statSync(dateTimeConverterWasmPath).size : 0;
+  const integerBaseConverterSize = fs.existsSync(integerBaseConverterWasmPath) ? fs.statSync(integerBaseConverterWasmPath).size : 0;
   return c.json({
     rust: {
       file: "rs.wasm",
@@ -2843,6 +2988,11 @@ app.get("/api/stats", (c) => {
       file: "date-time-converter.wasm",
       sizeBytes: dateTimeConverterSize,
       sizeFormatted: `${(dateTimeConverterSize / 1024).toFixed(2)} KB`,
+    },
+    integerBaseConverter: {
+      file: "integer-base-converter.wasm",
+      sizeBytes: integerBaseConverterSize,
+      sizeFormatted: `${(integerBaseConverterSize / 1024).toFixed(2)} KB`,
     },
   });
 });
