@@ -61,6 +61,7 @@ const textDiffWasmPath = path.resolve(__dirname, "../public/wasm/text-diff.wasm"
 const textStatisticsWasmPath = path.resolve(__dirname, "../public/wasm/text-statistics.wasm");
 const stringObfuscatorWasmPath = path.resolve(__dirname, "../public/wasm/string-obfuscator.wasm");
 const loremIpsumWasmPath = path.resolve(__dirname, "../public/wasm/lorem-ipsum.wasm");
+const asciiTextDrawerWasmPath = path.resolve(__dirname, "../public/wasm/ascii-text-drawer.wasm");
 
 let rsEngine = null;
 let tsEngine = null;
@@ -113,6 +114,7 @@ let textDiffEngine = null;
 let textStatisticsEngine = null;
 let stringObfuscatorEngine = null;
 let loremIpsumEngine = null;
+let asciiTextDrawerEngine = null;
 
 async function initEngines() {
   try {
@@ -471,6 +473,13 @@ async function initEngines() {
       console.log("✅ [Backend Infra] 纯单一文件 lorem-ipsum.wasm 加载成功");
     } else {
       console.warn("⚠️ lorem-ipsum.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    if (fs.existsSync(asciiTextDrawerWasmPath)) {
+      asciiTextDrawerEngine = await loadWasmFromDisk(asciiTextDrawerWasmPath);
+      console.log("✅ [Backend Infra] 纯单一文件 ascii-text-drawer.wasm 加载成功");
+    } else {
+      console.warn("⚠️ ascii-text-drawer.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
     }
   } catch (err) {
     console.error("❌ 后端 WASM 基础设施初始化失败:", err);
@@ -6063,6 +6072,99 @@ app.get("/api/backend/lorem/presets", async (c) => {
   }
 });
 
+// API: ASCII 艺术艺术字画生成器 (ASCII Text Drawer)
+app.post("/api/backend/ascii/render", async (c) => {
+  try {
+    const contentType = c.req.header("Content-Type") || "";
+    let text = "WASM";
+    let font = "standard";
+    let fillChar = null;
+    let letterSpacing = 1;
+
+    if (contentType.includes("application/json")) {
+      const json = await c.req.json().catch(() => ({}));
+      text = (json.text || "WASM").toString();
+      font = (json.font || "standard").toString();
+      fillChar = json.fillChar ? json.fillChar.toString().charAt(0) : null;
+      letterSpacing = typeof json.letterSpacing === "number" ? json.letterSpacing : 1;
+    } else {
+      const body = await c.req.parseBody().catch(() => ({}));
+      text = (body.text || "WASM").toString();
+      font = (body.font || "standard").toString();
+      fillChar = body.fillChar ? body.fillChar.toString().charAt(0) : null;
+      letterSpacing = parseInt(body.letterSpacing || "1", 10) || 1;
+    }
+
+    if (!asciiTextDrawerEngine) {
+      throw new Error("ascii-text-drawer WASM 引擎未就绪");
+    }
+
+    const t0 = performance.now();
+    const response = asciiTextDrawerEngine.dispatch({
+      action: "ascii/render",
+      requestId: `srv-${Date.now()}`,
+      params: {
+        text,
+        font,
+        fillChar,
+        letterSpacing,
+      }
+    });
+    const duration = (performance.now() - t0).toFixed(4);
+
+    if (contentType.includes("application/json") && !c.req.header("HX-Request")) {
+      return c.json(response);
+    }
+
+    if (response.code !== 0) {
+      return c.html(`
+        <div class="result-box error">
+          <strong>渲染失败:</strong> ${escapeHtml(response.msg)}
+        </div>
+      `, 400);
+    }
+
+    const d = response.data;
+    return c.html(`
+      <div class="result-box">
+        <div class="result-header">
+          <span class="tag tag-rust">🦀 Rust WASM: ASCII 横幅渲染完成 (${escapeHtml(d.font)})</span>
+          <span class="badge-time">⚡ ${duration} ms (Hono 后端原生)</span>
+        </div>
+        <div style="display:flex; flex-wrap:wrap; gap:16px; margin-bottom:10px; font-size:12px; color:var(--text-muted);">
+          <span>字符数: <strong style="color:#38bdf8;">${d.charCount}</strong></span>
+          <span>横幅宽度: <strong style="color:#34d399;">${d.width} 字符</strong></span>
+          <span>横幅高度: <strong style="color:#f59e0b;">${d.height} 行</strong></span>
+        </div>
+        <pre style="width:100%; padding:14px; background:#020617; border:1px solid rgba(56,189,248,0.2); border-radius:6px; font-family:var(--font-mono); font-size:11px; color:#38bdf8; box-sizing:border-box; overflow-x:auto; line-height:1.2; font-weight:700;">${escapeHtml(d.renderedText)}</pre>
+      </div>
+    `);
+  } catch (err) {
+    return c.html(`
+      <div class="result-box error">
+        <strong>执行失败:</strong> ${escapeHtml(err.message)}
+      </div>
+    `, 500);
+  }
+});
+
+// API: 获取 ASCII 艺术字预设
+app.get("/api/backend/ascii/presets", async (c) => {
+  try {
+    if (!asciiTextDrawerEngine) {
+      throw new Error("ascii-text-drawer WASM 引擎未就绪");
+    }
+    const response = asciiTextDrawerEngine.dispatch({
+      action: "ascii/presets",
+      requestId: `srv-${Date.now()}`,
+      params: {}
+    });
+    return c.json(response);
+  } catch (err) {
+    return c.json({ code: 500, msg: err.message, data: null }, 500);
+  }
+});
+
 // API: 获取 Markdown 示例
 app.get("/api/backend/markdown/sample", async (c) => {
   try {
@@ -6236,6 +6338,7 @@ app.get("/api/stats", (c) => {
   const textStatisticsSize = fs.existsSync(textStatisticsWasmPath) ? fs.statSync(textStatisticsWasmPath).size : 0;
   const stringObfuscatorSize = fs.existsSync(stringObfuscatorWasmPath) ? fs.statSync(stringObfuscatorWasmPath).size : 0;
   const loremIpsumSize = fs.existsSync(loremIpsumWasmPath) ? fs.statSync(loremIpsumWasmPath).size : 0;
+  const asciiTextDrawerSize = fs.existsSync(asciiTextDrawerWasmPath) ? fs.statSync(asciiTextDrawerWasmPath).size : 0;
   return c.json({
     rust: {
       file: "rs.wasm",
@@ -6491,6 +6594,11 @@ app.get("/api/stats", (c) => {
       file: "lorem-ipsum.wasm",
       sizeBytes: loremIpsumSize,
       sizeFormatted: `${(loremIpsumSize / 1024).toFixed(2)} KB`,
+    },
+    asciiTextDrawer: {
+      file: "ascii-text-drawer.wasm",
+      sizeBytes: asciiTextDrawerSize,
+      sizeFormatted: `${(asciiTextDrawerSize / 1024).toFixed(2)} KB`,
     },
   });
 });

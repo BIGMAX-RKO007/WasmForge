@@ -1,0 +1,26 @@
+{
+  "name": "@wasm-forge/ascii-text-drawer",
+  "version": "0.1.0",
+  "description": "Pure Standalone WebAssembly Figlet and ASCII Art Banner Text Drawer Engine",
+  "type": "module",
+  "main": "pkg/ascii_text_drawer.wasm",
+  "files": [
+    "pkg/ascii_text_drawer.wasm",
+    "README.md"
+  ],
+  "scripts": {
+    "build:wasm": "cargo build --target wasm32-unknown-unknown --release",
+    "test": "cargo test"
+  },
+  "keywords": [
+    "wasm",
+    "webassembly",
+    "ascii",
+    "figlet",
+    "art",
+    "banner",
+    "text-drawer"
+  ],
+  "author": "WasmForge",
+  "license": "MIT"
+}

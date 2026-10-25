@@ -3840,6 +3840,72 @@ spec:
           </div>
         </div>
       </div>
+
+      <!-- Card 4.5: ASCII 艺术字横幅绘制器 (ASCII Text Drawer) -->
+      <div class="card" id="card-ascii-text-drawer">
+        <div class="card-header">
+          <div>
+            <div class="card-title">🎨 ASCII 艺术横幅字画绘制器 (ASCII Text Drawer)</div>
+            <div class="card-desc">纯单一文件 Rust WASM 驱动的 Figlet 字符画生成引擎，支持标准/重磅方块/紧凑小型字体与自定义遮罩字符填充</div>
+          </div>
+          <span class="tag tag-rust">Tool #50: ascii-text-drawer</span>
+        </div>
+
+        <form id="form-ascii-text-drawer" hx-post="/api/backend/ascii/render" hx-target="#backend-ascii-result" hx-swap="innerHTML">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+            <div style="display:flex; gap:16px; flex-wrap:wrap; align-items:center;">
+              <div style="display:flex; align-items:center; gap:6px;">
+                <span style="font-size:12px; color:var(--text-muted); font-weight:600;">横幅字体:</span>
+                <select name="font" id="ascii-font" onchange="runFrontendAscii()" style="background:#0f172a; color:#f8fafc; border:1px solid rgba(255,255,255,0.15); border-radius:4px; padding:4px 8px; font-size:12px;">
+                  <option value="standard">Standard (经典 5 行字形)</option>
+                  <option value="block">Block (实心重磅字)</option>
+                  <option value="small">Small (3 行紧凑轻量)</option>
+                </select>
+              </div>
+
+              <div style="display:flex; align-items:center; gap:6px;">
+                <span style="font-size:12px; color:var(--text-muted); font-weight:600;">自定义填充符:</span>
+                <input type="text" name="fillChar" id="ascii-fill-char" placeholder="留空默认" maxlength="1" oninput="runFrontendAscii()" style="width:70px; text-align:center; background:#0f172a; color:#f8fafc; border:1px solid rgba(255,255,255,0.15); border-radius:4px; padding:4px; font-size:12px;" />
+              </div>
+
+              <div style="display:flex; align-items:center; gap:6px;">
+                <span style="font-size:12px; color:var(--text-muted); font-weight:600;">字间距:</span>
+                <input type="number" name="letterSpacing" id="ascii-spacing" value="1" min="0" max="4" oninput="runFrontendAscii()" style="width:45px; background:#0f172a; color:#f8fafc; border:1px solid rgba(255,255,255,0.15); border-radius:4px; padding:4px; font-size:12px;" />
+              </div>
+            </div>
+
+            <div style="display:flex; gap:6px; font-size:11px;">
+              <span style="color:var(--text-muted); padding:3px 0;">推荐横幅:</span>
+              <button type="button" onclick="loadAsciiPreset('wasm-forge')" style="background:rgba(255,255,255,0.06); color:#38bdf8; border:1px solid rgba(56,189,248,0.3); border-radius:4px; padding:3px 8px; cursor:pointer;">⚡ WASM FORGE</button>
+              <button type="button" onclick="loadAsciiPreset('rust-block')" style="background:rgba(255,255,255,0.06); color:#34d399; border:1px solid rgba(52,211,153,0.3); border-radius:4px; padding:3px 8px; cursor:pointer;">🦀 RUST 2026</button>
+              <button type="button" onclick="loadAsciiPreset('compact-small')" style="background:rgba(255,255,255,0.06); color:#f59e0b; border:1px solid rgba(245,158,11,0.3); border-radius:4px; padding:3px 8px; cursor:pointer;">📌 STANDALONE</button>
+              <button type="button" onclick="loadAsciiPreset('matrix-hack')" style="background:rgba(255,255,255,0.06); color:#c084fc; border:1px solid rgba(192,132,252,0.3); border-radius:4px; padding:3px 8px; cursor:pointer;">👾 CYBERPUNK</button>
+            </div>
+          </div>
+
+          <input type="text" name="text" id="ascii-input" value="WASM FORGE" placeholder="输入待转换英文字符串..." style="width:100%; box-sizing:border-box; background:#0f172a; color:#f8fafc; border:1px solid rgba(255,255,255,0.15); border-radius:6px; padding:8px 12px; font-size:13px; font-family:var(--font-mono); margin-bottom:12px;" oninput="runFrontendAscii()" />
+
+          <div style="display:flex; gap:8px;">
+            <button type="submit" style="padding:8px 16px; background:linear-gradient(135deg, #3b82f6, #1d4ed8); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:12px;">
+              🖥️ 后端绘制 (HTMX)
+            </button>
+            <button type="button" onclick="runFrontendAscii()" style="padding:8px 16px; background:linear-gradient(135deg, #0ea5e9, #0284c7); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:12px;">
+              🌐 前端极速绘制
+            </button>
+          </div>
+        </form>
+
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:16px; margin-top:16px;">
+          <div>
+            <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px;">后端投影输出:</div>
+            <div id="backend-ascii-result" class="result-container"><div class="result-box" style="opacity:0.5; font-size:12px;">等待绘制...</div></div>
+          </div>
+          <div>
+            <div style="font-size:11px; color:var(--text-muted); margin-top:0px; margin-bottom:4px;">前端投影输出:</div>
+            <div id="frontend-ascii-result" class="result-container"><div class="result-box" style="opacity:0.5; font-size:12px;">等待绘制...</div></div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- ================= 区域 3: 4 象限综合矩阵基准测试 ================= -->
@@ -4019,6 +4085,7 @@ spec:
         const textStatisticsEngine = await loadWasmFromUrl("./wasm/text-statistics.wasm");
         const stringObfuscatorEngine = await loadWasmFromUrl("./wasm/string-obfuscator.wasm");
         const loremIpsumEngine = await loadWasmFromUrl("./wasm/lorem-ipsum.wasm");
+        const asciiTextDrawerEngine = await loadWasmFromUrl("./wasm/ascii-text-drawer.wasm");
 
         window.wasmContext.rust = rsEngine;
         window.wasmContext.ts = tsEngine;
@@ -4071,6 +4138,7 @@ spec:
         window.wasmContext.textStatistics = textStatisticsEngine;
         window.wasmContext.stringObfuscator = stringObfuscatorEngine;
         window.wasmContext.loremIpsum = loremIpsumEngine;
+        window.wasmContext.asciiTextDrawer = asciiTextDrawerEngine;
         window.wasmContext.rustReady = true;
         window.wasmContext.tsReady = true;
         window.wasmContext.tokenReady = true;
@@ -4122,9 +4190,10 @@ spec:
         window.wasmContext.textStatisticsReady = true;
         window.wasmContext.stringObfuscatorReady = true;
         window.wasmContext.loremIpsumReady = true;
+        window.wasmContext.asciiTextDrawerReady = true;
 
         const statusEl = document.getElementById("frontend-status");
-        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载 51 大模块: rs, ts, token-gen, hash-text, bcrypt, uuid-gen, ulid-gen, encryption, bip39, hmac, rsa, password-strength, pdf-sig, yaml-to-json, yaml-to-toml, json-to-yaml, json-to-toml, toml-to-json, toml-to-yaml, xml-to-json, json-to-xml, json-to-csv, base64-string, base64-file, color-converter, case-converter, date-time-converter, integer-base-converter, roman-numeral-converter, text-to-binary, text-to-unicode, markdown-to-html, list-converter, text-to-nato, sql-prettify, xml-formatter, json-minify, json-viewer, yaml-viewer, regex-tester, regex-memo, crontab-generator, chmod-calculator, docker-run-to-compose, email-normalizer, git-memo, random-port, text-diff, text-statistics, string-obfuscator & lorem-ipsum)`;
+        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载 52 大模块: rs, ts, token-gen, hash-text, bcrypt, uuid-gen, ulid-gen, encryption, bip39, hmac, rsa, password-strength, pdf-sig, yaml-to-json, yaml-to-toml, json-to-yaml, json-to-toml, toml-to-json, toml-to-yaml, xml-to-json, json-to-xml, json-to-csv, base64-string, base64-file, color-converter, case-converter, date-time-converter, integer-base-converter, roman-numeral-converter, text-to-binary, text-to-unicode, markdown-to-html, list-converter, text-to-nato, sql-prettify, xml-formatter, json-minify, json-viewer, yaml-viewer, regex-tester, regex-memo, crontab-generator, chmod-calculator, docker-run-to-compose, email-normalizer, git-memo, random-port, text-diff, text-statistics, string-obfuscator, lorem-ipsum & ascii-text-drawer)`;
 
         // 初始自动运行一次前端计算
         window.runFrontendCalc();
@@ -9047,6 +9116,74 @@ spec:
             <span>字节数: <strong style="color:#c084fc;">${d.bytesCount} 字节</strong></span>
           </div>
           <textarea readonly style="width:100%; padding:10px; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1); border-radius:6px; font-family:var(--font-mono); font-size:12px; color:#f8fafc; box-sizing:border-box; resize:vertical; line-height:1.6;" rows="7">${escapeHtmlFront(d.text)}</textarea>
+        </div>
+      `;
+    };
+
+    // ASCII Text Drawer 前端横幅绘制
+    const asciiPresets = {
+      "wasm-forge": { text: "WASM FORGE", font: "standard", fill: "" },
+      "rust-block": { text: "RUST 2026", font: "block", fill: "" },
+      "compact-small": { text: "STANDALONE", font: "small", fill: "" },
+      "matrix-hack": { text: "CYBERPUNK", font: "standard", fill: "" }
+    };
+
+    window.loadAsciiPreset = function(presetId) {
+      const p = asciiPresets[presetId];
+      if (p) {
+        document.getElementById("ascii-input").value = p.text;
+        document.getElementById("ascii-font").value = p.font;
+        document.getElementById("ascii-fill-char").value = p.fill;
+        window.runFrontendAscii();
+      }
+    };
+
+    window.runFrontendAscii = function() {
+      if (!window.wasmContext.asciiTextDrawerReady || !window.wasmContext.asciiTextDrawer) {
+        document.getElementById("frontend-ascii-result").innerHTML = `
+          <div class="result-box error">ascii-text-drawer.wasm 尚未加载完毕</div>
+        `;
+        return;
+      }
+
+      const text = document.getElementById("ascii-input").value || "WASM";
+      const font = document.getElementById("ascii-font").value;
+      const fillChar = (document.getElementById("ascii-fill-char").value || "").trim().charAt(0) || null;
+      const letterSpacing = parseInt(document.getElementById("ascii-spacing").value || "1", 10) || 1;
+
+      const t0 = performance.now();
+      const response = window.wasmContext.asciiTextDrawer.dispatch({
+        action: "ascii/render",
+        requestId: `front-${Date.now()}`,
+        params: {
+          text,
+          font,
+          fillChar,
+          letterSpacing
+        }
+      });
+      const duration = (performance.now() - t0).toFixed(4);
+
+      if (response.code !== 0) {
+        document.getElementById("frontend-ascii-result").innerHTML = `
+          <div class="result-box error">渲染失败: ${escapeHtmlFront(response.msg)}</div>
+        `;
+        return;
+      }
+
+      const d = response.data;
+      document.getElementById("frontend-ascii-result").innerHTML = `
+        <div class="result-box">
+          <div class="result-header">
+            <span class="tag tag-rust">🦀 Browser WASM: ASCII 横幅渲染完成 (${escapeHtmlFront(d.font)})</span>
+            <span class="badge-time">⚡ ${duration} ms (纯前端内存)</span>
+          </div>
+          <div style="display:flex; flex-wrap:wrap; gap:16px; margin-bottom:10px; font-size:12px; color:var(--text-muted);">
+            <span>字符数: <strong style="color:#38bdf8;">${d.charCount}</strong></span>
+            <span>横幅宽度: <strong style="color:#34d399;">${d.width} 字符</strong></span>
+            <span>横幅高度: <strong style="color:#f59e0b;">${d.height} 行</strong></span>
+          </div>
+          <pre style="width:100%; padding:14px; background:#020617; border:1px solid rgba(56,189,248,0.2); border-radius:6px; font-family:var(--font-mono); font-size:11px; color:#38bdf8; box-sizing:border-box; overflow-x:auto; line-height:1.2; font-weight:700;">${escapeHtmlFront(d.renderedText)}</pre>
         </div>
       `;
     };
