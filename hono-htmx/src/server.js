@@ -56,6 +56,7 @@ const chmodCalculatorWasmPath = path.resolve(__dirname, "../public/wasm/chmod-ca
 const dockerRunToComposeWasmPath = path.resolve(__dirname, "../public/wasm/docker-run-to-compose.wasm");
 const emailNormalizerWasmPath = path.resolve(__dirname, "../public/wasm/email-normalizer.wasm");
 const gitMemoWasmPath = path.resolve(__dirname, "../public/wasm/git-memo.wasm");
+const randomPortWasmPath = path.resolve(__dirname, "../public/wasm/random-port.wasm");
 
 let rsEngine = null;
 let tsEngine = null;
@@ -103,6 +104,7 @@ let chmodCalculatorEngine = null;
 let dockerRunToComposeEngine = null;
 let emailNormalizerEngine = null;
 let gitMemoEngine = null;
+let randomPortEngine = null;
 
 async function initEngines() {
   try {
@@ -426,6 +428,13 @@ async function initEngines() {
       console.log("✅ [Backend Infra] 纯单一文件 git-memo.wasm 加载成功");
     } else {
       console.warn("⚠️ git-memo.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    if (fs.existsSync(randomPortWasmPath)) {
+      randomPortEngine = await loadWasmFromDisk(randomPortWasmPath);
+      console.log("✅ [Backend Infra] 纯单一文件 random-port.wasm 加载成功");
+    } else {
+      console.warn("⚠️ random-port.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
     }
   } catch (err) {
     console.error("❌ 后端 WASM 基础设施初始化失败:", err);
@@ -5384,6 +5393,129 @@ app.post("/api/backend/git/search", async (c) => {
   }
 });
 
+// API: 随机端口生成（支持 HTMX 与 JSON）
+app.post("/api/backend/port/generate", async (c) => {
+  try {
+    const contentType = c.req.header("Content-Type") || "";
+    let count = 1;
+    let range = "ephemeral";
+    let minPort = 1024;
+    let maxPort = 65535;
+    let excludeWellKnown = true;
+
+    if (contentType.includes("application/json")) {
+      const json = await c.req.json().catch(() => ({}));
+      if (json.count !== undefined) count = parseInt(json.count, 10) || 1;
+      if (json.range) range = json.range.toString();
+      if (json.minPort !== undefined) minPort = parseInt(json.minPort, 10);
+      if (json.maxPort !== undefined) maxPort = parseInt(json.maxPort, 10);
+      if (json.excludeWellKnown !== undefined) excludeWellKnown = Boolean(json.excludeWellKnown);
+    } else {
+      const body = await c.req.parseBody().catch(() => ({}));
+      if (body.count !== undefined) count = parseInt(body.count, 10) || 1;
+      if (body.range) range = body.range.toString();
+      if (body.minPort !== undefined) minPort = parseInt(body.minPort, 10);
+      if (body.maxPort !== undefined) maxPort = parseInt(body.maxPort, 10);
+      if (body.excludeWellKnown !== undefined) excludeWellKnown = body.excludeWellKnown === "on" || body.excludeWellKnown === "true";
+    }
+
+    if (!randomPortEngine) {
+      throw new Error("random-port WASM 引擎未就绪");
+    }
+
+    const t0 = performance.now();
+    const seed = Date.now();
+    const response = randomPortEngine.dispatch({
+      action: "port/generate",
+      requestId: `srv-${Date.now()}`,
+      params: { count, range, minPort, maxPort, excludeWellKnown, seed }
+    });
+    const duration = (performance.now() - t0).toFixed(4);
+
+    if (contentType.includes("application/json") && !c.req.header("HX-Request")) {
+      return c.json(response);
+    }
+
+    if (response.code !== 0) {
+      return c.html(`
+        <div class="result-box error">
+          <strong>生成失败:</strong> ${escapeHtml(response.msg)}
+        </div>
+      `, 400);
+    }
+
+    const d = response.data;
+    const cards = d.ports.map(p => `
+      <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:12px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
+        <div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span style="font-size:20px; font-weight:800; font-family:var(--font-mono); color:#38bdf8;">:${p.port}</span>
+            <span style="font-size:11px; padding:2px 6px; border-radius:4px; background:rgba(255,255,255,0.06); color:var(--text-muted);">${escapeHtml(p.range_type)}</span>
+            <span style="font-size:11px; padding:2px 6px; border-radius:4px; background:rgba(52,211,153,0.15); color:#34d399;">${escapeHtml(p.conflict_risk)}</span>
+          </div>
+          ${p.service ? `<div style="font-size:12px; color:#f59e0b; margin-top:4px;">服务冲突提示: ${escapeHtml(p.service)} (${escapeHtml(p.protocol || "")})</div>` : ''}
+          ${p.description ? `<div style="font-size:11px; color:var(--text-muted); margin-top:2px;">${escapeHtml(p.description)}</div>` : ''}
+        </div>
+        <button type="button" class="btn-copy" style="padding:4px 10px; font-size:11px; background:#1e293b; color:#fff; border:1px solid rgba(255,255,255,0.2); border-radius:4px; cursor:pointer;" onclick="navigator.clipboard.writeText('${p.port}'); this.innerText='已复制!'; setTimeout(()=>this.innerText='复制端口', 1500)">复制端口</button>
+      </div>
+    `).join("");
+
+    return c.html(`
+      <div class="result-box">
+        <div class="result-header">
+          <span class="tag tag-rust">🦀 Rust WASM: 随机端口生成完成</span>
+          <span class="badge-time">⚡ ${duration} ms (Hono 后端原生)</span>
+        </div>
+        <div style="font-size:12px; color:var(--text-muted); margin-bottom:12px;">
+          生成数量: <strong style="color:#38bdf8;">${d.total}</strong> 个 | 约束范围: <code>${escapeHtml(d.range)}</code> | 避开已知服务: <strong>${excludeWellKnown ? '开启' : '关闭'}</strong>
+        </div>
+        <div>${cards}</div>
+      </div>
+    `);
+  } catch (err) {
+    return c.html(`
+      <div class="result-box error">
+        <strong>执行失败:</strong> ${escapeHtml(err.message)}
+      </div>
+    `, 500);
+  }
+});
+
+// API: 端口反查诊断与风险评估
+app.get("/api/backend/port/lookup", async (c) => {
+  try {
+    if (!randomPortEngine) {
+      throw new Error("random-port WASM 引擎未就绪");
+    }
+    const port = parseInt(c.req.query("port") || "80", 10);
+    const response = randomPortEngine.dispatch({
+      action: "port/lookup",
+      requestId: `srv-${Date.now()}`,
+      params: { port }
+    });
+    return c.json(response);
+  } catch (err) {
+    return c.json({ code: 500, msg: err.message, data: null }, 500);
+  }
+});
+
+// API: 常用开发端口预设
+app.get("/api/backend/port/samples", async (c) => {
+  try {
+    if (!randomPortEngine) {
+      throw new Error("random-port WASM 引擎未就绪");
+    }
+    const response = randomPortEngine.dispatch({
+      action: "port/samples",
+      requestId: `srv-${Date.now()}`,
+      params: {}
+    });
+    return c.json(response);
+  } catch (err) {
+    return c.json({ code: 500, msg: err.message, data: null }, 500);
+  }
+});
+
 // API: 获取 Markdown 示例
 app.get("/api/backend/markdown/sample", async (c) => {
   try {
@@ -5552,6 +5684,7 @@ app.get("/api/stats", (c) => {
   const dockerRunToComposeSize = fs.existsSync(dockerRunToComposeWasmPath) ? fs.statSync(dockerRunToComposeWasmPath).size : 0;
   const emailNormalizerSize = fs.existsSync(emailNormalizerWasmPath) ? fs.statSync(emailNormalizerWasmPath).size : 0;
   const gitMemoSize = fs.existsSync(gitMemoWasmPath) ? fs.statSync(gitMemoWasmPath).size : 0;
+  const randomPortSize = fs.existsSync(randomPortWasmPath) ? fs.statSync(randomPortWasmPath).size : 0;
   return c.json({
     rust: {
       file: "rs.wasm",
@@ -5782,6 +5915,11 @@ app.get("/api/stats", (c) => {
       file: "git-memo.wasm",
       sizeBytes: gitMemoSize,
       sizeFormatted: `${(gitMemoSize / 1024).toFixed(2)} KB`,
+    },
+    randomPort: {
+      file: "random-port.wasm",
+      sizeBytes: randomPortSize,
+      sizeFormatted: `${(randomPortSize / 1024).toFixed(2)} KB`,
     },
   });
 });

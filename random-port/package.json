@@ -1,0 +1,23 @@
+{
+  "name": "@wasmforge/random-port",
+  "version": "0.1.0",
+  "description": "Random network port generator and service conflict auditor in pure WebAssembly",
+  "main": "random-port.wasm",
+  "types": "index.d.ts",
+  "scripts": {
+    "build": "cargo build --target wasm32-unknown-unknown --release",
+    "test": "cargo test"
+  },
+  "keywords": [
+    "wasm",
+    "port",
+    "network",
+    "random",
+    "tcp",
+    "udp",
+    "conflict",
+    "wasmforge"
+  ],
+  "author": "BIGMAX-RKO007",
+  "license": "MIT"
+}

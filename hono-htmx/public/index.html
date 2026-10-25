@@ -3486,6 +3486,82 @@ spec:
           </div>
         </div>
       </div>
+
+      <!-- Card 3.13: Random Port Generator & Conflict Auditor -->
+      <div class="card" id="card-random-port">
+        <div class="card-header">
+          <div>
+            <div class="card-title">🔌 随机网络端口生成 & 服务冲突诊断</div>
+            <div class="card-desc">纯单一文件 Rust WASM 驱动的端口安全随机生成器、RFC 6335 规范与服务冲突审计引擎</div>
+          </div>
+          <span class="tag tag-rust">Tool #45: random-port</span>
+        </div>
+
+        <form id="form-random-port" hx-post="/api/backend/port/generate" hx-target="#backend-port-result" hx-swap="innerHTML">
+          <div style="display:flex; flex-wrap:wrap; gap:12px; margin-bottom:12px; align-items:center;">
+            <div style="display:flex; align-items:center; gap:6px;">
+              <label style="font-size:12px; color:var(--text-muted); font-weight:600;">生成数量:</label>
+              <select name="count" id="port-count-select" onchange="runFrontendPortGenerate()" style="background:#0f172a; color:#f8fafc; border:1px solid rgba(255,255,255,0.15); border-radius:6px; padding:6px 10px; font-size:12px;">
+                <option value="1">1 个端口</option>
+                <option value="3" selected>3 个端口</option>
+                <option value="5">5 个端口</option>
+                <option value="10">10 个端口</option>
+              </select>
+            </div>
+
+            <div style="display:flex; align-items:center; gap:6px;">
+              <label style="font-size:12px; color:var(--text-muted); font-weight:600;">端口范围:</label>
+              <select name="range" id="port-range-select" onchange="togglePortCustomRange(); runFrontendPortGenerate();" style="background:#0f172a; color:#f8fafc; border:1px solid rgba(255,255,255,0.15); border-radius:6px; padding:6px 10px; font-size:12px;">
+                <option value="ephemeral" selected>🚀 动态/临时端口 (49152 - 65535, 推荐)</option>
+                <option value="user">📦 注册/用户端口 (1024 - 49151)</option>
+                <option value="all">🌐 全非特权端口 (1024 - 65535)</option>
+                <option value="custom">🛠️ 自定义端口范围</option>
+              </select>
+            </div>
+
+            <div id="port-custom-box" style="display:none; align-items:center; gap:6px;">
+              <input type="number" name="minPort" id="port-min-input" value="8000" min="1" max="65535" style="width:70px; background:#0f172a; color:#f8fafc; border:1px solid rgba(255,255,255,0.15); border-radius:6px; padding:6px 8px; font-size:12px;" oninput="runFrontendPortGenerate()">
+              <span style="color:var(--text-muted); font-size:12px;">至</span>
+              <input type="number" name="maxPort" id="port-max-input" value="9000" min="1" max="65535" style="width:70px; background:#0f172a; color:#f8fafc; border:1px solid rgba(255,255,255,0.15); border-radius:6px; padding:6px 8px; font-size:12px;" oninput="runFrontendPortGenerate()">
+            </div>
+
+            <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:#f1f5f9; cursor:pointer;">
+              <input type="checkbox" name="excludeWellKnown" id="port-exclude-known" checked onchange="runFrontendPortGenerate()" style="accent-color:#38bdf8;">
+              <span>避开已知知名/常用服务端口</span>
+            </label>
+          </div>
+
+          <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:14px; font-size:11px;">
+            <span style="color:var(--text-muted); padding:3px 0;">快速端口诊断:</span>
+            <button type="button" onclick="lookupPortQuick(3306)" style="background:rgba(255,255,255,0.06); color:#38bdf8; border:1px solid rgba(56,189,248,0.3); border-radius:4px; padding:3px 8px; cursor:pointer;">🐬 :3306 (MySQL)</button>
+            <button type="button" onclick="lookupPortQuick(5432)" style="background:rgba(255,255,255,0.06); color:#38bdf8; border:1px solid rgba(56,189,248,0.3); border-radius:4px; padding:3px 8px; cursor:pointer;">🐘 :5432 (PostgreSQL)</button>
+            <button type="button" onclick="lookupPortQuick(6379)" style="background:rgba(255,255,255,0.06); color:#ef4444; border:1px solid rgba(239,68,68,0.3); border-radius:4px; padding:3px 8px; cursor:pointer;">⚡ :6379 (Redis)</button>
+            <button type="button" onclick="lookupPortQuick(8080)" style="background:rgba(255,255,255,0.06); color:#f59e0b; border:1px solid rgba(245,158,11,0.3); border-radius:4px; padding:3px 8px; cursor:pointer;">☕ :8080 (Tomcat)</button>
+            <button type="button" onclick="lookupPortQuick(27017)" style="background:rgba(255,255,255,0.06); color:#34d399; border:1px solid rgba(52,211,153,0.3); border-radius:4px; padding:3px 8px; cursor:pointer;">🍃 :27017 (MongoDB)</button>
+            <button type="button" onclick="lookupPortQuick(80)" style="background:rgba(255,255,255,0.06); color:#cbd5e1; border:1px solid rgba(255,255,255,0.2); border-radius:4px; padding:3px 8px; cursor:pointer;">🔒 :80 (特权Root)</button>
+          </div>
+
+          <div style="display:flex; gap:8px;">
+            <button type="submit" style="padding:8px 16px; background:linear-gradient(135deg, #3b82f6, #1d4ed8); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:12px;">
+              🖥️ 后端生成 (HTMX)
+            </button>
+            <button type="button" onclick="runFrontendPortGenerate()" style="padding:8px 16px; background:linear-gradient(135deg, #0ea5e9, #0284c7); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:12px;">
+              🌐 前端极速生成
+            </button>
+          </div>
+        </form>
+
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:16px; margin-top:16px;">
+          <div>
+            <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px;">后端投影输出:</div>
+            <div id="backend-port-result" class="result-container"><div class="result-box" style="opacity:0.5; font-size:12px;">等待生成...</div></div>
+          </div>
+          <div>
+            <div style="font-size:11px; color:var(--text-muted); margin-top:0px; margin-bottom:4px;">前端投影输出:</div>
+            <div id="frontend-port-result" class="result-container"><div class="result-box" style="opacity:0.5; font-size:12px;">等待生成...</div></div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- ================= 区域 3: 4 象限综合矩阵基准测试 ================= -->
@@ -3660,6 +3736,7 @@ spec:
         const dockerRunToComposeEngine = await loadWasmFromUrl("./wasm/docker-run-to-compose.wasm");
         const emailNormalizerEngine = await loadWasmFromUrl("./wasm/email-normalizer.wasm");
         const gitMemoEngine = await loadWasmFromUrl("./wasm/git-memo.wasm");
+        const randomPortEngine = await loadWasmFromUrl("./wasm/random-port.wasm");
 
         window.wasmContext.rust = rsEngine;
         window.wasmContext.ts = tsEngine;
@@ -3707,6 +3784,7 @@ spec:
         window.wasmContext.dockerRunToCompose = dockerRunToComposeEngine;
         window.wasmContext.emailNormalizer = emailNormalizerEngine;
         window.wasmContext.gitMemo = gitMemoEngine;
+        window.wasmContext.randomPort = randomPortEngine;
         window.wasmContext.rustReady = true;
         window.wasmContext.tsReady = true;
         window.wasmContext.tokenReady = true;
@@ -3753,9 +3831,10 @@ spec:
         window.wasmContext.dockerRunToComposeReady = true;
         window.wasmContext.emailNormalizerReady = true;
         window.wasmContext.gitMemoReady = true;
+        window.wasmContext.randomPortReady = true;
 
         const statusEl = document.getElementById("frontend-status");
-        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载 46 大模块: rs, ts, token-gen, hash-text, bcrypt, uuid-gen, ulid-gen, encryption, bip39, hmac, rsa, password-strength, pdf-sig, yaml-to-json, yaml-to-toml, json-to-yaml, json-to-toml, toml-to-json, toml-to-yaml, xml-to-json, json-to-xml, json-to-csv, base64-string, base64-file, color-converter, case-converter, date-time-converter, integer-base-converter, roman-numeral-converter, text-to-binary, text-to-unicode, markdown-to-html, list-converter, text-to-nato, sql-prettify, xml-formatter, json-minify, json-viewer, yaml-viewer, regex-tester, regex-memo, crontab-generator, chmod-calculator, docker-run-to-compose, email-normalizer & git-memo)`;
+        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载 47 大模块: rs, ts, token-gen, hash-text, bcrypt, uuid-gen, ulid-gen, encryption, bip39, hmac, rsa, password-strength, pdf-sig, yaml-to-json, yaml-to-toml, json-to-yaml, json-to-toml, toml-to-json, toml-to-yaml, xml-to-json, json-to-xml, json-to-csv, base64-string, base64-file, color-converter, case-converter, date-time-converter, integer-base-converter, roman-numeral-converter, text-to-binary, text-to-unicode, markdown-to-html, list-converter, text-to-nato, sql-prettify, xml-formatter, json-minify, json-viewer, yaml-viewer, regex-tester, regex-memo, crontab-generator, chmod-calculator, docker-run-to-compose, email-normalizer, git-memo & random-port)`;
 
         // 初始自动运行一次前端计算
         window.runFrontendCalc();
@@ -3787,6 +3866,7 @@ spec:
         if (window.runFrontendDockerToCompose) window.runFrontendDockerToCompose();
         if (window.runFrontendEmailNormalize) window.runFrontendEmailNormalize();
         if (window.runFrontendGitSearch) window.runFrontendGitSearch();
+        if (window.runFrontendPortGenerate) window.runFrontendPortGenerate();
       } catch (err) {
         console.error("加载浏览器端 WASM 失败:", err);
         const statusEl = document.getElementById("frontend-status");
@@ -8143,6 +8223,110 @@ spec:
             ${cmdHtml}
             ${scenHtml}
           </div>
+        </div>
+      `;
+    };
+
+    // 端口自定义范围显隐控制
+    window.togglePortCustomRange = function() {
+      const range = document.getElementById("port-range-select").value;
+      const box = document.getElementById("port-custom-box");
+      if (box) {
+        box.style.display = range === "custom" ? "inline-flex" : "none";
+      }
+    };
+
+    // 端口快速反查诊断
+    window.lookupPortQuick = function(portNum) {
+      if (!window.wasmContext.randomPortReady || !window.wasmContext.randomPort) return;
+      const t0 = performance.now();
+      const response = window.wasmContext.randomPort.dispatch({
+        action: "port/lookup",
+        requestId: `front-${Date.now()}`,
+        params: { port: portNum }
+      });
+      const duration = (performance.now() - t0).toFixed(4);
+
+      if (response.code === 0) {
+        const p = response.data;
+        document.getElementById("frontend-port-result").innerHTML = `
+          <div class="result-box">
+            <div class="result-header">
+              <span class="tag tag-rust">🦀 Browser WASM: 端口反查诊断</span>
+              <span class="badge-time">⚡ ${duration} ms (纯前端内存)</span>
+            </div>
+            <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:12px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <span style="font-size:24px; font-weight:800; font-family:var(--font-mono); color:#38bdf8;">:${p.port}</span>
+                <span style="font-size:12px; padding:3px 8px; border-radius:4px; background:${p.is_privileged ? 'rgba(239,68,68,0.2)' : 'rgba(52,211,153,0.15)'}; color:${p.is_privileged ? '#ef4444' : '#34d399'}; font-weight:600;">${escapeHtmlFront(p.conflict_risk)}</span>
+              </div>
+              <div style="font-size:12px; color:var(--text-muted); margin-bottom:4px;">分类: <strong style="color:#f1f5f9;">${escapeHtmlFront(p.range_type)}</strong></div>
+              <div style="font-size:13px; color:#f59e0b; font-weight:600; margin-bottom:4px;">标准服务: ${escapeHtmlFront(p.service || "未分配已知公认服务 (可安全作为自定义应用端口)")}</div>
+              <div style="font-size:12px; color:var(--text-muted); margin-bottom:8px;">协议: <code>${escapeHtmlFront(p.protocol || "TCP/UDP")}</code> | 特权端口: <strong>${p.is_privileged ? '是 (<1024 需要管理员/Root权限)' : '否 (普通用户可用)'}</strong></div>
+              <div style="font-size:12px; color:var(--text-muted);">${escapeHtmlFront(p.description || "RFC 6335 规范无冲突保留")}</div>
+            </div>
+          </div>
+        `;
+      }
+    };
+
+    // 前端随机端口生成
+    window.runFrontendPortGenerate = function() {
+      if (!window.wasmContext.randomPortReady || !window.wasmContext.randomPort) {
+        document.getElementById("frontend-port-result").innerHTML = `
+          <div class="result-box error">random-port.wasm 尚未加载完毕</div>
+        `;
+        return;
+      }
+
+      const count = parseInt(document.getElementById("port-count-select").value, 10) || 1;
+      const range = document.getElementById("port-range-select").value;
+      const minPort = parseInt(document.getElementById("port-min-input").value, 10) || 1024;
+      const maxPort = parseInt(document.getElementById("port-max-input").value, 10) || 65535;
+      const excludeWellKnown = document.getElementById("port-exclude-known").checked;
+
+      const t0 = performance.now();
+      const seed = Math.floor(Math.random() * 1000000000);
+      const response = window.wasmContext.randomPort.dispatch({
+        action: "port/generate",
+        requestId: `front-${Date.now()}`,
+        params: { count, range, minPort, maxPort, excludeWellKnown, seed }
+      });
+      const duration = (performance.now() - t0).toFixed(4);
+
+      if (response.code !== 0) {
+        document.getElementById("frontend-port-result").innerHTML = `
+          <div class="result-box error">生成失败: ${escapeHtmlFront(response.msg)}</div>
+        `;
+        return;
+      }
+
+      const d = response.data;
+      const cards = d.ports.map(p => `
+        <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:12px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="font-size:20px; font-weight:800; font-family:var(--font-mono); color:#38bdf8;">:${p.port}</span>
+              <span style="font-size:11px; padding:2px 6px; border-radius:4px; background:rgba(255,255,255,0.06); color:var(--text-muted);">${escapeHtmlFront(p.range_type)}</span>
+              <span style="font-size:11px; padding:2px 6px; border-radius:4px; background:rgba(52,211,153,0.15); color:#34d399;">${escapeHtmlFront(p.conflict_risk)}</span>
+            </div>
+            ${p.service ? `<div style="font-size:12px; color:#f59e0b; margin-top:4px;">服务冲突提示: ${escapeHtmlFront(p.service)} (${escapeHtmlFront(p.protocol || "")})</div>` : ''}
+            ${p.description ? `<div style="font-size:11px; color:var(--text-muted); margin-top:2px;">${escapeHtmlFront(p.description)}</div>` : ''}
+          </div>
+          <button type="button" class="btn-copy" style="padding:4px 10px; font-size:11px; background:#1e293b; color:#fff; border:1px solid rgba(255,255,255,0.2); border-radius:4px; cursor:pointer;" onclick="navigator.clipboard.writeText('${p.port}'); this.innerText='已复制!'; setTimeout(()=>this.innerText='复制端口', 1500)">复制端口</button>
+        </div>
+      `).join("");
+
+      document.getElementById("frontend-port-result").innerHTML = `
+        <div class="result-box">
+          <div class="result-header">
+            <span class="tag tag-rust">🦀 Browser WASM: 随机端口生成完成</span>
+            <span class="badge-time">⚡ ${duration} ms (纯前端内存)</span>
+          </div>
+          <div style="font-size:12px; color:var(--text-muted); margin-bottom:12px;">
+            生成数量: <strong style="color:#38bdf8;">${d.total}</strong> 个 | 约束范围: <code>${escapeHtmlFront(d.range)}</code> | 避开已知服务: <strong>${excludeWellKnown ? '开启' : '关闭'}</strong>
+          </div>
+          <div>${cards}</div>
         </div>
       `;
     };
