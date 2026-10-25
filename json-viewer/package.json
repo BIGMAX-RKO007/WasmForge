@@ -1,0 +1,21 @@
+{
+  "name": "@wasmforge/json-viewer",
+  "version": "0.1.0",
+  "description": "Pure Standalone WebAssembly Interactive JSON Tree Inspector and Query Engine for WasmForge",
+  "main": "json_viewer.wasm",
+  "scripts": {
+    "build": "cargo build --target wasm32-unknown-unknown --release",
+    "test": "cargo test"
+  },
+  "keywords": [
+    "wasm",
+    "webassembly",
+    "json",
+    "viewer",
+    "tree",
+    "inspector",
+    "wasmforge"
+  ],
+  "author": "WasmForge",
+  "license": "MIT"
+}
