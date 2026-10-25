@@ -60,6 +60,7 @@ const randomPortWasmPath = path.resolve(__dirname, "../public/wasm/random-port.w
 const textDiffWasmPath = path.resolve(__dirname, "../public/wasm/text-diff.wasm");
 const textStatisticsWasmPath = path.resolve(__dirname, "../public/wasm/text-statistics.wasm");
 const stringObfuscatorWasmPath = path.resolve(__dirname, "../public/wasm/string-obfuscator.wasm");
+const loremIpsumWasmPath = path.resolve(__dirname, "../public/wasm/lorem-ipsum.wasm");
 
 let rsEngine = null;
 let tsEngine = null;
@@ -111,6 +112,7 @@ let randomPortEngine = null;
 let textDiffEngine = null;
 let textStatisticsEngine = null;
 let stringObfuscatorEngine = null;
+let loremIpsumEngine = null;
 
 async function initEngines() {
   try {
@@ -462,6 +464,13 @@ async function initEngines() {
       console.log("✅ [Backend Infra] 纯单一文件 string-obfuscator.wasm 加载成功");
     } else {
       console.warn("⚠️ string-obfuscator.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    if (fs.existsSync(loremIpsumWasmPath)) {
+      loremIpsumEngine = await loadWasmFromDisk(loremIpsumWasmPath);
+      console.log("✅ [Backend Infra] 纯单一文件 lorem-ipsum.wasm 加载成功");
+    } else {
+      console.warn("⚠️ lorem-ipsum.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
     }
   } catch (err) {
     console.error("❌ 后端 WASM 基础设施初始化失败:", err);
@@ -5956,6 +5965,104 @@ app.get("/api/backend/obfuscate/samples", async (c) => {
   }
 });
 
+// API: 假文占位排版生成器 (Lorem Ipsum Generator)
+app.post("/api/backend/lorem/generate", async (c) => {
+  try {
+    const contentType = c.req.header("Content-Type") || "";
+    let unit = "paragraphs";
+    let count = 3;
+    let startWithLorem = true;
+    let format = "plain";
+    let seed = null;
+
+    if (contentType.includes("application/json")) {
+      const json = await c.req.json().catch(() => ({}));
+      unit = json.unit || "paragraphs";
+      count = typeof json.count === "number" ? json.count : 3;
+      startWithLorem = json.startWithLorem !== false;
+      format = json.format || "plain";
+      seed = typeof json.seed === "number" ? json.seed : null;
+    } else {
+      const body = await c.req.parseBody().catch(() => ({}));
+      unit = (body.unit || "paragraphs").toString();
+      count = parseInt(body.count || "3", 10) || 3;
+      startWithLorem = body.startWithLorem === "true" || body.startWithLorem === "on" || body.startWithLorem === true;
+      format = (body.format || "plain").toString();
+      seed = body.seed ? parseInt(body.seed, 10) : null;
+    }
+
+    if (!loremIpsumEngine) {
+      throw new Error("lorem-ipsum WASM 引擎未就绪");
+    }
+
+    const t0 = performance.now();
+    const response = loremIpsumEngine.dispatch({
+      action: "lorem/generate",
+      requestId: `srv-${Date.now()}`,
+      params: {
+        unit,
+        count,
+        startWithLorem,
+        format,
+        seed,
+      }
+    });
+    const duration = (performance.now() - t0).toFixed(4);
+
+    if (contentType.includes("application/json") && !c.req.header("HX-Request")) {
+      return c.json(response);
+    }
+
+    if (response.code !== 0) {
+      return c.html(`
+        <div class="result-box error">
+          <strong>生成失败:</strong> ${escapeHtml(response.msg)}
+        </div>
+      `, 400);
+    }
+
+    const d = response.data;
+    return c.html(`
+      <div class="result-box">
+        <div class="result-header">
+          <span class="tag tag-rust">🦀 Rust WASM: 假文排版生成成功 (${escapeHtml(d.format)})</span>
+          <span class="badge-time">⚡ ${duration} ms (Hono 后端原生)</span>
+        </div>
+        <div style="display:flex; flex-wrap:wrap; gap:16px; margin-bottom:10px; font-size:12px; color:var(--text-muted);">
+          <span>段落数: <strong style="color:#38bdf8;">${d.paragraphsCount}</strong></span>
+          <span>句子数: <strong style="color:#34d399;">${d.sentencesCount}</strong></span>
+          <span>总词数: <strong style="color:#f59e0b;">${d.wordsCount}</strong></span>
+          <span>字节数: <strong style="color:#c084fc;">${d.bytesCount} 字节</strong></span>
+        </div>
+        <textarea readonly style="width:100%; padding:10px; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1); border-radius:6px; font-family:var(--font-mono); font-size:12px; color:#f8fafc; box-sizing:border-box; resize:vertical; line-height:1.6;" rows="7">${escapeHtml(d.text)}</textarea>
+      </div>
+    `);
+  } catch (err) {
+    return c.html(`
+      <div class="result-box error">
+        <strong>执行失败:</strong> ${escapeHtml(err.message)}
+      </div>
+    `, 500);
+  }
+});
+
+// API: 获取 Lorem Ipsum 预设
+app.get("/api/backend/lorem/presets", async (c) => {
+  try {
+    if (!loremIpsumEngine) {
+      throw new Error("lorem-ipsum WASM 引擎未就绪");
+    }
+    const response = loremIpsumEngine.dispatch({
+      action: "lorem/presets",
+      requestId: `srv-${Date.now()}`,
+      params: {}
+    });
+    return c.json(response);
+  } catch (err) {
+    return c.json({ code: 500, msg: err.message, data: null }, 500);
+  }
+});
+
 // API: 获取 Markdown 示例
 app.get("/api/backend/markdown/sample", async (c) => {
   try {
@@ -6128,6 +6235,7 @@ app.get("/api/stats", (c) => {
   const textDiffSize = fs.existsSync(textDiffWasmPath) ? fs.statSync(textDiffWasmPath).size : 0;
   const textStatisticsSize = fs.existsSync(textStatisticsWasmPath) ? fs.statSync(textStatisticsWasmPath).size : 0;
   const stringObfuscatorSize = fs.existsSync(stringObfuscatorWasmPath) ? fs.statSync(stringObfuscatorWasmPath).size : 0;
+  const loremIpsumSize = fs.existsSync(loremIpsumWasmPath) ? fs.statSync(loremIpsumWasmPath).size : 0;
   return c.json({
     rust: {
       file: "rs.wasm",
@@ -6378,6 +6486,11 @@ app.get("/api/stats", (c) => {
       file: "string-obfuscator.wasm",
       sizeBytes: stringObfuscatorSize,
       sizeFormatted: `${(stringObfuscatorSize / 1024).toFixed(2)} KB`,
+    },
+    loremIpsum: {
+      file: "lorem-ipsum.wasm",
+      sizeBytes: loremIpsumSize,
+      sizeFormatted: `${(loremIpsumSize / 1024).toFixed(2)} KB`,
     },
   });
 });

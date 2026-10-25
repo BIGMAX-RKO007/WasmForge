@@ -1,0 +1,27 @@
+{
+  "name": "@wasm-forge/lorem-ipsum",
+  "version": "0.1.0",
+  "description": "Pure Standalone WebAssembly Lorem Ipsum Dummy Placeholder Text Generator Engine",
+  "type": "module",
+  "main": "pkg/lorem_ipsum.wasm",
+  "files": [
+    "pkg/lorem_ipsum.wasm",
+    "README.md"
+  ],
+  "scripts": {
+    "build:wasm": "cargo build --target wasm32-unknown-unknown --release",
+    "test": "cargo test"
+  },
+  "keywords": [
+    "wasm",
+    "webassembly",
+    "lorem",
+    "ipsum",
+    "generator",
+    "placeholder",
+    "typography",
+    "dummy-text"
+  ],
+  "author": "WasmForge",
+  "license": "MIT"
+}
