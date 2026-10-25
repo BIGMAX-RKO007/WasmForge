@@ -4204,6 +4204,52 @@ spec:
           </div>
         </div>
       </div>
+
+      <!-- Card 5.4: URL 结构分解与查询参数解析 (URL Parser) -->
+      <div class="card" id="card-url-parser">
+        <div class="card-header">
+          <div>
+            <div class="card-title">🧭 URL 结构分解与查询参数解析 (URL Parser)</div>
+            <div class="card-desc">纯单一文件 Rust WASM 驱动的 RFC 3986 URL 协议、鉴权凭据、主机端口、路径分段、Query 参数列表与哈希锚点解构引擎</div>
+          </div>
+          <span class="tag tag-rust">Tool #56: url-parser</span>
+        </div>
+
+        <form id="form-url-parser" hx-post="/api/backend/url/parse" hx-target="#backend-url-parser-result" hx-swap="innerHTML">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+            <span style="font-size:12px; color:var(--text-muted); font-weight:600;">目标 URL 统一资源定位符:</span>
+
+            <div style="display:flex; gap:6px; font-size:11px;">
+              <span style="color:var(--text-muted); padding:3px 0;">示例预设:</span>
+              <button type="button" onclick="loadUrlParserPreset('complex-api')" style="background:rgba(255,255,255,0.06); color:#38bdf8; border:1px solid rgba(56,189,248,0.3); border-radius:4px; padding:3px 8px; cursor:pointer;">🌐 GitHub API</button>
+              <button type="button" onclick="loadUrlParserPreset('ecommerce-search')" style="background:rgba(255,255,255,0.06); color:#34d399; border:1px solid rgba(52,211,153,0.3); border-radius:4px; padding:3px 8px; cursor:pointer;">🛒 电商检索</button>
+              <button type="button" onclick="loadUrlParserPreset('cloud-deep-link')" style="background:rgba(255,255,255,0.06); color:#c084fc; border:1px solid rgba(192,132,252,0.3); border-radius:4px; padding:3px 8px; cursor:pointer;">☁️ 云控制台</button>
+            </div>
+          </div>
+
+          <input type="text" name="url" id="url-parser-input" value="https://user:secret123@api.github.com:8443/repos/rust-lang/rust/pulls?state=open&sort=created&direction=desc#issuecomment-999" placeholder="https://example.com/path?key=value#hash" style="width:100%; box-sizing:border-box; background:#0f172a; color:#f8fafc; border:1px solid rgba(255,255,255,0.15); border-radius:6px; padding:8px 12px; font-size:12px; font-family:var(--font-mono); margin-bottom:12px;" oninput="runFrontendUrlParse()" />
+
+          <div style="display:flex; gap:8px;">
+            <button type="submit" style="padding:8px 16px; background:linear-gradient(135deg, #3b82f6, #1d4ed8); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:12px;">
+              🖥️ 后端解析 (HTMX)
+            </button>
+            <button type="button" onclick="runFrontendUrlParse()" style="padding:8px 16px; background:linear-gradient(135deg, #10b981, #059669); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:12px;">
+              🌐 前端极速解析
+            </button>
+          </div>
+        </form>
+
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:16px; margin-top:16px;">
+          <div>
+            <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px;">后端投影输出:</div>
+            <div id="backend-url-parser-result" class="result-container"><div class="result-box" style="opacity:0.5; font-size:12px;">等待解析...</div></div>
+          </div>
+          <div>
+            <div style="font-size:11px; color:var(--text-muted); margin-top:0px; margin-bottom:4px;">前端投影输出:</div>
+            <div id="frontend-url-parser-result" class="result-container"><div class="result-box" style="opacity:0.5; font-size:12px;">等待解析...</div></div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- ================= 区域 3: 4 象限综合矩阵基准测试 ================= -->
@@ -4389,6 +4435,7 @@ spec:
         const jwtParserEngine = await loadWasmFromUrl("./wasm/jwt-parser.wasm");
         const otpGeneratorEngine = await loadWasmFromUrl("./wasm/otp-generator.wasm");
         const urlEncoderDecoderEngine = await loadWasmFromUrl("./wasm/url-encoder-decoder.wasm");
+        const urlParserEngine = await loadWasmFromUrl("./wasm/url-parser.wasm");
 
         window.wasmContext.rust = rsEngine;
         window.wasmContext.ts = tsEngine;
@@ -4447,6 +4494,7 @@ spec:
         window.wasmContext.jwtParser = jwtParserEngine;
         window.wasmContext.otpGenerator = otpGeneratorEngine;
         window.wasmContext.urlEncoderDecoder = urlEncoderDecoderEngine;
+        window.wasmContext.urlParser = urlParserEngine;
         window.wasmContext.rustReady = true;
         window.wasmContext.tsReady = true;
         window.wasmContext.tokenReady = true;
@@ -4504,9 +4552,10 @@ spec:
         window.wasmContext.jwtParserReady = true;
         window.wasmContext.otpGeneratorReady = true;
         window.wasmContext.urlEncoderDecoderReady = true;
+        window.wasmContext.urlParserReady = true;
 
         const statusEl = document.getElementById("frontend-status");
-        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载 57 大模块: rs, ts, token-gen, hash-text, bcrypt, uuid-gen, ulid-gen, encryption, bip39, hmac, rsa, password-strength, pdf-sig, yaml-to-json, yaml-to-toml, json-to-yaml, json-to-toml, toml-to-json, toml-to-yaml, xml-to-json, json-to-xml, json-to-csv, base64-string, base64-file, color-converter, case-converter, date-time-converter, integer-base-converter, roman-numeral-converter, text-to-binary, text-to-unicode, markdown-to-html, list-converter, text-to-nato, sql-prettify, xml-formatter, json-minify, json-viewer, yaml-viewer, regex-tester, regex-memo, crontab-generator, chmod-calculator, docker-run-to-compose, email-normalizer, git-memo, random-port, text-diff, text-statistics, string-obfuscator, lorem-ipsum, ascii-text-drawer, numeronym-generator, emoji-picker, jwt-parser, otp-generator & url-encoder-decoder)`;
+        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载 58 大模块: rs, ts, token-gen, hash-text, bcrypt, uuid-gen, ulid-gen, encryption, bip39, hmac, rsa, password-strength, pdf-sig, yaml-to-json, yaml-to-toml, json-to-yaml, json-to-toml, toml-to-json, toml-to-yaml, xml-to-json, json-to-xml, json-to-csv, base64-string, base64-file, color-converter, case-converter, date-time-converter, integer-base-converter, roman-numeral-converter, text-to-binary, text-to-unicode, markdown-to-html, list-converter, text-to-nato, sql-prettify, xml-formatter, json-minify, json-viewer, yaml-viewer, regex-tester, regex-memo, crontab-generator, chmod-calculator, docker-run-to-compose, email-normalizer, git-memo, random-port, text-diff, text-statistics, string-obfuscator, lorem-ipsum, ascii-text-drawer, numeronym-generator, emoji-picker, jwt-parser, otp-generator, url-encoder-decoder & url-parser)`;
 
         // 初始自动运行一次前端计算
         window.runFrontendCalc();
@@ -9917,6 +9966,110 @@ spec:
             <pre style="padding:12px; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1); border-radius:6px; font-family:var(--font-mono); font-size:12px; color:#38bdf8; overflow-x:auto; white-space:pre-wrap; word-break:break-all;">${escapeHtmlFront(d.result)}</pre>
             <button type="button" onclick="navigator.clipboard.writeText(decodeURIComponent('${encodeURIComponent(d.result)}'))" style="position:absolute; top:8px; right:8px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); border-radius:4px; padding:4px 8px; color:#f8fafc; font-size:11px; cursor:pointer;">复制结果</button>
           </div>
+        </div>
+      `;
+    };
+
+    // URL Parser 前端极速解析
+    const urlParserPresets = {
+      "complex-api": { url: "https://user:secret123@api.github.com:8443/repos/rust-lang/rust/pulls?state=open&sort=created&direction=desc#issuecomment-999" },
+      "ecommerce-search": { url: "https://www.example.com/shop/electronics/laptops?brand=apple&brand=dell&price_min=1000&sort=popular#reviews" },
+      "cloud-deep-link": { url: "https://console.aws.amazon.com/ec2/home?region=us-east-1#Instances:instanceState=running;v=3" }
+    };
+
+    window.loadUrlParserPreset = function(presetId) {
+      const p = urlParserPresets[presetId];
+      if (p) {
+        document.getElementById("url-parser-input").value = p.url;
+        window.runFrontendUrlParse();
+      }
+    };
+
+    window.runFrontendUrlParse = function() {
+      if (!window.wasmContext.urlParserReady || !window.wasmContext.urlParser) {
+        document.getElementById("frontend-url-parser-result").innerHTML = `
+          <div class="result-box error">url-parser.wasm 尚未加载完毕</div>
+        `;
+        return;
+      }
+
+      const url = document.getElementById("url-parser-input").value || "";
+
+      const t0 = performance.now();
+      const response = window.wasmContext.urlParser.dispatch({
+        action: "url/parse",
+        requestId: `front-${Date.now()}`,
+        params: {
+          url
+        }
+      });
+      const duration = (performance.now() - t0).toFixed(4);
+
+      if (response.code !== 0) {
+        document.getElementById("frontend-url-parser-result").innerHTML = `
+          <div class="result-box error">解析失败: ${escapeHtmlFront(response.msg)}</div>
+        `;
+        return;
+      }
+
+      const d = response.data;
+      const paramsRows = d.params.map(p => `
+        <tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
+          <td style="padding:6px 10px; font-family:var(--font-mono); color:#38bdf8; font-weight:600;">${escapeHtmlFront(p.key)}</td>
+          <td style="padding:6px 10px; font-family:var(--font-mono); color:#f8fafc;">${escapeHtmlFront(p.value)}</td>
+        </tr>
+      `).join("");
+
+      document.getElementById("frontend-url-parser-result").innerHTML = `
+        <div class="result-box">
+          <div class="result-header">
+            <span class="tag tag-rust">🦀 Browser WASM: URL 解析成功 (${escapeHtmlFront(d.protocol)} / ${escapeHtmlFront(d.hostname)})</span>
+            <span class="badge-time">⚡ ${duration} ms (纯前端内存)</span>
+          </div>
+
+          <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:10px; margin-bottom:12px; font-size:12px;">
+            <div style="background:rgba(0,0,0,0.3); padding:8px 12px; border-radius:6px; border:1px solid rgba(255,255,255,0.08);">
+              <div style="color:var(--text-muted); font-size:11px;">协议 (Protocol):</div>
+              <div style="font-family:var(--font-mono); color:#38bdf8; font-weight:600;">${escapeHtmlFront(d.protocol)}</div>
+            </div>
+            <div style="background:rgba(0,0,0,0.3); padding:8px 12px; border-radius:6px; border:1px solid rgba(255,255,255,0.08);">
+              <div style="color:var(--text-muted); font-size:11px;">主机 (Host):</div>
+              <div style="font-family:var(--font-mono); color:#34d399; font-weight:600;">${escapeHtmlFront(d.host)}</div>
+            </div>
+            <div style="background:rgba(0,0,0,0.3); padding:8px 12px; border-radius:6px; border:1px solid rgba(255,255,255,0.08);">
+              <div style="color:var(--text-muted); font-size:11px;">路径 (Pathname):</div>
+              <div style="font-family:var(--font-mono); color:#c084fc; font-weight:600;">${escapeHtmlFront(d.pathname)}</div>
+            </div>
+            <div style="background:rgba(0,0,0,0.3); padding:8px 12px; border-radius:6px; border:1px solid rgba(255,255,255,0.08);">
+              <div style="color:var(--text-muted); font-size:11px;">哈希锚点 (Hash):</div>
+              <div style="font-family:var(--font-mono); color:#f59e0b; font-weight:600;">${escapeHtmlFront(d.hash || "(无)")}</div>
+            </div>
+          </div>
+
+          ${d.username || d.password ? `
+            <div style="display:flex; gap:16px; margin-bottom:10px; font-size:12px; background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.2); padding:6px 12px; border-radius:4px;">
+              <span style="color:#ef4444; font-weight:600;">身份凭证:</span>
+              <span>用户名: <code style="font-family:var(--font-mono); color:#f8fafc;">${escapeHtmlFront(d.username || '')}</code></span>
+              <span>密码: <code style="font-family:var(--font-mono); color:#f8fafc;">${escapeHtmlFront(d.password || '')}</code></span>
+            </div>
+          ` : ''}
+
+          ${d.params.length > 0 ? `
+            <div style="margin-top:10px;">
+              <div style="font-size:11px; color:var(--text-muted); font-weight:600; margin-bottom:4px;">Query 查询参数列表 (${d.params.length} 项):</div>
+              <table style="width:100%; border-collapse:collapse; font-size:11px; text-align:left;">
+                <thead>
+                  <tr style="color:var(--text-muted); border-bottom:1px solid rgba(255,255,255,0.1);">
+                    <th style="padding:4px 10px; width:35%;">键 (Key)</th>
+                    <th style="padding:4px 10px;">值 (Value)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${paramsRows}
+                </tbody>
+              </table>
+            </div>
+          ` : '<div style="font-size:11px; color:var(--text-muted); margin-top:6px;">(无 Query 查询参数)</div>'}
         </div>
       `;
     };

@@ -67,6 +67,7 @@ const emojiPickerWasmPath = path.resolve(__dirname, "../public/wasm/emoji-picker
 const jwtParserWasmPath = path.resolve(__dirname, "../public/wasm/jwt-parser.wasm");
 const otpGeneratorWasmPath = path.resolve(__dirname, "../public/wasm/otp-generator.wasm");
 const urlEncoderDecoderWasmPath = path.resolve(__dirname, "../public/wasm/url-encoder-decoder.wasm");
+const urlParserWasmPath = path.resolve(__dirname, "../public/wasm/url-parser.wasm");
 
 let rsEngine = null;
 let tsEngine = null;
@@ -125,6 +126,7 @@ let emojiPickerEngine = null;
 let jwtParserEngine = null;
 let otpGeneratorEngine = null;
 let urlEncoderDecoderEngine = null;
+let urlParserEngine = null;
 
 async function initEngines() {
   try {
@@ -525,6 +527,13 @@ async function initEngines() {
       console.log("✅ [Backend Infra] 纯单一文件 url-encoder-decoder.wasm 加载成功");
     } else {
       console.warn("⚠️ url-encoder-decoder.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    if (fs.existsSync(urlParserWasmPath)) {
+      urlParserEngine = await loadWasmFromDisk(urlParserWasmPath);
+      console.log("✅ [Backend Infra] 纯单一文件 url-parser.wasm 加载成功");
+    } else {
+      console.warn("⚠️ url-parser.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
     }
   } catch (err) {
     console.error("❌ 后端 WASM 基础设施初始化失败:", err);
@@ -6822,6 +6831,132 @@ app.get("/api/backend/url/presets", async (c) => {
   }
 });
 
+// API: URL 结构分解与查询参数解析 (URL Parser)
+app.post("/api/backend/url/parse", async (c) => {
+  try {
+    const contentType = c.req.header("Content-Type") || "";
+    let urlStr = "";
+
+    if (contentType.includes("application/json")) {
+      const json = await c.req.json().catch(() => ({}));
+      urlStr = (json.url || "").toString();
+    } else {
+      const body = await c.req.parseBody().catch(() => ({}));
+      urlStr = (body.url || "").toString();
+    }
+
+    if (!urlParserEngine) {
+      throw new Error("url-parser WASM 引擎未就绪");
+    }
+
+    const t0 = performance.now();
+    const response = urlParserEngine.dispatch({
+      action: "url/parse",
+      requestId: `srv-${Date.now()}`,
+      params: {
+        url: urlStr,
+      }
+    });
+    const duration = (performance.now() - t0).toFixed(4);
+
+    if (contentType.includes("application/json") && !c.req.header("HX-Request")) {
+      return c.json(response);
+    }
+
+    if (response.code !== 0) {
+      return c.html(`
+        <div class="result-box error">
+          <strong>URL 解析失败:</strong> ${escapeHtml(response.msg)}
+        </div>
+      `, 400);
+    }
+
+    const d = response.data;
+    const paramsRows = d.params.map(p => `
+      <tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
+        <td style="padding:6px 10px; font-family:var(--font-mono); color:#38bdf8; font-weight:600;">${escapeHtml(p.key)}</td>
+        <td style="padding:6px 10px; font-family:var(--font-mono); color:#f8fafc;">${escapeHtml(p.value)}</td>
+      </tr>
+    `).join("");
+
+    return c.html(`
+      <div class="result-box">
+        <div class="result-header">
+          <span class="tag tag-rust">🦀 Rust WASM: URL 解析成功 (${escapeHtml(d.protocol)} / ${escapeHtml(d.hostname)})</span>
+          <span class="badge-time">⚡ ${duration} ms (Hono 后端原生)</span>
+        </div>
+
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:10px; margin-bottom:12px; font-size:12px;">
+          <div style="background:rgba(0,0,0,0.3); padding:8px 12px; border-radius:6px; border:1px solid rgba(255,255,255,0.08);">
+            <div style="color:var(--text-muted); font-size:11px;">协议 (Protocol):</div>
+            <div style="font-family:var(--font-mono); color:#38bdf8; font-weight:600;">${escapeHtml(d.protocol)}</div>
+          </div>
+          <div style="background:rgba(0,0,0,0.3); padding:8px 12px; border-radius:6px; border:1px solid rgba(255,255,255,0.08);">
+            <div style="color:var(--text-muted); font-size:11px;">主机 (Host):</div>
+            <div style="font-family:var(--font-mono); color:#34d399; font-weight:600;">${escapeHtml(d.host)}</div>
+          </div>
+          <div style="background:rgba(0,0,0,0.3); padding:8px 12px; border-radius:6px; border:1px solid rgba(255,255,255,0.08);">
+            <div style="color:var(--text-muted); font-size:11px;">路径 (Pathname):</div>
+            <div style="font-family:var(--font-mono); color:#c084fc; font-weight:600;">${escapeHtml(d.pathname)}</div>
+          </div>
+          <div style="background:rgba(0,0,0,0.3); padding:8px 12px; border-radius:6px; border:1px solid rgba(255,255,255,0.08);">
+            <div style="color:var(--text-muted); font-size:11px;">哈希锚点 (Hash):</div>
+            <div style="font-family:var(--font-mono); color:#f59e0b; font-weight:600;">${escapeHtml(d.hash || "(无)")}</div>
+          </div>
+        </div>
+
+        ${d.username || d.password ? `
+          <div style="display:flex; gap:16px; margin-bottom:10px; font-size:12px; background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.2); padding:6px 12px; border-radius:4px;">
+            <span style="color:#ef4444; font-weight:600;">身份凭证:</span>
+            <span>用户名: <code style="font-family:var(--font-mono); color:#f8fafc;">${escapeHtml(d.username || '')}</code></span>
+            <span>密码: <code style="font-family:var(--font-mono); color:#f8fafc;">${escapeHtml(d.password || '')}</code></span>
+          </div>
+        ` : ''}
+
+        ${d.params.length > 0 ? `
+          <div style="margin-top:10px;">
+            <div style="font-size:11px; color:var(--text-muted); font-weight:600; margin-bottom:4px;">Query 查询参数列表 (${d.params.length} 项):</div>
+            <table style="width:100%; border-collapse:collapse; font-size:11px; text-align:left;">
+              <thead>
+                <tr style="color:var(--text-muted); border-bottom:1px solid rgba(255,255,255,0.1);">
+                  <th style="padding:4px 10px; width:35%;">键 (Key)</th>
+                  <th style="padding:4px 10px;">值 (Value)</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${paramsRows}
+              </tbody>
+            </table>
+          </div>
+        ` : '<div style="font-size:11px; color:var(--text-muted); margin-top:6px;">(无 Query 查询参数)</div>'}
+      </div>
+    `);
+  } catch (err) {
+    return c.html(`
+      <div class="result-box error">
+        <strong>执行失败:</strong> ${escapeHtml(err.message)}
+      </div>
+    `, 500);
+  }
+});
+
+// API: 获取 URL Parser 预设
+app.get("/api/backend/url/parser/presets", async (c) => {
+  try {
+    if (!urlParserEngine) {
+      throw new Error("url-parser WASM 引擎未就绪");
+    }
+    const response = urlParserEngine.dispatch({
+      action: "url/presets",
+      requestId: `srv-${Date.now()}`,
+      params: {}
+    });
+    return c.json(response);
+  } catch (err) {
+    return c.json({ code: 500, msg: err.message, data: null }, 500);
+  }
+});
+
 // API: 获取 Markdown 示例
 app.get("/api/backend/markdown/sample", async (c) => {
   try {
@@ -7001,6 +7136,7 @@ app.get("/api/stats", (c) => {
   const jwtParserSize = fs.existsSync(jwtParserWasmPath) ? fs.statSync(jwtParserWasmPath).size : 0;
   const otpGeneratorSize = fs.existsSync(otpGeneratorWasmPath) ? fs.statSync(otpGeneratorWasmPath).size : 0;
   const urlEncoderDecoderSize = fs.existsSync(urlEncoderDecoderWasmPath) ? fs.statSync(urlEncoderDecoderWasmPath).size : 0;
+  const urlParserSize = fs.existsSync(urlParserWasmPath) ? fs.statSync(urlParserWasmPath).size : 0;
   return c.json({
     rust: {
       file: "rs.wasm",
@@ -7286,6 +7422,11 @@ app.get("/api/stats", (c) => {
       file: "url-encoder-decoder.wasm",
       sizeBytes: urlEncoderDecoderSize,
       sizeFormatted: `${(urlEncoderDecoderSize / 1024).toFixed(2)} KB`,
+    },
+    urlParser: {
+      file: "url-parser.wasm",
+      sizeBytes: urlParserSize,
+      sizeFormatted: `${(urlParserSize / 1024).toFixed(2)} KB`,
     },
   });
 });

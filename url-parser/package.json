@@ -1,0 +1,26 @@
+{
+  "name": "@wasm-forge/url-parser",
+  "version": "0.1.0",
+  "description": "Pure Standalone WebAssembly RFC 3986 URL Decomposition, Query Parameter Inspector & Reconstruction Engine",
+  "type": "module",
+  "main": "pkg/url_parser.wasm",
+  "files": [
+    "pkg/url_parser.wasm",
+    "README.md"
+  ],
+  "scripts": {
+    "build:wasm": "cargo build --target wasm32-unknown-unknown --release",
+    "test": "cargo test"
+  },
+  "keywords": [
+    "wasm",
+    "webassembly",
+    "url",
+    "url-parser",
+    "uri",
+    "query-string",
+    "rfc3986"
+  ],
+  "author": "WasmForge",
+  "license": "MIT"
+}
