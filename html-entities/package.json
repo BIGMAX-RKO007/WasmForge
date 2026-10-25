@@ -1,0 +1,27 @@
+{
+  "name": "@wasm-forge/html-entities",
+  "version": "0.1.0",
+  "description": "Pure Standalone WebAssembly HTML5 Named & Numeric Character Reference Encoder and Decoder",
+  "type": "module",
+  "main": "pkg/html_entities.wasm",
+  "files": [
+    "pkg/html_entities.wasm",
+    "README.md"
+  ],
+  "scripts": {
+    "build:wasm": "cargo build --target wasm32-unknown-unknown --release",
+    "test": "cargo test"
+  },
+  "keywords": [
+    "wasm",
+    "webassembly",
+    "html",
+    "entities",
+    "html-entities",
+    "escape",
+    "unescape",
+    "security"
+  ],
+  "author": "WasmForge",
+  "license": "MIT"
+}

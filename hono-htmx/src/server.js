@@ -70,6 +70,7 @@ const urlEncoderDecoderWasmPath = path.resolve(__dirname, "../public/wasm/url-en
 const urlParserWasmPath = path.resolve(__dirname, "../public/wasm/url-parser.wasm");
 const deviceInformationWasmPath = path.resolve(__dirname, "../public/wasm/device-information.wasm");
 const jsonDiffWasmPath = path.resolve(__dirname, "../public/wasm/json-diff.wasm");
+const htmlEntitiesWasmPath = path.resolve(__dirname, "../public/wasm/html-entities.wasm");
 
 let rsEngine = null;
 let tsEngine = null;
@@ -131,6 +132,7 @@ let urlEncoderDecoderEngine = null;
 let urlParserEngine = null;
 let deviceInformationEngine = null;
 let jsonDiffEngine = null;
+let htmlEntitiesEngine = null;
 
 async function initEngines() {
   try {
@@ -552,6 +554,13 @@ async function initEngines() {
       console.log("✅ [Backend Infra] 纯单一文件 json-diff.wasm 加载成功");
     } else {
       console.warn("⚠️ json-diff.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    if (fs.existsSync(htmlEntitiesWasmPath)) {
+      htmlEntitiesEngine = await loadWasmFromDisk(htmlEntitiesWasmPath);
+      console.log("✅ [Backend Infra] 纯单一文件 html-entities.wasm 加载成功");
+    } else {
+      console.warn("⚠️ html-entities.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
     }
   } catch (err) {
     console.error("❌ 后端 WASM 基础设施初始化失败:", err);
@@ -7227,6 +7236,103 @@ app.get("/api/backend/json/diff/presets", async (c) => {
   }
 });
 
+// API: HTML 实体编码与解码 (HTML Entities)
+app.post("/api/backend/html/entities", async (c) => {
+  try {
+    const contentType = c.req.header("Content-Type") || "";
+    let text = "";
+    let mode = "encode";
+    let format = "named";
+
+    if (contentType.includes("application/json")) {
+      const json = await c.req.json().catch(() => ({}));
+      text = (json.text || "").toString();
+      mode = (json.mode || "encode").toString();
+      format = (json.format || "named").toString();
+    } else {
+      const body = await c.req.parseBody().catch(() => ({}));
+      text = (body.text || "").toString();
+      mode = (body.mode || "encode").toString();
+      format = (body.format || "named").toString();
+    }
+
+    if (!htmlEntitiesEngine) {
+      throw new Error("html-entities WASM 引擎未就绪");
+    }
+
+    const t0 = performance.now();
+    const response = htmlEntitiesEngine.dispatch({
+      action: "html/entities",
+      requestId: `srv-${Date.now()}`,
+      params: {
+        text,
+        mode,
+        format
+      }
+    });
+    const duration = (performance.now() - t0).toFixed(4);
+
+    if (contentType.includes("application/json") && !c.req.header("HX-Request")) {
+      return c.json(response);
+    }
+
+    if (response.code !== 0) {
+      return c.html(`
+        <div class="result-box error">
+          <strong>HTML 实体处理失败:</strong> ${escapeHtml(response.msg)}
+        </div>
+      `, 400);
+    }
+
+    const d = response.data;
+    const modeBadge = d.mode === "encode" ? "编码 (Encode)" : "解码 (Decode)";
+
+    return c.html(`
+      <div class="result-box">
+        <div class="result-header">
+          <span class="tag tag-rust">🦀 Rust WASM: HTML 实体 ${modeBadge} (${escapeHtml(d.standard)})</span>
+          <span class="badge-time">⚡ ${duration} ms (Hono 后端原生)</span>
+        </div>
+
+        <div style="display:flex; flex-wrap:wrap; gap:16px; margin-bottom:12px; font-size:12px; color:var(--text-muted);">
+          <span>输入大小: <strong>${d.inputBytes} 字节</strong></span>
+          <span>输出大小: <strong>${d.outputBytes} 字节</strong></span>
+          <span>实体转换计数: <strong style="color:#38bdf8;">${d.entitiesProcessed}</strong></span>
+          <span>体积倍率: <strong style="color:#34d399;">${d.ratio}x</strong></span>
+        </div>
+
+        <div style="position:relative;">
+          <pre style="padding:12px; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1); border-radius:6px; font-family:var(--font-mono); font-size:12px; color:#38bdf8; overflow-x:auto; white-space:pre-wrap; word-break:break-all;">${escapeHtml(d.result)}</pre>
+          <button type="button" onclick="navigator.clipboard.writeText(decodeURIComponent('${encodeURIComponent(d.result)}'))" style="position:absolute; top:8px; right:8px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); border-radius:4px; padding:4px 8px; color:#f8fafc; font-size:11px; cursor:pointer;">复制结果</button>
+        </div>
+      </div>
+    `);
+  } catch (err) {
+    return c.html(`
+      <div class="result-box error">
+        <strong>执行失败:</strong> ${escapeHtml(err.message)}
+      </div>
+    `, 500);
+  }
+});
+
+// API: 获取 HTML 实体预设
+app.get("/api/backend/html/entities/presets", async (c) => {
+  try {
+    if (!htmlEntitiesEngine) {
+      throw new Error("html-entities WASM 引擎未就绪");
+    }
+    const response = htmlEntitiesEngine.dispatch({
+      action: "html/presets",
+      requestId: `srv-${Date.now()}`,
+      params: {}
+    });
+    return c.json(response);
+  } catch (err) {
+    return c.json({ code: 500, msg: err.message, data: null }, 500);
+  }
+});
+
 // API: 获取 Markdown 示例
 app.get("/api/backend/markdown/sample", async (c) => {
   try {
@@ -7409,6 +7515,7 @@ app.get("/api/stats", (c) => {
   const urlParserSize = fs.existsSync(urlParserWasmPath) ? fs.statSync(urlParserWasmPath).size : 0;
   const deviceInformationSize = fs.existsSync(deviceInformationWasmPath) ? fs.statSync(deviceInformationWasmPath).size : 0;
   const jsonDiffSize = fs.existsSync(jsonDiffWasmPath) ? fs.statSync(jsonDiffWasmPath).size : 0;
+  const htmlEntitiesSize = fs.existsSync(htmlEntitiesWasmPath) ? fs.statSync(htmlEntitiesWasmPath).size : 0;
   return c.json({
     rust: {
       file: "rs.wasm",
@@ -7709,6 +7816,11 @@ app.get("/api/stats", (c) => {
       file: "json-diff.wasm",
       sizeBytes: jsonDiffSize,
       sizeFormatted: `${(jsonDiffSize / 1024).toFixed(2)} KB`,
+    },
+    htmlEntities: {
+      file: "html-entities.wasm",
+      sizeBytes: htmlEntitiesSize,
+      sizeFormatted: `${(htmlEntitiesSize / 1024).toFixed(2)} KB`,
     },
   });
 });

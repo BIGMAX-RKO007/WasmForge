@@ -4377,6 +4377,67 @@ spec:
           </div>
         </div>
       </div>
+
+      <!-- Card 5.7: HTML5 字符实体编码与解码 (HTML Entities) -->
+      <div class="card" id="card-html-entities">
+        <div class="card-header">
+          <div>
+            <div class="card-title">🏷️ HTML5 字符实体编码与解码 (HTML Entities)</div>
+            <div class="card-desc">纯单一文件 Rust WASM 驱动的 HTML5 命名实体、十进制/十六进制 NCR 极速双向转义、XSS 注入消毒与特殊字符渲染引擎</div>
+          </div>
+          <span class="tag tag-rust">Tool #59: html-entities</span>
+        </div>
+
+        <form id="form-html-entities" hx-post="/api/backend/html/entities" hx-target="#backend-html-entities-result" hx-swap="innerHTML">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+            <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+              <span style="font-size:12px; color:var(--text-muted); font-weight:600;">操作模式:</span>
+              <label style="font-size:12px; display:inline-flex; align-items:center; gap:4px; cursor:pointer;">
+                <input type="radio" name="mode" value="encode" checked onchange="runFrontendHtmlEntities()"> 编码 (Encode)
+              </label>
+              <label style="font-size:12px; display:inline-flex; align-items:center; gap:4px; cursor:pointer;">
+                <input type="radio" name="mode" value="decode" onchange="runFrontendHtmlEntities()"> 解码 (Decode)
+              </label>
+            </div>
+
+            <div style="display:flex; gap:6px; font-size:11px; align-items:center; flex-wrap:wrap;">
+              <span style="color:var(--text-muted);">规范:</span>
+              <select name="format" id="html-entities-format" style="background:#0f172a; color:#f8fafc; border:1px solid rgba(255,255,255,0.15); border-radius:4px; padding:3px 6px; font-size:11px;" onchange="runFrontendHtmlEntities()">
+                <option value="basic">基础安全转义 (&lt;&gt;&amp;&quot;&apos;)</option>
+                <option value="named" selected>HTML5 命名实体 (&amp;copy; / &amp;euro;)</option>
+                <option value="decimal">十进制 NCR (&amp;#38; / &amp;#169;)</option>
+                <option value="hex">十六进制 NCR (&amp;#x26; / &amp;#xA9;)</option>
+              </select>
+
+              <button type="button" onclick="loadHtmlEntitiesPreset('xss-payload')" style="background:rgba(255,255,255,0.06); color:#38bdf8; border:1px solid rgba(56,189,248,0.3); border-radius:4px; padding:3px 8px; cursor:pointer;">🛡️ XSS 防护</button>
+              <button type="button" onclick="loadHtmlEntitiesPreset('symbols-typography')" style="background:rgba(255,255,255,0.06); color:#34d399; border:1px solid rgba(52,211,153,0.3); border-radius:4px; padding:3px 8px; cursor:pointer;">🔣 符号排版</button>
+              <button type="button" onclick="loadHtmlEntitiesPreset('encoded-article')" style="background:rgba(255,255,255,0.06); color:#f59e0b; border:1px solid rgba(245,158,11,0.3); border-radius:4px; padding:3px 8px; cursor:pointer;">📄 实体解码</button>
+            </div>
+          </div>
+
+          <textarea name="text" id="html-entities-text" rows="4" style="width:100%; box-sizing:border-box; background:#0f172a; color:#f8fafc; border:1px solid rgba(255,255,255,0.15); border-radius:6px; padding:8px 12px; font-size:12px; font-family:var(--font-mono); margin-bottom:12px;" oninput="runFrontendHtmlEntities()">&lt;script&gt;alert('XSS &amp; Injections "1" &gt; 0');&lt;/script&gt;</textarea>
+
+          <div style="display:flex; gap:8px;">
+            <button type="submit" style="padding:8px 16px; background:linear-gradient(135deg, #3b82f6, #1d4ed8); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:12px;">
+              🖥️ 后端处理 (HTMX)
+            </button>
+            <button type="button" onclick="runFrontendHtmlEntities()" style="padding:8px 16px; background:linear-gradient(135deg, #10b981, #059669); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:12px;">
+              🌐 前端极速处理
+            </button>
+          </div>
+        </form>
+
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:16px; margin-top:16px;">
+          <div>
+            <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px;">后端投影输出:</div>
+            <div id="backend-html-entities-result" class="result-container"><div class="result-box" style="opacity:0.5; font-size:12px;">等待处理...</div></div>
+          </div>
+          <div>
+            <div style="font-size:11px; color:var(--text-muted); margin-top:0px; margin-bottom:4px;">前端投影输出:</div>
+            <div id="frontend-html-entities-result" class="result-container"><div class="result-box" style="opacity:0.5; font-size:12px;">等待处理...</div></div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- ================= 区域 3: 4 象限综合矩阵基准测试 ================= -->
@@ -4565,6 +4626,7 @@ spec:
         const urlParserEngine = await loadWasmFromUrl("./wasm/url-parser.wasm");
         const deviceInformationEngine = await loadWasmFromUrl("./wasm/device-information.wasm");
         const jsonDiffEngine = await loadWasmFromUrl("./wasm/json-diff.wasm");
+        const htmlEntitiesEngine = await loadWasmFromUrl("./wasm/html-entities.wasm");
 
         window.wasmContext.rust = rsEngine;
         window.wasmContext.ts = tsEngine;
@@ -4626,6 +4688,7 @@ spec:
         window.wasmContext.urlParser = urlParserEngine;
         window.wasmContext.deviceInformation = deviceInformationEngine;
         window.wasmContext.jsonDiff = jsonDiffEngine;
+        window.wasmContext.htmlEntities = htmlEntitiesEngine;
         window.wasmContext.rustReady = true;
         window.wasmContext.tsReady = true;
         window.wasmContext.tokenReady = true;
@@ -4686,9 +4749,10 @@ spec:
         window.wasmContext.urlParserReady = true;
         window.wasmContext.deviceInformationReady = true;
         window.wasmContext.jsonDiffReady = true;
+        window.wasmContext.htmlEntitiesReady = true;
 
         const statusEl = document.getElementById("frontend-status");
-        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载 60 大模块: rs, ts, token-gen, hash-text, bcrypt, uuid-gen, ulid-gen, encryption, bip39, hmac, rsa, password-strength, pdf-sig, yaml-to-json, yaml-to-toml, json-to-yaml, json-to-toml, toml-to-json, toml-to-yaml, xml-to-json, json-to-xml, json-to-csv, base64-string, base64-file, color-converter, case-converter, date-time-converter, integer-base-converter, roman-numeral-converter, text-to-binary, text-to-unicode, markdown-to-html, list-converter, text-to-nato, sql-prettify, xml-formatter, json-minify, json-viewer, yaml-viewer, regex-tester, regex-memo, crontab-generator, chmod-calculator, docker-run-to-compose, email-normalizer, git-memo, random-port, text-diff, text-statistics, string-obfuscator, lorem-ipsum, ascii-text-drawer, numeronym-generator, emoji-picker, jwt-parser, otp-generator, url-encoder-decoder, url-parser, device-information & json-diff)`;
+        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载 61 大模块: rs, ts, token-gen, hash-text, bcrypt, uuid-gen, ulid-gen, encryption, bip39, hmac, rsa, password-strength, pdf-sig, yaml-to-json, yaml-to-toml, json-to-yaml, json-to-toml, toml-to-json, toml-to-yaml, xml-to-json, json-to-xml, json-to-csv, base64-string, base64-file, color-converter, case-converter, date-time-converter, integer-base-converter, roman-numeral-converter, text-to-binary, text-to-unicode, markdown-to-html, list-converter, text-to-nato, sql-prettify, xml-formatter, json-minify, json-viewer, yaml-viewer, regex-tester, regex-memo, crontab-generator, chmod-calculator, docker-run-to-compose, email-normalizer, git-memo, random-port, text-diff, text-statistics, string-obfuscator, lorem-ipsum, ascii-text-drawer, numeronym-generator, emoji-picker, jwt-parser, otp-generator, url-encoder-decoder, url-parser, device-information, json-diff & html-entities)`;
 
         // 初始自动运行一次前端计算
         window.runFrontendCalc();
@@ -10452,6 +10516,109 @@ spec:
               <pre style="padding:10px; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1); border-radius:6px; font-family:var(--font-mono); font-size:11px; color:#38bdf8; overflow-x:auto;">${escapeHtmlFront(JSON.stringify(d.patches, null, 2))}</pre>
             </div>
           ` : '<div style="font-size:12px; color:#34d399; margin:8px 0;">🎉 两个 JSON 对象结构与数值完全一致，无任何变更！</div>'}
+        </div>
+      `;
+    };
+
+    // HTML Entities 前端极速处理
+    let currentHtmlEntitiesResult = "";
+    const htmlEntitiesPresets = {
+      "xss-payload": {
+        text: "<script>alert('XSS & Injections \"1\" > 0');<\/script>",
+        mode: "encode",
+        format: "basic"
+      },
+      "symbols-typography": {
+        text: "© 2026 WasmForge™ — Fast & Secure • €100 ± 5% • ♥ Rust",
+        mode: "encode",
+        format: "named"
+      },
+      "encoded-article": {
+        text: "&lt;h1&gt;WasmForge &amp; HTML5 &copy; 2026&lt;/h1&gt;&lt;p&gt;Price: &euro;49.99 &plusmn; 2&percnt; &#x2665;&lt;/p&gt;",
+        mode: "decode",
+        format: "named"
+      }
+    };
+
+    window.copyHtmlEntitiesResult = function() {
+      if (currentHtmlEntitiesResult) {
+        navigator.clipboard.writeText(currentHtmlEntitiesResult);
+      }
+    };
+
+    window.loadHtmlEntitiesPreset = function(presetId) {
+      const p = htmlEntitiesPresets[presetId];
+      if (p) {
+        document.getElementById("html-entities-text").value = p.text;
+        document.getElementById("html-entities-format").value = p.format;
+        const radios = document.getElementsByName("mode");
+        for (const r of radios) {
+          if (r.value === p.mode) r.checked = true;
+        }
+        window.runFrontendHtmlEntities();
+      }
+    };
+
+    window.runFrontendHtmlEntities = function() {
+      if (!window.wasmContext.htmlEntitiesReady || !window.wasmContext.htmlEntities) {
+        document.getElementById("frontend-html-entities-result").innerHTML = `
+          <div class="result-box error">html-entities.wasm 尚未加载完毕</div>
+        `;
+        return;
+      }
+
+      const text = document.getElementById("html-entities-text").value || "";
+      const format = document.getElementById("html-entities-format").value || "named";
+      let mode = "encode";
+      const radios = document.getElementsByName("mode");
+      for (const r of radios) {
+        if (r.checked) {
+          mode = r.value;
+          break;
+        }
+      }
+
+      const t0 = performance.now();
+      const response = window.wasmContext.htmlEntities.dispatch({
+        action: "html/entities",
+        requestId: `front-${Date.now()}`,
+        params: {
+          text,
+          mode,
+          format
+        }
+      });
+      const duration = (performance.now() - t0).toFixed(4);
+
+      if (response.code !== 0) {
+        document.getElementById("frontend-html-entities-result").innerHTML = `
+          <div class="result-box error">处理失败: ${escapeHtmlFront(response.msg)}</div>
+        `;
+        return;
+      }
+
+      const d = response.data;
+      currentHtmlEntitiesResult = d.result;
+      const modeBadge = d.mode === "encode" ? "编码 (Encode)" : "解码 (Decode)";
+
+      document.getElementById("frontend-html-entities-result").innerHTML = `
+        <div class="result-box">
+          <div class="result-header">
+            <span class="tag tag-rust">🦀 Browser WASM: HTML 实体 ${modeBadge} (${escapeHtmlFront(d.standard)})</span>
+            <span class="badge-time">⚡ ${duration} ms (纯前端内存)</span>
+          </div>
+
+          <div style="display:flex; flex-wrap:wrap; gap:16px; margin-bottom:12px; font-size:12px; color:var(--text-muted);">
+            <span>输入大小: <strong>${d.inputBytes} 字节</strong></span>
+            <span>输出大小: <strong>${d.outputBytes} 字节</strong></span>
+            <span>实体转换计数: <strong style="color:#38bdf8;">${d.entitiesProcessed}</strong></span>
+            <span>体积倍率: <strong style="color:#34d399;">${d.ratio}x</strong></span>
+          </div>
+
+          <div style="position:relative;">
+            <pre style="padding:12px; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1); border-radius:6px; font-family:var(--font-mono); font-size:12px; color:#38bdf8; overflow-x:auto; white-space:pre-wrap; word-break:break-all;">${escapeHtmlFront(d.result)}</pre>
+            <button type="button" onclick="copyHtmlEntitiesResult()" style="position:absolute; top:8px; right:8px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); border-radius:4px; padding:4px 8px; color:#f8fafc; font-size:11px; cursor:pointer;">复制结果</button>
+          </div>
         </div>
       `;
     };
