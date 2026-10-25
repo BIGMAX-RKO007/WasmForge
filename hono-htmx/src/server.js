@@ -36,6 +36,7 @@ const base64StringWasmPath = path.resolve(__dirname, "../public/wasm/base64-stri
 const base64FileWasmPath = path.resolve(__dirname, "../public/wasm/base64-file.wasm");
 const colorConverterWasmPath = path.resolve(__dirname, "../public/wasm/color-converter.wasm");
 const caseConverterWasmPath = path.resolve(__dirname, "../public/wasm/case-converter.wasm");
+const dateTimeConverterWasmPath = path.resolve(__dirname, "../public/wasm/date-time-converter.wasm");
 
 let rsEngine = null;
 let tsEngine = null;
@@ -63,6 +64,7 @@ let base64StringEngine = null;
 let base64FileEngine = null;
 let colorConverterEngine = null;
 let caseConverterEngine = null;
+let dateTimeConverterEngine = null;
 
 async function initEngines() {
   try {
@@ -246,6 +248,13 @@ async function initEngines() {
       console.log("✅ [Backend Infra] 纯单一文件 case-converter.wasm 加载成功");
     } else {
       console.warn("⚠️ case-converter.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    if (fs.existsSync(dateTimeConverterWasmPath)) {
+      dateTimeConverterEngine = await loadWasmFromDisk(dateTimeConverterWasmPath);
+      console.log("✅ [Backend Infra] 纯单一文件 date-time-converter.wasm 加载成功");
+    } else {
+      console.warn("⚠️ date-time-converter.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
     }
   } catch (err) {
     console.error("❌ 后端 WASM 基础设施初始化失败:", err);
@@ -2542,6 +2551,134 @@ app.get("/api/backend/case/sample", async (c) => {
   }
 });
 
+// API: HTMX 提交日期时间转换
+app.post("/api/backend/datetime/convert", async (c) => {
+  try {
+    let input = "";
+    const contentType = c.req.header("content-type") || "";
+    if (contentType.includes("application/json")) {
+      const json = await c.req.json().catch(() => ({}));
+      input = (json.input || json.value || json.date || json.timestamp || json.datetime_input || "").toString().trim();
+    } else {
+      const body = await c.req.parseBody().catch(() => ({}));
+      input = (body.input || body.value || body.date || body.timestamp || body.datetime_input || "").toString().trim();
+    }
+
+    if (!input) {
+      if (contentType.includes("application/json") && !c.req.header("HX-Request")) {
+        return c.json({ code: 400, msg: "输入的日期时间或时间戳不能为空", data: null }, 400);
+      }
+      return c.html(`
+        <div class="result-box error">
+          <strong>转换失败:</strong> 输入的日期时间或时间戳不能为空
+        </div>
+      `, 400);
+    }
+
+    if (!dateTimeConverterEngine) {
+      throw new Error("date-time-converter WASM 引擎未就绪");
+    }
+
+    const t0 = performance.now();
+    const response = dateTimeConverterEngine.dispatch({
+      action: "datetime/convert",
+      requestId: `srv-${Date.now()}`,
+      params: { input }
+    });
+    const duration = (performance.now() - t0).toFixed(4);
+
+    if (contentType.includes("application/json") && !c.req.header("HX-Request")) {
+      return c.json(response);
+    }
+
+    if (response.code !== 0) {
+      return c.html(`
+        <div class="result-box error">
+          <strong>日期时间转换失败:</strong> ${response.msg}
+        </div>
+      `, 400);
+    }
+
+    const d = response.data;
+    return c.html(`
+      <div class="result-box">
+        <div class="result-header">
+          <span class="tag tag-rust">🦀 Rust WASM: 时间戳与跨时区投影分析</span>
+          <span class="badge-time">⚡ ${duration} ms (Hono 后端原生)</span>
+        </div>
+
+        <div style="display:flex; flex-wrap:wrap; gap:16px; margin-bottom:12px; font-size:12px; color:var(--text-muted);">
+          <span>星期: <strong style="color:#38bdf8;">${d.dayOfWeek}</strong></span>
+          <span>年中第几天: <strong>${d.dayOfYear} 天</strong></span>
+          <span>ISO 周数: <strong>第 ${d.weekNumber} 周</strong></span>
+          <span>闰年标记: <strong>${d.isLeapYear ? "是 (闰年 366天)" : "否 (平年 365天)"}</strong></span>
+        </div>
+
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:10px; font-family:var(--font-mono); font-size:12px;">
+          <div style="background:rgba(255,255,255,0.03); padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,0.08);">
+            <div style="font-size:10px; color:var(--text-muted); margin-bottom:2px;">Unix 秒级时间戳 (10位)</div>
+            <strong style="color:#38bdf8;">${d.unixSeconds}</strong>
+          </div>
+          <div style="background:rgba(255,255,255,0.03); padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,0.08);">
+            <div style="font-size:10px; color:var(--text-muted); margin-bottom:2px;">Unix 毫秒时间戳 (13位)</div>
+            <strong style="color:#38bdf8;">${d.unixMilliseconds}</strong>
+          </div>
+          <div style="background:rgba(255,255,255,0.03); padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,0.08);">
+            <div style="font-size:10px; color:var(--text-muted); margin-bottom:2px;">ISO 8601 (RFC 3339)</div>
+            <strong style="color:#34d399;">${d.iso8601}</strong>
+          </div>
+          <div style="background:rgba(255,255,255,0.03); padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,0.08);">
+            <div style="font-size:10px; color:var(--text-muted); margin-bottom:2px;">RFC 2822</div>
+            <strong style="color:#34d399;">${d.rfc2822}</strong>
+          </div>
+          <div style="background:rgba(255,255,255,0.03); padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,0.08);">
+            <div style="font-size:10px; color:var(--text-muted); margin-bottom:2px;">UTC 世界标准时间</div>
+            <strong style="color:#a78bfa;">${d.utc}</strong>
+          </div>
+          <div style="background:rgba(255,255,255,0.03); padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,0.08);">
+            <div style="font-size:10px; color:var(--text-muted); margin-bottom:2px;">CST 中国标准时间 (UTC+8)</div>
+            <strong style="color:#fbbf24;">${d.cst}</strong>
+          </div>
+          <div style="background:rgba(255,255,255,0.03); padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,0.08);">
+            <div style="font-size:10px; color:var(--text-muted); margin-bottom:2px;">JST 日本标准时间 (UTC+9)</div>
+            <strong style="color:#f43f5e;">${d.jst}</strong>
+          </div>
+          <div style="background:rgba(255,255,255,0.03); padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,0.08);">
+            <div style="font-size:10px; color:var(--text-muted); margin-bottom:2px;">EST 北美东部时间 (UTC-5)</div>
+            <strong style="color:#e2e8f0;">${d.est}</strong>
+          </div>
+        </div>
+      </div>
+    `);
+  } catch (err) {
+    return c.html(`
+      <div class="result-box error">
+        <strong>转换失败:</strong> ${err.message}
+      </div>
+    `, 400);
+  }
+});
+
+// API: 获取 DateTime 示例
+app.get("/api/backend/datetime/sample", async (c) => {
+  try {
+    if (!dateTimeConverterEngine) {
+      throw new Error("date-time-converter WASM 引擎未就绪");
+    }
+    const response = dateTimeConverterEngine.dispatch({
+      action: "datetime/sample",
+      requestId: `srv-${Date.now()}`,
+      params: {}
+    });
+    if (response.code !== 0) {
+      throw new Error(response.msg || "获取示例失败");
+    }
+    return c.json(response.data);
+  } catch (err) {
+    return c.json({ sample: "2026-10-25 14:30:00" }, 500);
+  }
+});
+
 // API: 模块统计信息
 app.get("/api/stats", (c) => {
   const rsSize = fs.existsSync(rsWasmPath) ? fs.statSync(rsWasmPath).size : 0;
@@ -2570,6 +2707,7 @@ app.get("/api/stats", (c) => {
   const base64FileSize = fs.existsSync(base64FileWasmPath) ? fs.statSync(base64FileWasmPath).size : 0;
   const colorConverterSize = fs.existsSync(colorConverterWasmPath) ? fs.statSync(colorConverterWasmPath).size : 0;
   const caseConverterSize = fs.existsSync(caseConverterWasmPath) ? fs.statSync(caseConverterWasmPath).size : 0;
+  const dateTimeConverterSize = fs.existsSync(dateTimeConverterWasmPath) ? fs.statSync(dateTimeConverterWasmPath).size : 0;
   return c.json({
     rust: {
       file: "rs.wasm",
@@ -2700,6 +2838,11 @@ app.get("/api/stats", (c) => {
       file: "case-converter.wasm",
       sizeBytes: caseConverterSize,
       sizeFormatted: `${(caseConverterSize / 1024).toFixed(2)} KB`,
+    },
+    dateTimeConverter: {
+      file: "date-time-converter.wasm",
+      sizeBytes: dateTimeConverterSize,
+      sizeFormatted: `${(dateTimeConverterSize / 1024).toFixed(2)} KB`,
     },
   });
 });
