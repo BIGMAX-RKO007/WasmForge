@@ -35,6 +35,7 @@ const jsonToCsvWasmPath = path.resolve(__dirname, "../public/wasm/json-to-csv.wa
 const base64StringWasmPath = path.resolve(__dirname, "../public/wasm/base64-string.wasm");
 const base64FileWasmPath = path.resolve(__dirname, "../public/wasm/base64-file.wasm");
 const colorConverterWasmPath = path.resolve(__dirname, "../public/wasm/color-converter.wasm");
+const caseConverterWasmPath = path.resolve(__dirname, "../public/wasm/case-converter.wasm");
 
 let rsEngine = null;
 let tsEngine = null;
@@ -61,6 +62,7 @@ let jsonToCsvEngine = null;
 let base64StringEngine = null;
 let base64FileEngine = null;
 let colorConverterEngine = null;
+let caseConverterEngine = null;
 
 async function initEngines() {
   try {
@@ -237,6 +239,13 @@ async function initEngines() {
       console.log("✅ [Backend Infra] 纯单一文件 color-converter.wasm 加载成功");
     } else {
       console.warn("⚠️ color-converter.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    if (fs.existsSync(caseConverterWasmPath)) {
+      caseConverterEngine = await loadWasmFromDisk(caseConverterWasmPath);
+      console.log("✅ [Backend Infra] 纯单一文件 case-converter.wasm 加载成功");
+    } else {
+      console.warn("⚠️ case-converter.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
     }
   } catch (err) {
     console.error("❌ 后端 WASM 基础设施初始化失败:", err);
@@ -2430,6 +2439,109 @@ app.get("/api/backend/color/sample", async (c) => {
   }
 });
 
+// API: HTMX 提交命名风格转换
+app.post("/api/backend/case/convert", async (c) => {
+  try {
+    const body = await c.req.parseBody();
+    const input = (body.text || body.input || "").toString().trim();
+
+    if (!input) {
+      return c.html(`
+        <div class="result-box error">
+          <strong>转换失败:</strong> 输入的待转换文本不能为空
+        </div>
+      `, 400);
+    }
+
+    if (!caseConverterEngine) {
+      throw new Error("case-converter WASM 引擎未就绪");
+    }
+
+    const t0 = performance.now();
+    const response = caseConverterEngine.dispatch({
+      action: "case/convert",
+      requestId: `srv-${Date.now()}`,
+      params: { input }
+    });
+    const duration = (performance.now() - t0).toFixed(4);
+
+    if (response.code !== 0) {
+      return c.html(`
+        <div class="result-box error">
+          <strong>转换失败:</strong> ${response.msg}
+        </div>
+      `, 400);
+    }
+
+    const d = response.data;
+    const cases = [
+      { label: "camelCase", val: d.camelCase, desc: "小驼峰 (JavaScript/TypeScript 变量与方法)" },
+      { label: "PascalCase", val: d.pascalCase, desc: "大驼峰 (类名/组件名/类型定义)" },
+      { label: "snake_case", val: d.snakeCase, desc: "蛇形下划线 (Python/Rust/数据库字段)" },
+      { label: "SCREAMING_SNAKE_CASE", val: d.screamingSnakeCase, desc: "常量大写蛇形 (常量/宏/环境变量)" },
+      { label: "kebab-case", val: d.kebabCase, desc: "短横线/烤肉串 (CSS 类名/URL 短链/NPM 包名)" },
+      { label: "SCREAMING-KEBAB-CASE", val: d.screamingKebabCase, desc: "大写短横线 (COBOL 规范)" },
+      { label: "Title Case", val: d.titleCase, desc: "首字母大写标题 (文章与标题)" },
+      { label: "Sentence case", val: d.sentenceCase, desc: "自然句首大写 (句子与描述)" },
+      { label: "lower case", val: d.lowerCase, desc: "纯小写空格分隔 (分词/检索)" },
+      { label: "UPPER CASE", val: d.upperCase, desc: "纯大写空格分隔 (醒目标题)" },
+      { label: "dot.case", val: d.dotCase, desc: "点号连接 (属性链/国际化键值)" },
+      { label: "path/case", val: d.pathCase, desc: "文件路径连接 (URL 路径/模块路由)" },
+    ];
+
+    const rowsHtml = cases.map(c => `
+      <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.03); padding:8px 12px; border-radius:6px; border:1px solid rgba(255,255,255,0.06); font-family:var(--font-mono); font-size:12px;">
+        <div style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-right:12px;">
+          <span style="color:var(--text-muted); font-size:11px; display:inline-block; width:170px;">${c.label}:</span>
+          <strong style="color:#38bdf8;">${c.val}</strong>
+        </div>
+        <button type="button" onclick="navigator.clipboard.writeText('${c.val.replace(/'/g, "\\'")}')" style="padding:2px 8px; font-size:10px; background:rgba(56,189,248,0.15); color:#38bdf8; border:1px solid rgba(56,189,248,0.3); border-radius:4px; cursor:pointer;">复制</button>
+      </div>
+    `).join("");
+
+    return c.html(`
+      <div class="result-box">
+        <div class="result-header">
+          <span class="tag tag-rust">🦀 Rust WASM: 多命名风格全量转换成功</span>
+          <span class="badge-time">⚡ ${duration} ms (Hono 后端原生)</span>
+        </div>
+        <div style="font-size:12px; color:var(--text-muted); margin-bottom:8px;">
+          识别词法 Token (${d.words.length} 个): <span style="color:#34d399;">[${d.words.join(", ")}]</span>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          ${rowsHtml}
+        </div>
+      </div>
+    `);
+  } catch (err) {
+    return c.html(`
+      <div class="result-box error">
+        <strong>命名转换失败:</strong> ${err.message}
+      </div>
+    `, 400);
+  }
+});
+
+// API: 获取 Case 示例
+app.get("/api/backend/case/sample", async (c) => {
+  try {
+    if (!caseConverterEngine) {
+      throw new Error("case-converter WASM 引擎未就绪");
+    }
+    const response = caseConverterEngine.dispatch({
+      action: "case/sample",
+      requestId: `srv-${Date.now()}`,
+      params: {}
+    });
+    if (response.code !== 0) {
+      throw new Error(response.msg || "获取示例失败");
+    }
+    return c.json(response.data);
+  } catch (err) {
+    return c.json({ sample: "wasmForge_universalEnvelope-protocol v2" }, 500);
+  }
+});
+
 // API: 模块统计信息
 app.get("/api/stats", (c) => {
   const rsSize = fs.existsSync(rsWasmPath) ? fs.statSync(rsWasmPath).size : 0;
@@ -2457,6 +2569,7 @@ app.get("/api/stats", (c) => {
   const base64StringSize = fs.existsSync(base64StringWasmPath) ? fs.statSync(base64StringWasmPath).size : 0;
   const base64FileSize = fs.existsSync(base64FileWasmPath) ? fs.statSync(base64FileWasmPath).size : 0;
   const colorConverterSize = fs.existsSync(colorConverterWasmPath) ? fs.statSync(colorConverterWasmPath).size : 0;
+  const caseConverterSize = fs.existsSync(caseConverterWasmPath) ? fs.statSync(caseConverterWasmPath).size : 0;
   return c.json({
     rust: {
       file: "rs.wasm",
@@ -2582,6 +2695,11 @@ app.get("/api/stats", (c) => {
       file: "color-converter.wasm",
       sizeBytes: colorConverterSize,
       sizeFormatted: `${(colorConverterSize / 1024).toFixed(2)} KB`,
+    },
+    caseConverter: {
+      file: "case-converter.wasm",
+      sizeBytes: caseConverterSize,
+      sizeFormatted: `${(caseConverterSize / 1024).toFixed(2)} KB`,
     },
   });
 });

@@ -1,0 +1,22 @@
+{
+  "name": "@wasmforge/case-converter",
+  "version": "0.1.0",
+  "description": "Pure standalone WebAssembly module for naming convention case conversion",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "scripts": {
+    "build:wasm": "cargo build --target wasm32-unknown-unknown --release",
+    "test": "cargo test"
+  },
+  "keywords": [
+    "wasm",
+    "webassembly",
+    "case",
+    "camelCase",
+    "snake_case",
+    "kebab-case",
+    "wasmforge"
+  ],
+  "author": "WasmForge",
+  "license": "MIT"
+}
