@@ -45,6 +45,7 @@ const markdownToHtmlWasmPath = path.resolve(__dirname, "../public/wasm/markdown-
 const listConverterWasmPath = path.resolve(__dirname, "../public/wasm/list-converter.wasm");
 const textToNatoWasmPath = path.resolve(__dirname, "../public/wasm/text-to-nato.wasm");
 const sqlPrettifyWasmPath = path.resolve(__dirname, "../public/wasm/sql-prettify.wasm");
+const xmlFormatterWasmPath = path.resolve(__dirname, "../public/wasm/xml-formatter.wasm");
 
 let rsEngine = null;
 let tsEngine = null;
@@ -81,6 +82,7 @@ let markdownToHtmlEngine = null;
 let listConverterEngine = null;
 let textToNatoEngine = null;
 let sqlPrettifyEngine = null;
+let xmlFormatterEngine = null;
 
 async function initEngines() {
   try {
@@ -327,6 +329,13 @@ async function initEngines() {
       console.log("✅ [Backend Infra] 纯单一文件 sql-prettify.wasm 加载成功");
     } else {
       console.warn("⚠️ sql-prettify.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    if (fs.existsSync(xmlFormatterWasmPath)) {
+      xmlFormatterEngine = await loadWasmFromDisk(xmlFormatterWasmPath);
+      console.log("✅ [Backend Infra] 纯单一文件 xml-formatter.wasm 加载成功");
+    } else {
+      console.warn("⚠️ xml-formatter.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
     }
   } catch (err) {
     console.error("❌ 后端 WASM 基础设施初始化失败:", err);
@@ -3643,6 +3652,149 @@ app.get("/api/backend/sql/sample", async (c) => {
   }
 });
 
+function escapeHtml(str) {
+  return (str || "").replace(/[&<>"']/g, (m) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;"
+  }[m]));
+}
+
+// API: HTMX 提交 XML 排版与压缩
+app.post("/api/backend/xml/format", async (c) => {
+  try {
+    let mode = "format";
+    let xml = "";
+    let indent = 2;
+    let stripComments = false;
+
+    const contentType = c.req.header("content-type") || "";
+    if (contentType.includes("application/json")) {
+      const json = await c.req.json().catch(() => ({}));
+      if (json.mode) mode = json.mode;
+      xml = (json.xml || json.text || "").toString();
+      if (json.indent !== undefined) indent = parseInt(json.indent, 10) || 2;
+      if (json.stripComments !== undefined) stripComments = Boolean(json.stripComments);
+    } else {
+      const body = await c.req.parseBody().catch(() => ({}));
+      if (body.mode) mode = body.mode;
+      xml = (body.xml || body.text || "").toString();
+      if (body.indent !== undefined) indent = parseInt(body.indent, 10) || 2;
+      if (body.strip_comments !== undefined) stripComments = body.strip_comments === "true" || body.strip_comments === "on";
+    }
+
+    if (!xml) {
+      if (contentType.includes("application/json") && !c.req.header("HX-Request")) {
+        return c.json({ code: 400, msg: "XML 内容不能为空", data: null }, 400);
+      }
+      return c.html(`
+        <div class="result-box error">
+          <strong>排版失败:</strong> XML 内容不能为空
+        </div>
+      `, 400);
+    }
+
+    if (!xmlFormatterEngine) {
+      throw new Error("xml-formatter WASM 引擎未就绪");
+    }
+
+    const t0 = performance.now();
+    const action = mode === "minify" ? "xml/minify" : "xml/format";
+    const params = mode === "minify" ? { xml, stripComments } : { xml, indent, stripComments };
+
+    const response = xmlFormatterEngine.dispatch({
+      action,
+      requestId: `srv-${Date.now()}`,
+      params
+    });
+    const duration = (performance.now() - t0).toFixed(4);
+
+    if (contentType.includes("application/json") && !c.req.header("HX-Request")) {
+      return c.json(response);
+    }
+
+    if (response.code !== 0) {
+      return c.html(`
+        <div class="result-box error">
+          <strong>XML 处理失败:</strong> ${response.msg}
+        </div>
+      `, 400);
+    }
+
+    const d = response.data;
+    if (mode === "minify") {
+      return c.html(`
+        <div class="result-box">
+          <div class="result-header">
+            <span class="tag tag-rust">🦀 Rust WASM: XML 压缩瘦身成功</span>
+            <span class="badge-time">⚡ ${duration} ms (Hono 后端原生)</span>
+          </div>
+
+          <div style="font-size:12px; color:var(--text-muted); margin-bottom:8px;">
+            原体积: <strong>${d.stats.originalLength} 字节</strong> | 瘦身后: <strong style="color:#38bdf8;">${d.stats.minifiedLength} 字节</strong> | 压缩率: <strong style="color:#34d399;">${d.stats.compressionRatioPercent}%</strong>
+          </div>
+
+          <div>
+            <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px;">压缩 XML 源码:</div>
+            <div style="background:rgba(255,255,255,0.03); padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,0.08); font-family:var(--font-mono); font-size:12px; color:#38bdf8; word-break:break-all; max-height:180px; overflow-y:auto; white-space:pre-wrap;">
+              ${escapeHtml(d.minified)}
+            </div>
+          </div>
+        </div>
+      `);
+    }
+
+    return c.html(`
+      <div class="result-box">
+        <div class="result-header">
+          <span class="tag tag-rust">🦀 Rust WASM: XML 树排版缩进成功</span>
+          <span class="badge-time">⚡ ${duration} ms (Hono 后端原生)</span>
+        </div>
+
+        <div style="display:flex; flex-wrap:wrap; gap:16px; margin-bottom:12px; font-size:12px; color:var(--text-muted);">
+          <span>原长: <strong>${d.stats.originalLength} 字符</strong></span>
+          <span>排版后: <strong style="color:#38bdf8;">${d.stats.formattedLength} 字符</strong></span>
+          <span>行数: <strong style="color:#a78bfa;">${d.stats.lineCount} 行</strong></span>
+          <span>XML 元素数: <strong style="color:#34d399;">${d.stats.elementCount}</strong></span>
+        </div>
+
+        <div>
+          <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px;">排版后 XML:</div>
+          <pre style="background:rgba(255,255,255,0.03); padding:10px 12px; border-radius:6px; border:1px solid rgba(255,255,255,0.08); font-family:var(--font-mono); font-size:12px; color:#34d399; margin:0; overflow-x:auto; line-height:1.4;"><code>${escapeHtml(d.formatted)}</code></pre>
+        </div>
+      </div>
+    `);
+  } catch (err) {
+    return c.html(`
+      <div class="result-box error">
+        <strong>处理失败:</strong> ${err.message}
+      </div>
+    `, 400);
+  }
+});
+
+// API: 获取 XML 示例
+app.get("/api/backend/xml/sample", async (c) => {
+  try {
+    if (!xmlFormatterEngine) {
+      throw new Error("xml-formatter WASM 引擎未就绪");
+    }
+    const response = xmlFormatterEngine.dispatch({
+      action: "xml/sample",
+      requestId: `srv-${Date.now()}`,
+      params: {}
+    });
+    if (response.code !== 0) {
+      throw new Error(response.msg || "获取示例失败");
+    }
+    return c.json(response.data);
+  } catch (err) {
+    return c.json({ sampleXml: "<root><item>Hello</item></root>" }, 500);
+  }
+});
+
 // API: 获取 Markdown 示例
 app.get("/api/backend/markdown/sample", async (c) => {
   try {
@@ -3800,6 +3952,7 @@ app.get("/api/stats", (c) => {
   const listConverterSize = fs.existsSync(listConverterWasmPath) ? fs.statSync(listConverterWasmPath).size : 0;
   const textToNatoSize = fs.existsSync(textToNatoWasmPath) ? fs.statSync(textToNatoWasmPath).size : 0;
   const sqlPrettifySize = fs.existsSync(sqlPrettifyWasmPath) ? fs.statSync(sqlPrettifyWasmPath).size : 0;
+  const xmlFormatterSize = fs.existsSync(xmlFormatterWasmPath) ? fs.statSync(xmlFormatterWasmPath).size : 0;
   return c.json({
     rust: {
       file: "rs.wasm",
@@ -3975,6 +4128,11 @@ app.get("/api/stats", (c) => {
       file: "sql-prettify.wasm",
       sizeBytes: sqlPrettifySize,
       sizeFormatted: `${(sqlPrettifySize / 1024).toFixed(2)} KB`,
+    },
+    xmlFormatter: {
+      file: "xml-formatter.wasm",
+      sizeBytes: xmlFormatterSize,
+      sizeFormatted: `${(xmlFormatterSize / 1024).toFixed(2)} KB`,
     },
   });
 });

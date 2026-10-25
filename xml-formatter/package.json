@@ -1,0 +1,22 @@
+{
+  "name": "@wasmforge/xml-formatter",
+  "version": "0.1.0",
+  "description": "Pure Standalone WebAssembly XML Formatter, Prettifier and Minifier for WasmForge",
+  "main": "xml_formatter.wasm",
+  "scripts": {
+    "build": "cargo build --target wasm32-unknown-unknown --release",
+    "test": "cargo test"
+  },
+  "keywords": [
+    "wasm",
+    "webassembly",
+    "xml",
+    "formatter",
+    "prettifier",
+    "minify",
+    "quick-xml",
+    "wasmforge"
+  ],
+  "author": "WasmForge",
+  "license": "MIT"
+}
