@@ -32,6 +32,7 @@ const tomlToYamlWasmPath = path.resolve(__dirname, "../public/wasm/toml-to-yaml.
 const xmlToJsonWasmPath = path.resolve(__dirname, "../public/wasm/xml-to-json.wasm");
 const jsonToXmlWasmPath = path.resolve(__dirname, "../public/wasm/json-to-xml.wasm");
 const jsonToCsvWasmPath = path.resolve(__dirname, "../public/wasm/json-to-csv.wasm");
+const base64StringWasmPath = path.resolve(__dirname, "../public/wasm/base64-string.wasm");
 
 let rsEngine = null;
 let tsEngine = null;
@@ -55,6 +56,7 @@ let tomlToYamlEngine = null;
 let xmlToJsonEngine = null;
 let jsonToXmlEngine = null;
 let jsonToCsvEngine = null;
+let base64StringEngine = null;
 
 async function initEngines() {
   try {
@@ -210,6 +212,13 @@ async function initEngines() {
       console.log("✅ [Backend Infra] 纯单一文件 json-to-csv.wasm 加载成功");
     } else {
       console.warn("⚠️ json-to-csv.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    if (fs.existsSync(base64StringWasmPath)) {
+      base64StringEngine = await loadWasmFromDisk(base64StringWasmPath);
+      console.log("✅ [Backend Infra] 纯单一文件 base64-string.wasm 加载成功");
+    } else {
+      console.warn("⚠️ base64-string.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
     }
   } catch (err) {
     console.error("❌ 后端 WASM 基础设施初始化失败:", err);
@@ -1993,6 +2002,143 @@ app.get("/api/backend/json-to-csv/sample", async (c) => {
   }
 });
 
+// API: HTMX 提交 Base64 编码
+app.post("/api/backend/base64/encode", async (c) => {
+  try {
+    const body = await c.req.parseBody();
+    const text = (body.text || "").toString();
+    const urlSafe = body.urlSafe === "true";
+    const padding = body.padding !== "false";
+
+    if (!text) {
+      return c.html(`
+        <div class="result-box error">
+          <strong>编码失败:</strong> 输入的待编码文本不能为空
+        </div>
+      `, 400);
+    }
+
+    if (!base64StringEngine) {
+      throw new Error("base64-string WASM 引擎未就绪");
+    }
+
+    const t0 = performance.now();
+    const response = base64StringEngine.dispatch({
+      action: "base64/encode",
+      requestId: `srv-${Date.now()}`,
+      params: { text, urlSafe, padding }
+    });
+    const duration = (performance.now() - t0).toFixed(4);
+
+    if (response.code !== 0) {
+      return c.html(`
+        <div class="result-box error">
+          <strong>Base64 编码失败:</strong> ${response.msg}
+        </div>
+      `, 400);
+    }
+
+    const d = response.data;
+    return c.html(`
+      <div class="result-box">
+        <div class="result-header">
+          <span class="tag tag-rust">🦀 Rust WASM: Base64 编码 (${d.urlSafe ? "URL-Safe" : "Standard"})</span>
+          <span class="badge-time">⚡ ${duration} ms (Hono 后端原生)</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; font-size:12px; color:var(--text-muted);">
+          <span>输入文本大小: <strong>${d.sourceSizeBytes} 字节</strong></span>
+          <span>Base64 字符串长度: <strong>${d.targetSizeBytes} 字符</strong></span>
+        </div>
+        <textarea readonly style="width:100%; padding:10px; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1); border-radius:6px; font-family:var(--font-mono); font-size:12px; color:#38bdf8; box-sizing:border-box; resize:vertical;" rows="4">${d.base64}</textarea>
+      </div>
+    `);
+  } catch (err) {
+    return c.html(`
+      <div class="result-box error">
+        <strong>Base64 编码失败:</strong> ${err.message}
+      </div>
+    `, 400);
+  }
+});
+
+// API: HTMX 提交 Base64 解码
+app.post("/api/backend/base64/decode", async (c) => {
+  try {
+    const body = await c.req.parseBody();
+    const base64 = (body.base64 || "").toString();
+    const urlSafe = body.urlSafe === "true";
+
+    if (!base64.trim()) {
+      return c.html(`
+        <div class="result-box error">
+          <strong>解码失败:</strong> 输入的 Base64 内容不能为空
+        </div>
+      `, 400);
+    }
+
+    if (!base64StringEngine) {
+      throw new Error("base64-string WASM 引擎未就绪");
+    }
+
+    const t0 = performance.now();
+    const response = base64StringEngine.dispatch({
+      action: "base64/decode",
+      requestId: `srv-${Date.now()}`,
+      params: { base64, urlSafe }
+    });
+    const duration = (performance.now() - t0).toFixed(4);
+
+    if (response.code !== 0) {
+      return c.html(`
+        <div class="result-box error">
+          <strong>Base64 解码失败:</strong> ${response.msg}
+        </div>
+      `, 400);
+    }
+
+    const d = response.data;
+    return c.html(`
+      <div class="result-box">
+        <div class="result-header">
+          <span class="tag tag-rust">🦀 Rust WASM: Base64 解码成功</span>
+          <span class="badge-time">⚡ ${duration} ms (Hono 后端原生)</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; font-size:12px; color:var(--text-muted);">
+          <span>输入 Base64 长度: <strong>${d.sourceSizeBytes} 字符</strong></span>
+          <span>解码文本大小: <strong>${d.targetSizeBytes} 字节</strong></span>
+        </div>
+        <textarea readonly style="width:100%; padding:10px; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1); border-radius:6px; font-family:var(--font-mono); font-size:12px; color:#34d399; box-sizing:border-box; resize:vertical;" rows="4">${d.text.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</textarea>
+      </div>
+    `);
+  } catch (err) {
+    return c.html(`
+      <div class="result-box error">
+        <strong>Base64 解码失败:</strong> ${err.message}
+      </div>
+    `, 400);
+  }
+});
+
+// API: 获取 Base64 示例
+app.get("/api/backend/base64/sample", async (c) => {
+  try {
+    if (!base64StringEngine) {
+      throw new Error("base64-string WASM 引擎未就绪");
+    }
+    const response = base64StringEngine.dispatch({
+      action: "base64/sample",
+      requestId: `srv-${Date.now()}`,
+      params: {}
+    });
+    if (response.code !== 0) {
+      throw new Error(response.msg || "获取示例失败");
+    }
+    return c.json(response.data);
+  } catch (err) {
+    return c.json({ text: "Hello WasmForge!", base64: "SGVsbG8gV2FzbUZvcmdlIQ==" }, 500);
+  }
+});
+
 // API: 模块统计信息
 app.get("/api/stats", (c) => {
   const rsSize = fs.existsSync(rsWasmPath) ? fs.statSync(rsWasmPath).size : 0;
@@ -2017,6 +2163,7 @@ app.get("/api/stats", (c) => {
   const xmlToJsonSize = fs.existsSync(xmlToJsonWasmPath) ? fs.statSync(xmlToJsonWasmPath).size : 0;
   const jsonToXmlSize = fs.existsSync(jsonToXmlWasmPath) ? fs.statSync(jsonToXmlWasmPath).size : 0;
   const jsonToCsvSize = fs.existsSync(jsonToCsvWasmPath) ? fs.statSync(jsonToCsvWasmPath).size : 0;
+  const base64StringSize = fs.existsSync(base64StringWasmPath) ? fs.statSync(base64StringWasmPath).size : 0;
   return c.json({
     rust: {
       file: "rs.wasm",
@@ -2127,6 +2274,11 @@ app.get("/api/stats", (c) => {
       file: "json-to-csv.wasm",
       sizeBytes: jsonToCsvSize,
       sizeFormatted: `${(jsonToCsvSize / 1024).toFixed(2)} KB`,
+    },
+    base64String: {
+      file: "base64-string.wasm",
+      sizeBytes: base64StringSize,
+      sizeFormatted: `${(base64StringSize / 1024).toFixed(2)} KB`,
     },
   });
 });

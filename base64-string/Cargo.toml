@@ -1,0 +1,13 @@
+[package]
+name = "base64-string"
+version = "0.1.0"
+edition = "2021"
+description = "Pure standalone WebAssembly Base64 text encoder & decoder"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+base64 = "0.22"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"

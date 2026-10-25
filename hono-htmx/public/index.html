@@ -1820,6 +1820,86 @@
       </div>
     </div>
 
+    <!-- 2.10 Base64 字符串编解码器卡片 -->
+    <div class="tool-card">
+      <div class="tool-header">
+        <div>
+          <h2 style="margin:0 0 4px; font-size:18px; color:#38bdf8;">2.10 Base64 字符串编解码器 (Base64 String)</h2>
+          <p style="color:var(--text-muted); font-size:13px; margin:0;">
+            高吞吐、纯静态 WebAssembly 模块，提供 RFC 4648 标准 Standard 与 URL-Safe Base64 双向极速编解码。
+          </p>
+        </div>
+        <div style="font-size:12px; font-family:var(--font-mono); color:#38bdf8; background:rgba(56, 189, 248, 0.1); padding:4px 10px; border-radius:6px; border:1px solid rgba(56, 189, 248, 0.2);">
+          base64-string.wasm (~171 KB)
+        </div>
+      </div>
+
+      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap:20px; margin-top:20px;">
+        <!-- 编码面板 -->
+        <div style="background:rgba(255,255,255,0.02); padding:16px; border-radius:8px; border:1px solid rgba(255,255,255,0.06);">
+          <form id="b64-encode-form" hx-post="/api/backend/base64/encode" hx-target="#backend-b64-encode-result" hx-swap="innerHTML">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+              <label style="font-size:13px; font-weight:600; color:#38bdf8;">🔤 文本 ➜ Base64 编码</label>
+              <div style="display:flex; gap:8px; align-items:center;">
+                <label style="font-size:12px; color:var(--text-muted); display:flex; align-items:center; gap:4px;">
+                  <input type="checkbox" id="b64-enc-urlsafe" name="urlSafe" value="true" /> URL-Safe
+                </label>
+                <button type="button" onclick="loadBase64Sample()" style="padding:2px 8px; font-size:11px; background:rgba(56,189,248,0.15); color:#38bdf8; border:1px solid rgba(56,189,248,0.3); border-radius:4px; cursor:pointer;">
+                  载入示例
+                </button>
+              </div>
+            </div>
+            <textarea id="b64-text-input" name="text" rows="4" placeholder="输入待编码为 Base64 的文本字符串..." style="width:100%; padding:8px; background:#1e293b; border:1px solid rgba(255,255,255,0.1); color:#fff; border-radius:6px; font-family:var(--font-mono); font-size:12px; box-sizing:border-box; resize:vertical;"></textarea>
+
+            <div style="display:flex; gap:10px; margin-top:10px;">
+              <button type="submit" style="padding:6px 12px; background:linear-gradient(135deg, #0284c7, #0369a1); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:12px;">
+                🖥️ 后端编码
+              </button>
+              <button type="button" onclick="runFrontendBase64Encode()" style="padding:6px 12px; background:linear-gradient(135deg, #0ea5e9, #0284c7); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:12px;">
+                🌐 前端本地编码
+              </button>
+            </div>
+          </form>
+
+          <div style="margin-top:12px;">
+            <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px;">后端编码输出:</div>
+            <div id="backend-b64-encode-result" class="result-container"><div class="result-box" style="opacity:0.5; font-size:12px;">等待编码...</div></div>
+            <div style="font-size:11px; color:var(--text-muted); margin-top:8px; margin-bottom:4px;">前端编码输出:</div>
+            <div id="frontend-b64-encode-result" class="result-container"><div class="result-box" style="opacity:0.5; font-size:12px;">等待编码...</div></div>
+          </div>
+        </div>
+
+        <!-- 解码面板 -->
+        <div style="background:rgba(255,255,255,0.02); padding:16px; border-radius:8px; border:1px solid rgba(255,255,255,0.06);">
+          <form id="b64-decode-form" hx-post="/api/backend/base64/decode" hx-target="#backend-b64-decode-result" hx-swap="innerHTML">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+              <label style="font-size:13px; font-weight:600; color:#34d399;">🔓 Base64 ➜ 文本解码</label>
+              <label style="font-size:12px; color:var(--text-muted); display:flex; align-items:center; gap:4px;">
+                <input type="checkbox" id="b64-dec-urlsafe" name="urlSafe" value="true" /> URL-Safe
+              </label>
+            </div>
+            <textarea id="b64-code-input" name="base64" rows="4" placeholder="在此粘贴 Base64 编码字符串..." style="width:100%; padding:8px; background:#1e293b; border:1px solid rgba(255,255,255,0.1); color:#fff; border-radius:6px; font-family:var(--font-mono); font-size:12px; box-sizing:border-box; resize:vertical;"></textarea>
+
+            <div style="display:flex; gap:10px; margin-top:10px;">
+              <button type="submit" style="padding:6px 12px; background:linear-gradient(135deg, #059669, #047857); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:12px;">
+                🖥️ 后端解码
+              </button>
+              <button type="button" onclick="runFrontendBase64Decode()" style="padding:6px 12px; background:linear-gradient(135deg, #10b981, #059669); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:12px;">
+                🌐 前端本地解码
+              </button>
+            </div>
+          </form>
+
+          <div style="margin-top:12px;">
+            <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px;">后端解码输出:</div>
+            <div id="backend-b64-decode-result" class="result-container"><div class="result-box" style="opacity:0.5; font-size:12px;">等待解码...</div></div>
+            <div style="font-size:11px; color:var(--text-muted); margin-top:8px; margin-bottom:4px;">前端解码输出:</div>
+            <div id="frontend-b64-decode-result" class="result-container"><div class="result-box" style="opacity:0.5; font-size:12px;">等待解码...</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- ================= 区域 3: 4 象限综合矩阵基准测试 ================= -->
     <div class="matrix-card">
       <h2>📊 4 维度跨场景一致性与性能矩阵</h2>
@@ -1894,6 +1974,8 @@
       jsonToXmlReady: false,
       jsonToCsv: null,
       jsonToCsvReady: false,
+      base64String: null,
+      base64StringReady: false,
       activeFrontendEngine: "rust",
       activeBackendEngine: "rust"
     };
@@ -1922,6 +2004,7 @@
         const xmlJsonEngine = await loadWasmFromUrl("./wasm/xml-to-json.wasm");
         const jsonXmlEngine = await loadWasmFromUrl("./wasm/json-to-xml.wasm");
         const jsonCsvEngine = await loadWasmFromUrl("./wasm/json-to-csv.wasm");
+        const base64Engine = await loadWasmFromUrl("./wasm/base64-string.wasm");
 
         window.wasmContext.rust = rsEngine;
         window.wasmContext.ts = tsEngine;
@@ -1945,6 +2028,7 @@
         window.wasmContext.xmlToJson = xmlJsonEngine;
         window.wasmContext.jsonToXml = jsonXmlEngine;
         window.wasmContext.jsonToCsv = jsonCsvEngine;
+        window.wasmContext.base64String = base64Engine;
         window.wasmContext.rustReady = true;
         window.wasmContext.tsReady = true;
         window.wasmContext.tokenReady = true;
@@ -1967,9 +2051,10 @@
         window.wasmContext.xmlToJsonReady = true;
         window.wasmContext.jsonToXmlReady = true;
         window.wasmContext.jsonToCsvReady = true;
+        window.wasmContext.base64StringReady = true;
 
         const statusEl = document.getElementById("frontend-status");
-        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载 22 大模块: rs, ts, token-gen, hash-text, bcrypt, uuid-gen, ulid-gen, encryption, bip39, hmac, rsa, password-strength, pdf-sig, yaml-to-json, yaml-to-toml, json-to-yaml, json-to-toml, toml-to-json, toml-to-yaml, xml-to-json, json-to-xml & json-to-csv)`;
+        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载 23 大模块: rs, ts, token-gen, hash-text, bcrypt, uuid-gen, ulid-gen, encryption, bip39, hmac, rsa, password-strength, pdf-sig, yaml-to-json, yaml-to-toml, json-to-yaml, json-to-toml, toml-to-json, toml-to-yaml, xml-to-json, json-to-xml, json-to-csv & base64-string)`;
 
         // 初始自动运行一次前端计算
         window.runFrontendCalc();
@@ -1994,6 +2079,7 @@
         window.loadXmlJsonSample();
         window.loadJsonXmlSample();
         window.loadJsonCsvSample();
+        window.loadBase64Sample();
       } catch (err) {
         console.error("加载浏览器端 WASM 失败:", err);
         const statusEl = document.getElementById("frontend-status");
@@ -3641,6 +3727,107 @@
             <span>转换 CSV 大小: <strong>${d.targetSizeBytes} 字节</strong></span>
           </div>
           <pre class="code-preview" style="max-height:280px; overflow-y:auto; background:rgba(0,0,0,0.4); padding:10px; border-radius:6px; font-size:12px; font-family:var(--font-mono); color:#38bdf8;"><code>${d.csv.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</code></pre>
+        </div>
+      `;
+    };
+
+    // 载入 Base64 示例
+    window.loadBase64Sample = function() {
+      const textEl = document.getElementById("b64-text-input");
+      const codeEl = document.getElementById("b64-code-input");
+      if (window.wasmContext.base64String) {
+        const resp = window.wasmContext.base64String.dispatch({
+          action: "base64/sample",
+          requestId: `req-sample-${Date.now()}`,
+          params: {}
+        });
+        if (resp.code === 0 && resp.data) {
+          textEl.value = resp.data.text;
+          codeEl.value = resp.data.base64;
+          window.runFrontendBase64Encode();
+          window.runFrontendBase64Decode();
+        }
+      }
+    };
+
+    // 前端执行 Base64 编码 (base64/encode)
+    window.runFrontendBase64Encode = function() {
+      const engine = window.wasmContext.base64String;
+      if (!engine) {
+        document.getElementById("frontend-b64-encode-result").innerHTML = `
+          <div class="result-box error">base64-string.wasm 尚未加载完毕</div>
+        `;
+        return;
+      }
+
+      const text = document.getElementById("b64-text-input").value || "";
+      const urlSafe = document.getElementById("b64-enc-urlsafe").checked;
+
+      const t0 = performance.now();
+      const response = engine.dispatch({
+        action: "base64/encode",
+        requestId: `req-front-${Date.now()}`,
+        params: { text, urlSafe, padding: true }
+      });
+      const duration = (performance.now() - t0).toFixed(4);
+
+      if (response.code !== 0) {
+        document.getElementById("frontend-b64-encode-result").innerHTML = `
+          <div class="result-box error"><strong>编码失败:</strong> ${response.msg}</div>
+        `;
+        return;
+      }
+
+      const d = response.data;
+      document.getElementById("frontend-b64-encode-result").innerHTML = `
+        <div class="result-box">
+          <div class="result-header">
+            <span class="tag tag-rust">🦀 Browser WASM: 编码 (${d.urlSafe ? "URL-Safe" : "Standard"})</span>
+            <span class="badge-time">⚡ ${duration} ms (纯前端内存)</span>
+          </div>
+          <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px;">输出长度: ${d.targetSizeBytes} 字符</div>
+          <textarea readonly style="width:100%; padding:6px; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1); border-radius:4px; font-family:var(--font-mono); font-size:11px; color:#38bdf8; box-sizing:border-box; resize:vertical;" rows="3">${d.base64}</textarea>
+        </div>
+      `;
+    };
+
+    // 前端执行 Base64 解码 (base64/decode)
+    window.runFrontendBase64Decode = function() {
+      const engine = window.wasmContext.base64String;
+      if (!engine) {
+        document.getElementById("frontend-b64-decode-result").innerHTML = `
+          <div class="result-box error">base64-string.wasm 尚未加载完毕</div>
+        `;
+        return;
+      }
+
+      const base64 = (document.getElementById("b64-code-input").value || "").trim();
+      const urlSafe = document.getElementById("b64-dec-urlsafe").checked;
+
+      const t0 = performance.now();
+      const response = engine.dispatch({
+        action: "base64/decode",
+        requestId: `req-front-${Date.now()}`,
+        params: { base64, urlSafe }
+      });
+      const duration = (performance.now() - t0).toFixed(4);
+
+      if (response.code !== 0) {
+        document.getElementById("frontend-b64-decode-result").innerHTML = `
+          <div class="result-box error"><strong>解码失败:</strong> ${response.msg}</div>
+        `;
+        return;
+      }
+
+      const d = response.data;
+      document.getElementById("frontend-b64-decode-result").innerHTML = `
+        <div class="result-box">
+          <div class="result-header">
+            <span class="tag tag-rust">🦀 Browser WASM: 解码成功</span>
+            <span class="badge-time">⚡ ${duration} ms (纯前端内存)</span>
+          </div>
+          <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px;">文本大小: ${d.targetSizeBytes} 字节</div>
+          <textarea readonly style="width:100%; padding:6px; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1); border-radius:4px; font-family:var(--font-mono); font-size:11px; color:#34d399; box-sizing:border-box; resize:vertical;" rows="3">${d.text.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</textarea>
         </div>
       `;
     };
