@@ -62,6 +62,7 @@ const textStatisticsWasmPath = path.resolve(__dirname, "../public/wasm/text-stat
 const stringObfuscatorWasmPath = path.resolve(__dirname, "../public/wasm/string-obfuscator.wasm");
 const loremIpsumWasmPath = path.resolve(__dirname, "../public/wasm/lorem-ipsum.wasm");
 const asciiTextDrawerWasmPath = path.resolve(__dirname, "../public/wasm/ascii-text-drawer.wasm");
+const numeronymGeneratorWasmPath = path.resolve(__dirname, "../public/wasm/numeronym-generator.wasm");
 
 let rsEngine = null;
 let tsEngine = null;
@@ -115,6 +116,7 @@ let textStatisticsEngine = null;
 let stringObfuscatorEngine = null;
 let loremIpsumEngine = null;
 let asciiTextDrawerEngine = null;
+let numeronymGeneratorEngine = null;
 
 async function initEngines() {
   try {
@@ -480,6 +482,13 @@ async function initEngines() {
       console.log("✅ [Backend Infra] 纯单一文件 ascii-text-drawer.wasm 加载成功");
     } else {
       console.warn("⚠️ ascii-text-drawer.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    if (fs.existsSync(numeronymGeneratorWasmPath)) {
+      numeronymGeneratorEngine = await loadWasmFromDisk(numeronymGeneratorWasmPath);
+      console.log("✅ [Backend Infra] 纯单一文件 numeronym-generator.wasm 加载成功");
+    } else {
+      console.warn("⚠️ numeronym-generator.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
     }
   } catch (err) {
     console.error("❌ 后端 WASM 基础设施初始化失败:", err);
@@ -6165,6 +6174,138 @@ app.get("/api/backend/ascii/presets", async (c) => {
   }
 });
 
+// API: 字符数字缩写器 (Numeronym Generator)
+app.post("/api/backend/numeronym/generate", async (c) => {
+  try {
+    const contentType = c.req.header("Content-Type") || "";
+    let text = "internationalization";
+    let minLen = 4;
+    let mode = "text";
+
+    if (contentType.includes("application/json")) {
+      const json = await c.req.json().catch(() => ({}));
+      text = (json.text || "internationalization").toString();
+      minLen = typeof json.minLen === "number" ? json.minLen : 4;
+      mode = (json.mode || "text").toString();
+    } else {
+      const body = await c.req.parseBody().catch(() => ({}));
+      text = (body.text || "internationalization").toString();
+      minLen = parseInt(body.minLen || "4", 10) || 4;
+      mode = (body.mode || "text").toString();
+    }
+
+    if (!numeronymGeneratorEngine) {
+      throw new Error("numeronym-generator WASM 引擎未就绪");
+    }
+
+    const t0 = performance.now();
+    const response = numeronymGeneratorEngine.dispatch({
+      action: "numeronym/generate",
+      requestId: `srv-${Date.now()}`,
+      params: {
+        text,
+        minLen,
+        mode,
+      }
+    });
+    const duration = (performance.now() - t0).toFixed(4);
+
+    if (contentType.includes("application/json") && !c.req.header("HX-Request")) {
+      return c.json(response);
+    }
+
+    if (response.code !== 0) {
+      return c.html(`
+        <div class="result-box error">
+          <strong>缩写生成失败:</strong> ${escapeHtml(response.msg)}
+        </div>
+      `, 400);
+    }
+
+    const d = response.data;
+    const tableRows = d.items.map(it => `
+      <tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
+        <td style="padding:6px 10px; font-family:var(--font-mono); color:#f8fafc;">${escapeHtml(it.original)}</td>
+        <td style="padding:6px 10px; font-family:var(--font-mono); color:#38bdf8; font-weight:700;">${escapeHtml(it.numeronym)}</td>
+        <td style="padding:6px 10px; color:#f59e0b; font-family:var(--font-mono);">${it.omittedCount} 个字母</td>
+        <td style="padding:6px 10px; color:#34d399; font-family:var(--font-mono);">-${it.savingsPercent}%</td>
+      </tr>
+    `).join("");
+
+    return c.html(`
+      <div class="result-box">
+        <div class="result-header">
+          <span class="tag tag-rust">🦀 Rust WASM: 数字缩写生成完成 (${escapeHtml(mode)})</span>
+          <span class="badge-time">⚡ ${duration} ms (Hono 后端原生)</span>
+        </div>
+        <div style="display:flex; flex-wrap:wrap; gap:16px; margin-bottom:10px; font-size:12px; color:var(--text-muted);">
+          <span>总词数: <strong style="color:#f8fafc;">${d.totalWords}</strong></span>
+          <span>缩写词数: <strong style="color:#38bdf8;">${d.abbreviatedWords}</strong></span>
+        </div>
+        <textarea readonly style="width:100%; padding:10px; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1); border-radius:6px; font-family:var(--font-mono); font-size:13px; color:#34d399; box-sizing:border-box; resize:vertical; line-height:1.5;" rows="4">${escapeHtml(d.transformedText)}</textarea>
+        ${d.items.length > 0 ? `
+          <div style="margin-top:12px; max-height:180px; overflow-y:auto;">
+            <table style="width:100%; border-collapse:collapse; font-size:11px; text-align:left;">
+              <thead>
+                <tr style="color:var(--text-muted); border-bottom:1px solid rgba(255,255,255,0.1);">
+                  <th style="padding:4px 10px;">原词</th>
+                  <th style="padding:4px 10px;">数字缩写</th>
+                  <th style="padding:4px 10px;">省略字母</th>
+                  <th style="padding:4px 10px;">字符节约率</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${tableRows}
+              </tbody>
+            </table>
+          </div>
+        ` : ''}
+      </div>
+    `);
+  } catch (err) {
+    return c.html(`
+      <div class="result-box error">
+        <strong>执行失败:</strong> ${escapeHtml(err.message)}
+      </div>
+    `, 500);
+  }
+});
+
+// API: 获取缩写预设
+app.get("/api/backend/numeronym/presets", async (c) => {
+  try {
+    if (!numeronymGeneratorEngine) {
+      throw new Error("numeronym-generator WASM 引擎未就绪");
+    }
+    const response = numeronymGeneratorEngine.dispatch({
+      action: "numeronym/presets",
+      requestId: `srv-${Date.now()}`,
+      params: {}
+    });
+    return c.json(response);
+  } catch (err) {
+    return c.json({ code: 500, msg: err.message, data: null }, 500);
+  }
+});
+
+// API: 常见技术数字缩写词典速查
+app.get("/api/backend/numeronym/lookup", async (c) => {
+  try {
+    const query = c.req.query("query") || "";
+    if (!numeronymGeneratorEngine) {
+      throw new Error("numeronym-generator WASM 引擎未就绪");
+    }
+    const response = numeronymGeneratorEngine.dispatch({
+      action: "numeronym/lookup",
+      requestId: `srv-${Date.now()}`,
+      params: { query }
+    });
+    return c.json(response);
+  } catch (err) {
+    return c.json({ code: 500, msg: err.message, data: null }, 500);
+  }
+});
+
 // API: 获取 Markdown 示例
 app.get("/api/backend/markdown/sample", async (c) => {
   try {
@@ -6339,6 +6480,7 @@ app.get("/api/stats", (c) => {
   const stringObfuscatorSize = fs.existsSync(stringObfuscatorWasmPath) ? fs.statSync(stringObfuscatorWasmPath).size : 0;
   const loremIpsumSize = fs.existsSync(loremIpsumWasmPath) ? fs.statSync(loremIpsumWasmPath).size : 0;
   const asciiTextDrawerSize = fs.existsSync(asciiTextDrawerWasmPath) ? fs.statSync(asciiTextDrawerWasmPath).size : 0;
+  const numeronymGeneratorSize = fs.existsSync(numeronymGeneratorWasmPath) ? fs.statSync(numeronymGeneratorWasmPath).size : 0;
   return c.json({
     rust: {
       file: "rs.wasm",
@@ -6599,6 +6741,11 @@ app.get("/api/stats", (c) => {
       file: "ascii-text-drawer.wasm",
       sizeBytes: asciiTextDrawerSize,
       sizeFormatted: `${(asciiTextDrawerSize / 1024).toFixed(2)} KB`,
+    },
+    numeronymGenerator: {
+      file: "numeronym-generator.wasm",
+      sizeBytes: numeronymGeneratorSize,
+      sizeFormatted: `${(numeronymGeneratorSize / 1024).toFixed(2)} KB`,
     },
   });
 });

@@ -1,0 +1,26 @@
+{
+  "name": "@wasm-forge/numeronym-generator",
+  "version": "0.1.0",
+  "description": "Pure Standalone WebAssembly Numeronym Abbreviation Generator and Dictionary Engine",
+  "type": "module",
+  "main": "pkg/numeronym_generator.wasm",
+  "files": [
+    "pkg/numeronym_generator.wasm",
+    "README.md"
+  ],
+  "scripts": {
+    "build:wasm": "cargo build --target wasm32-unknown-unknown --release",
+    "test": "cargo test"
+  },
+  "keywords": [
+    "wasm",
+    "webassembly",
+    "numeronym",
+    "i18n",
+    "k8s",
+    "a11y",
+    "abbreviation"
+  ],
+  "author": "WasmForge",
+  "license": "MIT"
+}
