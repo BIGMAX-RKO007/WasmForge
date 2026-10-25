@@ -33,6 +33,7 @@ const xmlToJsonWasmPath = path.resolve(__dirname, "../public/wasm/xml-to-json.wa
 const jsonToXmlWasmPath = path.resolve(__dirname, "../public/wasm/json-to-xml.wasm");
 const jsonToCsvWasmPath = path.resolve(__dirname, "../public/wasm/json-to-csv.wasm");
 const base64StringWasmPath = path.resolve(__dirname, "../public/wasm/base64-string.wasm");
+const base64FileWasmPath = path.resolve(__dirname, "../public/wasm/base64-file.wasm");
 
 let rsEngine = null;
 let tsEngine = null;
@@ -57,6 +58,7 @@ let xmlToJsonEngine = null;
 let jsonToXmlEngine = null;
 let jsonToCsvEngine = null;
 let base64StringEngine = null;
+let base64FileEngine = null;
 
 async function initEngines() {
   try {
@@ -219,6 +221,13 @@ async function initEngines() {
       console.log("✅ [Backend Infra] 纯单一文件 base64-string.wasm 加载成功");
     } else {
       console.warn("⚠️ base64-string.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    if (fs.existsSync(base64FileWasmPath)) {
+      base64FileEngine = await loadWasmFromDisk(base64FileWasmPath);
+      console.log("✅ [Backend Infra] 纯单一文件 base64-file.wasm 加载成功");
+    } else {
+      console.warn("⚠️ base64-file.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
     }
   } catch (err) {
     console.error("❌ 后端 WASM 基础设施初始化失败:", err);
@@ -2139,6 +2148,163 @@ app.get("/api/backend/base64/sample", async (c) => {
   }
 });
 
+// API: HTMX 提交 Base64 转 Data URL
+app.post("/api/backend/base64-file/to-data-url", async (c) => {
+  try {
+    const body = await c.req.parseBody();
+    const base64 = (body.base64 || "").toString();
+    const fileName = (body.fileName || "").toString();
+    const mimeType = (body.mimeType || "").toString();
+
+    if (!base64.trim()) {
+      return c.html(`
+        <div class="result-box error">
+          <strong>转换失败:</strong> 输入的 Base64 文件内容不能为空
+        </div>
+      `, 400);
+    }
+
+    if (!base64FileEngine) {
+      throw new Error("base64-file WASM 引擎未就绪");
+    }
+
+    const t0 = performance.now();
+    const response = base64FileEngine.dispatch({
+      action: "file/to-data-url",
+      requestId: `srv-${Date.now()}`,
+      params: { base64, fileName: fileName || undefined, mimeType: mimeType || undefined }
+    });
+    const duration = (performance.now() - t0).toFixed(4);
+
+    if (response.code !== 0) {
+      return c.html(`
+        <div class="result-box error">
+          <strong>Data URL 转换失败:</strong> ${response.msg}
+        </div>
+      `, 400);
+    }
+
+    const d = response.data;
+    const isImage = d.mimeType.startsWith("image/");
+    const previewHtml = isImage
+      ? `<div style="margin-top:10px; display:flex; align-items:center; gap:12px;">
+           <span style="font-size:12px; color:var(--text-muted);">图像预览:</span>
+           <img src="${d.dataUrl}" style="max-height:80px; max-width:120px; object-fit:contain; border-radius:6px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); padding:4px;" alt="preview" />
+         </div>`
+      : "";
+
+    return c.html(`
+      <div class="result-box">
+        <div class="result-header">
+          <span class="tag tag-rust">🦀 Rust WASM: Data URL 封装成功</span>
+          <span class="badge-time">⚡ ${duration} ms (Hono 后端原生)</span>
+        </div>
+        <div style="display:flex; flex-wrap:wrap; gap:16px; margin-bottom:8px; font-size:12px; color:var(--text-muted);">
+          <span>文件名: <strong style="color:var(--text-primary);">${d.fileName}</strong></span>
+          <span>MIME 类型: <strong style="color:#38bdf8;">${d.mimeType}</strong></span>
+          <span>解码文件大小: <strong>${d.fileSizeBytes} 字节</strong></span>
+          <span>Base64 字符数: <strong>${d.base64SizeBytes}</strong></span>
+        </div>
+        <textarea readonly style="width:100%; padding:10px; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1); border-radius:6px; font-family:var(--font-mono); font-size:12px; color:#38bdf8; box-sizing:border-box; resize:vertical;" rows="4">${d.dataUrl}</textarea>
+        ${previewHtml}
+      </div>
+    `);
+  } catch (err) {
+    return c.html(`
+      <div class="result-box error">
+        <strong>Data URL 转换失败:</strong> ${err.message}
+      </div>
+    `, 400);
+  }
+});
+
+// API: HTMX 提交 Data URL 解析
+app.post("/api/backend/base64-file/from-data-url", async (c) => {
+  try {
+    const body = await c.req.parseBody();
+    const dataUrl = (body.dataUrl || "").toString();
+
+    if (!dataUrl.trim()) {
+      return c.html(`
+        <div class="result-box error">
+          <strong>解析失败:</strong> 输入的 Data URL 不能为空
+        </div>
+      `, 400);
+    }
+
+    if (!base64FileEngine) {
+      throw new Error("base64-file WASM 引擎未就绪");
+    }
+
+    const t0 = performance.now();
+    const response = base64FileEngine.dispatch({
+      action: "file/from-data-url",
+      requestId: `srv-${Date.now()}`,
+      params: { dataUrl }
+    });
+    const duration = (performance.now() - t0).toFixed(4);
+
+    if (response.code !== 0) {
+      return c.html(`
+        <div class="result-box error">
+          <strong>Data URL 解析失败:</strong> ${response.msg}
+        </div>
+      `, 400);
+    }
+
+    const d = response.data;
+    const isImage = d.mimeType.startsWith("image/");
+    const previewHtml = isImage
+      ? `<div style="margin-top:10px; display:flex; align-items:center; gap:12px;">
+           <span style="font-size:12px; color:var(--text-muted);">图像预览:</span>
+           <img src="${dataUrl}" style="max-height:80px; max-width:120px; object-fit:contain; border-radius:6px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); padding:4px;" alt="preview" />
+         </div>`
+      : "";
+
+    return c.html(`
+      <div class="result-box">
+        <div class="result-header">
+          <span class="tag tag-rust">🦀 Rust WASM: Data URL 解析成功</span>
+          <span class="badge-time">⚡ ${duration} ms (Hono 后端原生)</span>
+        </div>
+        <div style="display:flex; flex-wrap:wrap; gap:16px; margin-bottom:8px; font-size:12px; color:var(--text-muted);">
+          <span>提取 MIME 类型: <strong style="color:#38bdf8;">${d.mimeType}</strong></span>
+          <span>二进制实体大小: <strong>${d.fileSizeBytes} 字节</strong></span>
+          <span>Base64 纯数据长度: <strong>${d.base64.length} 字符</strong></span>
+        </div>
+        <textarea readonly style="width:100%; padding:10px; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1); border-radius:6px; font-family:var(--font-mono); font-size:12px; color:#34d399; box-sizing:border-box; resize:vertical;" rows="4">${d.base64}</textarea>
+        ${previewHtml}
+      </div>
+    `);
+  } catch (err) {
+    return c.html(`
+      <div class="result-box error">
+        <strong>Data URL 解析失败:</strong> ${err.message}
+      </div>
+    `, 400);
+  }
+});
+
+// API: 获取 Base64 File 示例
+app.get("/api/backend/base64-file/sample", async (c) => {
+  try {
+    if (!base64FileEngine) {
+      throw new Error("base64-file WASM 引擎未就绪");
+    }
+    const response = base64FileEngine.dispatch({
+      action: "file/sample",
+      requestId: `srv-${Date.now()}`,
+      params: {}
+    });
+    if (response.code !== 0) {
+      throw new Error(response.msg || "获取示例失败");
+    }
+    return c.json(response.data);
+  } catch (err) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
 // API: 模块统计信息
 app.get("/api/stats", (c) => {
   const rsSize = fs.existsSync(rsWasmPath) ? fs.statSync(rsWasmPath).size : 0;
@@ -2164,6 +2330,7 @@ app.get("/api/stats", (c) => {
   const jsonToXmlSize = fs.existsSync(jsonToXmlWasmPath) ? fs.statSync(jsonToXmlWasmPath).size : 0;
   const jsonToCsvSize = fs.existsSync(jsonToCsvWasmPath) ? fs.statSync(jsonToCsvWasmPath).size : 0;
   const base64StringSize = fs.existsSync(base64StringWasmPath) ? fs.statSync(base64StringWasmPath).size : 0;
+  const base64FileSize = fs.existsSync(base64FileWasmPath) ? fs.statSync(base64FileWasmPath).size : 0;
   return c.json({
     rust: {
       file: "rs.wasm",
@@ -2279,6 +2446,11 @@ app.get("/api/stats", (c) => {
       file: "base64-string.wasm",
       sizeBytes: base64StringSize,
       sizeFormatted: `${(base64StringSize / 1024).toFixed(2)} KB`,
+    },
+    base64File: {
+      file: "base64-file.wasm",
+      sizeBytes: base64FileSize,
+      sizeFormatted: `${(base64FileSize / 1024).toFixed(2)} KB`,
     },
   });
 });

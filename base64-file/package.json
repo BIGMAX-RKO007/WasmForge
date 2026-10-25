@@ -1,0 +1,21 @@
+{
+  "name": "@wasmforge/base64-file",
+  "version": "0.1.0",
+  "description": "Pure standalone WebAssembly module for Base64 File & Data URL conversion",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "scripts": {
+    "build:wasm": "cargo build --target wasm32-unknown-unknown --release",
+    "test": "cargo test"
+  },
+  "keywords": [
+    "wasm",
+    "webassembly",
+    "base64",
+    "file",
+    "data-url",
+    "wasmforge"
+  ],
+  "author": "WasmForge",
+  "license": "MIT"
+}
