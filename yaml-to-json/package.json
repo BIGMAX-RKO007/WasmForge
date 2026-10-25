@@ -1,0 +1,19 @@
+{
+  "name": "@wasmforge/yaml-to-json",
+  "version": "1.0.0",
+  "description": "Pure standalone WebAssembly module for converting YAML to structured JSON with indentation control",
+  "main": "dist/yaml-to-json.wasm",
+  "scripts": {
+    "build": "cargo build --target wasm32-unknown-unknown --release",
+    "test": "cargo test"
+  },
+  "keywords": [
+    "webassembly",
+    "wasm",
+    "yaml",
+    "json",
+    "converter"
+  ],
+  "author": "BIGMAX-RKO007",
+  "license": "MIT"
+}
