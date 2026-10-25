@@ -1,0 +1,25 @@
+{
+  "name": "@wasmforge/regex-memo",
+  "version": "0.1.0",
+  "description": "Pure standalone WebAssembly module for interactive regex cheatsheet and syntax memo engine",
+  "main": "pkg/regex_memo.js",
+  "types": "pkg/regex_memo.d.ts",
+  "files": [
+    "pkg",
+    "src"
+  ],
+  "scripts": {
+    "build": "cargo build --target wasm32-unknown-unknown --release",
+    "test": "cargo test"
+  },
+  "keywords": [
+    "wasm",
+    "webassembly",
+    "regex",
+    "memo",
+    "cheatsheet",
+    "reference",
+    "rust"
+  ],
+  "license": "MIT"
+}

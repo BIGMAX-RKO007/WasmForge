@@ -50,6 +50,7 @@ const jsonMinifyWasmPath = path.resolve(__dirname, "../public/wasm/json-minify.w
 const jsonViewerWasmPath = path.resolve(__dirname, "../public/wasm/json-viewer.wasm");
 const yamlViewerWasmPath = path.resolve(__dirname, "../public/wasm/yaml-viewer.wasm");
 const regexTesterWasmPath = path.resolve(__dirname, "../public/wasm/regex-tester.wasm");
+const regexMemoWasmPath = path.resolve(__dirname, "../public/wasm/regex-memo.wasm");
 
 let rsEngine = null;
 let tsEngine = null;
@@ -91,6 +92,7 @@ let jsonMinifyEngine = null;
 let jsonViewerEngine = null;
 let yamlViewerEngine = null;
 let regexTesterEngine = null;
+let regexMemoEngine = null;
 
 async function initEngines() {
   try {
@@ -372,6 +374,13 @@ async function initEngines() {
       console.log("✅ [Backend Infra] 纯单一文件 regex-tester.wasm 加载成功");
     } else {
       console.warn("⚠️ regex-tester.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    if (fs.existsSync(regexMemoWasmPath)) {
+      regexMemoEngine = await loadWasmFromDisk(regexMemoWasmPath);
+      console.log("✅ [Backend Infra] 纯单一文件 regex-memo.wasm 加载成功");
+    } else {
+      console.warn("⚠️ regex-memo.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
     }
   } catch (err) {
     console.error("❌ 后端 WASM 基础设施初始化失败:", err);
@@ -4472,6 +4481,101 @@ app.get("/api/backend/regex/samples", async (c) => {
   }
 });
 
+// API: HTMX 检索 正则表达式备忘字典 (GET / POST)
+const handleRegexMemo = async (c) => {
+  try {
+    let query = "";
+    let category = "";
+
+    const method = c.req.method;
+    const contentType = c.req.header("content-type") || "";
+
+    if (method === "GET") {
+      query = (c.req.query("query") || "").toString();
+      category = (c.req.query("category") || "").toString();
+    } else if (contentType.includes("application/json")) {
+      const json = await c.req.json().catch(() => ({}));
+      if (json.query !== undefined) query = json.query.toString();
+      if (json.category !== undefined) category = json.category.toString();
+    } else {
+      const body = await c.req.parseBody().catch(() => ({}));
+      if (body.query !== undefined) query = body.query.toString();
+      if (body.category !== undefined) category = body.category.toString();
+    }
+
+    if (!regexMemoEngine) {
+      throw new Error("regex-memo WASM 引擎未就绪");
+    }
+
+    const t0 = performance.now();
+    const action = "memo/search";
+    const params = { query, category: category || undefined };
+
+    const response = regexMemoEngine.dispatch({
+      action,
+      requestId: `srv-${Date.now()}`,
+      params
+    });
+    const duration = (performance.now() - t0).toFixed(4);
+
+    if (contentType.includes("application/json") && !c.req.header("HX-Request")) {
+      return c.json(response);
+    }
+
+    if (response.code !== 0) {
+      return c.html(`
+        <div class="result-box error">
+          <strong>备忘字典查询失败:</strong> ${escapeHtml(response.msg)}
+        </div>
+      `, 400);
+    }
+
+    const d = response.data;
+    const itemRows = d.matches.map((item) => `
+      <div style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.08); border-radius:6px; padding:10px 12px; margin-bottom:8px; display:flex; flex-direction:column; gap:6px;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <code style="background:rgba(56,189,248,0.15); color:#38bdf8; border:1px solid rgba(56,189,248,0.3); padding:2px 8px; border-radius:4px; font-weight:700; font-size:13px;">${escapeHtml(item.token)}</code>
+            <span style="font-size:13px; font-weight:600; color:#f1f5f9;">${escapeHtml(item.name)}</span>
+          </div>
+          <span style="font-size:10px; color:#a78bfa; background:rgba(167,139,250,0.1); border:1px solid rgba(167,139,250,0.25); padding:1px 6px; border-radius:3px;">${escapeHtml(item.categoryName)}</span>
+        </div>
+        <div style="font-size:12px; color:var(--text-muted); line-height:1.4;">${escapeHtml(item.description)}</div>
+        <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,0.2); padding:4px 8px; border-radius:4px; font-size:11px; font-family:var(--font-mono);">
+          <span style="color:#34d399;">💡 示例: ${escapeHtml(item.example)}</span>
+          <button type="button" class="btn-copy" style="padding:1px 6px; font-size:10px; background:#1e293b; color:#fff; border:1px solid rgba(255,255,255,0.2); border-radius:3px; cursor:pointer;" onclick="navigator.clipboard.writeText('${escapeHtml(item.token)}'); this.innerText='已复制!'; setTimeout(()=>this.innerText='复制', 1500)">复制表达式</button>
+        </div>
+      </div>
+    `).join("");
+
+    return c.html(`
+      <div class="result-box">
+        <div class="result-header">
+          <span class="tag tag-rust">🦀 Rust WASM: 正则速查字典检索完成</span>
+          <span class="badge-time">⚡ ${duration} ms (Hono 后端原生)</span>
+        </div>
+
+        <div style="font-size:12px; color:var(--text-muted); margin-bottom:10px;">
+          检索词: <strong style="color:#38bdf8;">"${escapeHtml(query || '全部')}"</strong> | 匹配语法条目: <strong style="color:#34d399;">${d.matchCount} 项</strong>
+        </div>
+
+        <div style="max-height:280px; overflow-y:auto;">
+          ${itemRows || '<div style="padding:10px; color:var(--text-muted); font-size:12px;">未匹配到相关正则语法条目</div>'}
+        </div>
+      </div>
+    `);
+  } catch (err) {
+    return c.html(`
+      <div class="result-box error">
+        <strong>处理失败:</strong> ${err.message}
+      </div>
+    `, 400);
+  }
+};
+
+app.get("/api/backend/regex/memo", handleRegexMemo);
+app.post("/api/backend/regex/memo", handleRegexMemo);
+
 // API: 获取 Markdown 示例
 app.get("/api/backend/markdown/sample", async (c) => {
   try {
@@ -4634,6 +4738,7 @@ app.get("/api/stats", (c) => {
   const jsonViewerSize = fs.existsSync(jsonViewerWasmPath) ? fs.statSync(jsonViewerWasmPath).size : 0;
   const yamlViewerSize = fs.existsSync(yamlViewerWasmPath) ? fs.statSync(yamlViewerWasmPath).size : 0;
   const regexTesterSize = fs.existsSync(regexTesterWasmPath) ? fs.statSync(regexTesterWasmPath).size : 0;
+  const regexMemoSize = fs.existsSync(regexMemoWasmPath) ? fs.statSync(regexMemoWasmPath).size : 0;
   return c.json({
     rust: {
       file: "rs.wasm",
@@ -4834,6 +4939,11 @@ app.get("/api/stats", (c) => {
       file: "regex-tester.wasm",
       sizeBytes: regexTesterSize,
       sizeFormatted: `${(regexTesterSize / 1024).toFixed(2)} KB`,
+    },
+    regexMemo: {
+      file: "regex-memo.wasm",
+      sizeBytes: regexMemoSize,
+      sizeFormatted: `${(regexMemoSize / 1024).toFixed(2)} KB`,
     },
   });
 });
