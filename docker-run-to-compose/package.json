@@ -1,0 +1,13 @@
+{
+  "name": "@wasmforge/docker-run-to-compose",
+  "version": "0.1.0",
+  "description": "Pure Standalone WebAssembly docker run command to docker-compose.yml converter",
+  "type": "module",
+  "main": "docker-run-to-compose.wasm",
+  "scripts": {
+    "build": "cargo build --target wasm32-unknown-unknown --release",
+    "test": "cargo test"
+  },
+  "keywords": ["wasm", "docker", "compose", "devops", "c-abi"],
+  "license": "MIT"
+}

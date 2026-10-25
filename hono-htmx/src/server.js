@@ -53,6 +53,7 @@ const regexTesterWasmPath = path.resolve(__dirname, "../public/wasm/regex-tester
 const regexMemoWasmPath = path.resolve(__dirname, "../public/wasm/regex-memo.wasm");
 const crontabGeneratorWasmPath = path.resolve(__dirname, "../public/wasm/crontab-generator.wasm");
 const chmodCalculatorWasmPath = path.resolve(__dirname, "../public/wasm/chmod-calculator.wasm");
+const dockerRunToComposeWasmPath = path.resolve(__dirname, "../public/wasm/docker-run-to-compose.wasm");
 
 let rsEngine = null;
 let tsEngine = null;
@@ -97,6 +98,7 @@ let regexTesterEngine = null;
 let regexMemoEngine = null;
 let crontabGeneratorEngine = null;
 let chmodCalculatorEngine = null;
+let dockerRunToComposeEngine = null;
 
 async function initEngines() {
   try {
@@ -399,6 +401,13 @@ async function initEngines() {
       console.log("✅ [Backend Infra] 纯单一文件 chmod-calculator.wasm 加载成功");
     } else {
       console.warn("⚠️ chmod-calculator.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    if (fs.existsSync(dockerRunToComposeWasmPath)) {
+      dockerRunToComposeEngine = await loadWasmFromDisk(dockerRunToComposeWasmPath);
+      console.log("✅ [Backend Infra] 纯单一文件 docker-run-to-compose.wasm 加载成功");
+    } else {
+      console.warn("⚠️ docker-run-to-compose.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
     }
   } catch (err) {
     console.error("❌ 后端 WASM 基础设施初始化失败:", err);
@@ -4891,6 +4900,121 @@ app.get("/api/backend/chmod/presets", async (c) => {
   }
 });
 
+// API: HTMX / JSON 提交 docker run 转 docker-compose.yml
+app.post("/api/backend/docker/to-compose", async (c) => {
+  try {
+    let command = "";
+    let composeVersion = "3.8";
+    let serviceName = "";
+
+    const contentType = c.req.header("content-type") || "";
+    if (contentType.includes("application/json")) {
+      const json = await c.req.json().catch(() => ({}));
+      command = (json.command || "").toString();
+      if (json.composeVersion) composeVersion = json.composeVersion.toString();
+      if (json.serviceName) serviceName = json.serviceName.toString();
+    } else {
+      const body = await c.req.parseBody().catch(() => ({}));
+      command = (body.command || "").toString();
+      if (body.composeVersion) composeVersion = body.composeVersion.toString();
+      if (body.serviceName) serviceName = body.serviceName.toString();
+    }
+
+    if (!command.trim()) {
+      if (contentType.includes("application/json") && !c.req.header("HX-Request")) {
+        return c.json({ code: 400, msg: "command 命令参数不能为空", data: null }, 400);
+      }
+      return c.html(`
+        <div class="result-box error">
+          <strong>转换失败:</strong> docker run 命令输入不能为空
+        </div>
+      `, 400);
+    }
+
+    if (!dockerRunToComposeEngine) {
+      throw new Error("docker-run-to-compose WASM 引擎未就绪");
+    }
+
+    const t0 = performance.now();
+    const response = dockerRunToComposeEngine.dispatch({
+      action: "docker/to-compose",
+      requestId: `srv-${Date.now()}`,
+      params: { command, composeVersion, serviceName: serviceName || undefined }
+    });
+    const duration = (performance.now() - t0).toFixed(4);
+
+    if (contentType.includes("application/json") && !c.req.header("HX-Request")) {
+      return c.json(response);
+    }
+
+    if (response.code !== 0) {
+      return c.html(`
+        <div class="result-box error">
+          <strong>解析失败:</strong> ${escapeHtml(response.msg)}
+        </div>
+      `, 400);
+    }
+
+    const d = response.data;
+    const det = d.details;
+
+    const tags = [
+      `服务: <strong style="color:#38bdf8;">${escapeHtml(det.service_name)}</strong>`,
+      `镜像: <strong style="color:#34d399;">${escapeHtml(det.image)}</strong>`,
+      det.container_name ? `容器名: ${escapeHtml(det.container_name)}` : null,
+      det.ports.length > 0 ? `端口: ${det.ports.length} 个` : null,
+      det.volumes.length > 0 ? `卷: ${det.volumes.length} 个` : null,
+      det.environment.length > 0 ? `环境变量: ${det.environment.length} 个` : null,
+      det.restart ? `重启: ${escapeHtml(det.restart)}` : null,
+      det.privileged ? `<span style="color:#f59e0b;">特权模式</span>` : null,
+    ].filter(Boolean).map(t => `<span style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); padding:2px 8px; border-radius:4px; font-size:11px;">${t}</span>`).join(" ");
+
+    return c.html(`
+      <div class="result-box">
+        <div class="result-header">
+          <span class="tag tag-rust">🦀 Rust WASM: Docker Compose YAML 生成完成</span>
+          <span class="badge-time">⚡ ${duration} ms (Hono 后端原生)</span>
+        </div>
+
+        <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px;">
+          ${tags}
+        </div>
+
+        <div style="position:relative;">
+          <pre style="background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); border-radius:6px; padding:12px; font-family:var(--font-mono); font-size:12px; color:#e2e8f0; overflow-x:auto; margin:0; line-height:1.5;">${escapeHtml(d.compose_yaml)}</pre>
+          <button type="button" class="btn-copy" style="position:absolute; top:8px; right:8px; padding:3px 8px; font-size:11px; background:#1e293b; color:#fff; border:1px solid rgba(255,255,255,0.2); border-radius:4px; cursor:pointer;" onclick="navigator.clipboard.writeText(this.nextElementSibling ? this.nextElementSibling.innerText : this.previousElementSibling.innerText); this.innerText='已复制!'; setTimeout(()=>this.innerText='复制 YAML', 1500)">复制 YAML</button>
+        </div>
+      </div>
+    `);
+  } catch (err) {
+    return c.html(`
+      <div class="result-box error">
+        <strong>处理失败:</strong> ${err.message}
+      </div>
+    `, 400);
+  }
+});
+
+// API: 获取 Docker Run 常用示例列表
+app.get("/api/backend/docker/samples", async (c) => {
+  try {
+    if (!dockerRunToComposeEngine) {
+      throw new Error("docker-run-to-compose WASM 引擎未就绪");
+    }
+    const response = dockerRunToComposeEngine.dispatch({
+      action: "docker/samples",
+      requestId: `srv-${Date.now()}`,
+      params: {}
+    });
+    if (response.code !== 0) {
+      throw new Error(response.msg || "获取示例失败");
+    }
+    return c.json(response.data);
+  } catch (err) {
+    return c.json({ samples: [] }, 500);
+  }
+});
+
 // API: 获取 Markdown 示例
 app.get("/api/backend/markdown/sample", async (c) => {
   try {
@@ -5056,6 +5180,7 @@ app.get("/api/stats", (c) => {
   const regexMemoSize = fs.existsSync(regexMemoWasmPath) ? fs.statSync(regexMemoWasmPath).size : 0;
   const crontabGeneratorSize = fs.existsSync(crontabGeneratorWasmPath) ? fs.statSync(crontabGeneratorWasmPath).size : 0;
   const chmodCalculatorSize = fs.existsSync(chmodCalculatorWasmPath) ? fs.statSync(chmodCalculatorWasmPath).size : 0;
+  const dockerRunToComposeSize = fs.existsSync(dockerRunToComposeWasmPath) ? fs.statSync(dockerRunToComposeWasmPath).size : 0;
   return c.json({
     rust: {
       file: "rs.wasm",
@@ -5271,6 +5396,11 @@ app.get("/api/stats", (c) => {
       file: "chmod-calculator.wasm",
       sizeBytes: chmodCalculatorSize,
       sizeFormatted: `${(chmodCalculatorSize / 1024).toFixed(2)} KB`,
+    },
+    dockerRunToCompose: {
+      file: "docker-run-to-compose.wasm",
+      sizeBytes: dockerRunToComposeSize,
+      sizeFormatted: `${(dockerRunToComposeSize / 1024).toFixed(2)} KB`,
     },
   });
 });

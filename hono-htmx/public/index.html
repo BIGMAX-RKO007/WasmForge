@@ -3302,6 +3302,74 @@ spec:
       </div>
     </div>
 
+    <!-- ================= 卡片 3.10: Docker Run 命令转 Docker Compose YAML (Docker to Compose) ================= -->
+    <div class="card" style="margin-bottom: 24px;">
+      <div class="card-header">
+        <div>
+          <h3>卡片 3.10: Docker Run 命令转 Docker Compose YAML (Docker to Compose)</h3>
+          <p style="margin:0; font-size:12px; color:var(--text-muted);">
+            纯 WASM 离线 CLI 命令解析引擎，支持容器名、端口映射(-p)、环境变量(-e)、数据卷(-v)、网络(--net)、重启策略、特权模式与 CMD 参数，一键生成规范优美的 docker-compose.yml。
+          </p>
+        </div>
+        <span class="tag tag-rust">Tool #42: docker-run-to-compose</span>
+      </div>
+
+      <div style="margin-top:16px;">
+        <form hx-post="/api/backend/docker/to-compose" hx-target="#backend-docker-result" hx-swap="innerHTML">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:8px;">
+            <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
+              <label style="font-size:12px; font-weight:600; color:var(--text-muted); margin-right:4px;">经典模板:</label>
+              <button type="button" onclick="loadDockerSample(0)" style="padding:2px 8px; font-size:11px; background:#1e293b; color:#38bdf8; border:1px solid rgba(56,189,248,0.3); border-radius:4px; cursor:pointer;">Redis 缓存</button>
+              <button type="button" onclick="loadDockerSample(1)" style="padding:2px 8px; font-size:11px; background:#1e293b; color:#38bdf8; border:1px solid rgba(56,189,248,0.3); border-radius:4px; cursor:pointer;">Nginx 反代</button>
+              <button type="button" onclick="loadDockerSample(2)" style="padding:2px 8px; font-size:11px; background:#1e293b; color:#38bdf8; border:1px solid rgba(56,189,248,0.3); border-radius:4px; cursor:pointer;">PostgreSQL 数据库</button>
+              <button type="button" onclick="loadDockerSample(3)" style="padding:2px 8px; font-size:11px; background:#1e293b; color:#38bdf8; border:1px solid rgba(56,189,248,0.3); border-radius:4px; cursor:pointer;">Node.js 开发环境</button>
+              <button type="button" onclick="loadDockerSample(4)" style="padding:2px 8px; font-size:11px; background:#1e293b; color:#38bdf8; border:1px solid rgba(56,189,248,0.3); border-radius:4px; cursor:pointer;">特权容器 (DinD)</button>
+            </div>
+            <div style="display:flex; align-items:center; gap:10px;">
+              <div style="display:flex; align-items:center; gap:4px; font-size:12px; color:var(--text-muted);">
+                <span>规范版本:</span>
+                <select id="docker-compose-version" name="composeVersion" style="background:#1e293b; color:#fff; border:1px solid rgba(255,255,255,0.2); padding:2px 6px; border-radius:4px; font-size:12px;">
+                  <option value="3.8" selected>3.8 (主流推荐)</option>
+                  <option value="3">3</option>
+                  <option value="2.4">2.4</option>
+                </select>
+              </div>
+              <input type="text" id="docker-service-name" name="serviceName" placeholder="自定义服务名 (选填)" style="width:130px; padding:3px 8px; background:#1e293b; border:1px solid rgba(255,255,255,0.2); color:#fff; border-radius:4px; font-size:12px;" />
+            </div>
+          </div>
+
+          <div style="margin-bottom:10px;">
+            <textarea id="docker-command" name="command" rows="4" placeholder="粘贴或输入 docker run 命令，支持多行反斜杠续行..." style="width:100%; padding:10px 12px; background:#1e293b; border:1px solid rgba(255,255,255,0.1); color:#fff; border-radius:6px; font-family:var(--font-mono); font-size:13px; line-height:1.4; box-sizing:border-box; resize:vertical;">docker run -d --name redis-server \
+  -p 6379:6379 \
+  -v /data/redis:/data \
+  -e REDIS_PASSWORD=secret \
+  --restart always \
+  redis:7-alpine redis-server --appendonly yes</textarea>
+          </div>
+
+          <div style="display:flex; justify-content:flex-end; gap:10px;">
+            <button type="submit" style="padding:8px 16px; background:linear-gradient(135deg, #0284c7, #0369a1); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:12px;">
+              🖥️ 后端生成 YAML
+            </button>
+            <button type="button" onclick="runFrontendDockerToCompose()" style="padding:8px 16px; background:linear-gradient(135deg, #0ea5e9, #0284c7); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:12px;">
+              🌐 前端生成 YAML
+            </button>
+          </div>
+        </form>
+
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:16px; margin-top:16px;">
+          <div>
+            <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px;">后端投影输出:</div>
+            <div id="backend-docker-result" class="result-container"><div class="result-box" style="opacity:0.5; font-size:12px;">等待生成...</div></div>
+          </div>
+          <div>
+            <div style="font-size:11px; color:var(--text-muted); margin-top:0px; margin-bottom:4px;">前端投影输出:</div>
+            <div id="frontend-docker-result" class="result-container"><div class="result-box" style="opacity:0.5; font-size:12px;">等待生成...</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- ================= 区域 3: 4 象限综合矩阵基准测试 ================= -->
     <div class="matrix-card">
       <h2>📊 4 维度跨场景一致性与性能矩阵</h2>
@@ -3418,6 +3486,8 @@ spec:
       crontabGeneratorReady: false,
       chmodCalculator: null,
       chmodCalculatorReady: false,
+      dockerRunToCompose: null,
+      dockerRunToComposeReady: false,
       activeFrontendEngine: "rust",
       activeBackendEngine: "rust"
     };
@@ -3467,6 +3537,7 @@ spec:
         const regexMemoEngine = await loadWasmFromUrl("./wasm/regex-memo.wasm");
         const crontabGeneratorEngine = await loadWasmFromUrl("./wasm/crontab-generator.wasm");
         const chmodCalculatorEngine = await loadWasmFromUrl("./wasm/chmod-calculator.wasm");
+        const dockerRunToComposeEngine = await loadWasmFromUrl("./wasm/docker-run-to-compose.wasm");
 
         window.wasmContext.rust = rsEngine;
         window.wasmContext.ts = tsEngine;
@@ -3511,6 +3582,7 @@ spec:
         window.wasmContext.regexMemo = regexMemoEngine;
         window.wasmContext.crontabGenerator = crontabGeneratorEngine;
         window.wasmContext.chmodCalculator = chmodCalculatorEngine;
+        window.wasmContext.dockerRunToCompose = dockerRunToComposeEngine;
         window.wasmContext.rustReady = true;
         window.wasmContext.tsReady = true;
         window.wasmContext.tokenReady = true;
@@ -3554,9 +3626,10 @@ spec:
         window.wasmContext.regexMemoReady = true;
         window.wasmContext.crontabGeneratorReady = true;
         window.wasmContext.chmodCalculatorReady = true;
+        window.wasmContext.dockerRunToComposeReady = true;
 
         const statusEl = document.getElementById("frontend-status");
-        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载 43 大模块: rs, ts, token-gen, hash-text, bcrypt, uuid-gen, ulid-gen, encryption, bip39, hmac, rsa, password-strength, pdf-sig, yaml-to-json, yaml-to-toml, json-to-yaml, json-to-toml, toml-to-json, toml-to-yaml, xml-to-json, json-to-xml, json-to-csv, base64-string, base64-file, color-converter, case-converter, date-time-converter, integer-base-converter, roman-numeral-converter, text-to-binary, text-to-unicode, markdown-to-html, list-converter, text-to-nato, sql-prettify, xml-formatter, json-minify, json-viewer, yaml-viewer, regex-tester, regex-memo, crontab-generator & chmod-calculator)`;
+        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载 44 大模块: rs, ts, token-gen, hash-text, bcrypt, uuid-gen, ulid-gen, encryption, bip39, hmac, rsa, password-strength, pdf-sig, yaml-to-json, yaml-to-toml, json-to-yaml, json-to-toml, toml-to-json, toml-to-yaml, xml-to-json, json-to-xml, json-to-csv, base64-string, base64-file, color-converter, case-converter, date-time-converter, integer-base-converter, roman-numeral-converter, text-to-binary, text-to-unicode, markdown-to-html, list-converter, text-to-nato, sql-prettify, xml-formatter, json-minify, json-viewer, yaml-viewer, regex-tester, regex-memo, crontab-generator, chmod-calculator & docker-run-to-compose)`;
 
         // 初始自动运行一次前端计算
         window.runFrontendCalc();
@@ -3585,6 +3658,7 @@ spec:
         if (window.runFrontendRegexMemo) window.runFrontendRegexMemo();
         if (window.runFrontendCronEvaluate) window.runFrontendCronEvaluate();
         if (window.runFrontendChmodCalculate) window.runFrontendChmodCalculate();
+        if (window.runFrontendDockerToCompose) window.runFrontendDockerToCompose();
       } catch (err) {
         console.error("加载浏览器端 WASM 失败:", err);
         const statusEl = document.getElementById("frontend-status");
@@ -7597,6 +7671,101 @@ spec:
               ${notesHtml}
             </div>
           ` : ''}
+        </div>
+      `;
+    };
+
+    // Docker 经典预设列表
+    const dockerSamples = [
+      "docker run -d --name redis-server \\\n  -p 6379:6379 \\\n  -v /data/redis:/data \\\n  -e REDIS_PASSWORD=secret \\\n  --restart always \\\n  redis:7-alpine redis-server --appendonly yes",
+      "docker run -d --name web-proxy \\\n  -p 80:80 -p 443:443 \\\n  -v /etc/nginx/nginx.conf:/etc/nginx/nginx.conf:ro \\\n  -v /var/www/html:/usr/share/nginx/html:ro \\\n  --restart unless-stopped \\\n  nginx:latest",
+      "docker run -d --name postgres-db \\\n  -p 5432:5432 \\\n  -e POSTGRES_DB=appdb \\\n  -e POSTGRES_USER=postgres \\\n  -e POSTGRES_PASSWORD=mysecretpassword \\\n  -v pgdata:/var/lib/postgresql/data \\\n  --restart always \\\n  postgres:16",
+      "docker run -it --rm --name node-app \\\n  -p 3000:3000 \\\n  -v $(pwd):/app \\\n  -w /app \\\n  -e NODE_ENV=development \\\n  node:20-alpine npm run dev",
+      "docker run -d --name runner \\\n  --privileged \\\n  --cpus 2.0 \\\n  --memory 2g \\\n  -v /var/run/docker.sock:/var/run/docker.sock \\\n  docker:dind"
+    ];
+
+    window.loadDockerSample = function(idx) {
+      if (dockerSamples[idx]) {
+        document.getElementById("docker-command").value = dockerSamples[idx];
+        window.runFrontendDockerToCompose();
+      }
+    };
+
+    // 前端执行 Docker 转 Compose
+    window.runFrontendDockerToCompose = function() {
+      const engine = window.wasmContext.dockerRunToCompose;
+      if (!engine) {
+        document.getElementById("frontend-docker-result").innerHTML = `
+          <div class="result-box error">docker-run-to-compose.wasm 尚未加载完毕</div>
+        `;
+        return;
+      }
+
+      const command = (document.getElementById("docker-command").value || "").trim();
+      const composeVersion = document.getElementById("docker-compose-version").value || "3.8";
+      const serviceName = (document.getElementById("docker-service-name").value || "").trim() || undefined;
+
+      if (!command) {
+        document.getElementById("frontend-docker-result").innerHTML = `
+          <div class="result-box error">docker run 命令输入不能为空</div>
+        `;
+        return;
+      }
+
+      const t0 = performance.now();
+      const response = engine.dispatch({
+        action: "docker/to-compose",
+        requestId: `req-front-${Date.now()}`,
+        params: { command, composeVersion, serviceName }
+      });
+      const duration = (performance.now() - t0).toFixed(4);
+
+      if (response.code !== 0) {
+        document.getElementById("frontend-docker-result").innerHTML = `
+          <div class="result-box error"><strong>解析失败:</strong> ${response.msg}</div>
+        `;
+        return;
+      }
+
+      function escapeHtmlFront(str) {
+        return (str || "").replace(/[&<>"']/g, (m) => ({
+          "&": "&amp;",
+          "<": "&lt;",
+          ">": "&gt;",
+          '"': "&quot;",
+          "'": "&#39;"
+        }[m]));
+      }
+
+      const d = response.data;
+      const det = d.details;
+
+      const tags = [
+        `服务: <strong style="color:#38bdf8;">${escapeHtmlFront(det.service_name)}</strong>`,
+        `镜像: <strong style="color:#34d399;">${escapeHtmlFront(det.image)}</strong>`,
+        det.container_name ? `容器名: ${escapeHtmlFront(det.container_name)}` : null,
+        det.ports.length > 0 ? `端口: ${det.ports.length} 个` : null,
+        det.volumes.length > 0 ? `卷: ${det.volumes.length} 个` : null,
+        det.environment.length > 0 ? `环境变量: ${det.environment.length} 个` : null,
+        det.restart ? `重启: ${escapeHtmlFront(det.restart)}` : null,
+        det.privileged ? `<span style="color:#f59e0b;">特权模式</span>` : null,
+      ].filter(Boolean).map(t => `<span style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); padding:2px 8px; border-radius:4px; font-size:11px;">${t}</span>`).join(" ");
+
+      document.getElementById("frontend-docker-result").innerHTML = `
+        <div class="result-box">
+          <div class="result-header">
+            <span class="tag tag-rust">🦀 Browser WASM: Docker Compose YAML 生成完成</span>
+            <span class="badge-time">⚡ ${duration} ms (纯前端内存)</span>
+          </div>
+
+          <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px;">
+            ${tags}
+          </div>
+
+          <div style="position:relative;">
+            <pre style="background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); border-radius:6px; padding:12px; font-family:var(--font-mono); font-size:12px; color:#e2e8f0; overflow-x:auto; margin:0; line-height:1.5;">${escapeHtmlFront(d.compose_yaml)}</pre>
+            <button type="button" class="btn-copy" style="position:absolute; top:8px; right:8px; padding:3px 8px; font-size:11px; background:#1e293b; color:#fff; border:1px solid rgba(255,255,255,0.2); border-radius:4px; cursor:pointer;" onclick="navigator.clipboard.writeText(this.previousElementSibling ? this.previousElementSibling.innerText : ''); this.innerText='已复制!'; setTimeout(()=>this.innerText='复制 YAML', 1500)">复制 YAML</button>
+          </div>
         </div>
       `;
     };
