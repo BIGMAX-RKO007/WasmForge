@@ -1,0 +1,26 @@
+{
+  "name": "@wasmforge/yaml-viewer",
+  "version": "0.1.0",
+  "description": "Pure standalone WebAssembly module for interactive YAML tree inspection and query engine",
+  "main": "pkg/yaml_viewer.js",
+  "types": "pkg/yaml_viewer.d.ts",
+  "files": [
+    "pkg",
+    "src"
+  ],
+  "scripts": {
+    "build": "cargo build --target wasm32-unknown-unknown --release",
+    "test": "cargo test"
+  },
+  "keywords": [
+    "wasm",
+    "webassembly",
+    "yaml",
+    "viewer",
+    "tree",
+    "inspector",
+    "query",
+    "rust"
+  ],
+  "license": "MIT"
+}

@@ -48,6 +48,7 @@ const sqlPrettifyWasmPath = path.resolve(__dirname, "../public/wasm/sql-prettify
 const xmlFormatterWasmPath = path.resolve(__dirname, "../public/wasm/xml-formatter.wasm");
 const jsonMinifyWasmPath = path.resolve(__dirname, "../public/wasm/json-minify.wasm");
 const jsonViewerWasmPath = path.resolve(__dirname, "../public/wasm/json-viewer.wasm");
+const yamlViewerWasmPath = path.resolve(__dirname, "../public/wasm/yaml-viewer.wasm");
 
 let rsEngine = null;
 let tsEngine = null;
@@ -87,6 +88,7 @@ let sqlPrettifyEngine = null;
 let xmlFormatterEngine = null;
 let jsonMinifyEngine = null;
 let jsonViewerEngine = null;
+let yamlViewerEngine = null;
 
 async function initEngines() {
   try {
@@ -354,6 +356,13 @@ async function initEngines() {
       console.log("✅ [Backend Infra] 纯单一文件 json-viewer.wasm 加载成功");
     } else {
       console.warn("⚠️ json-viewer.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    if (fs.existsSync(yamlViewerWasmPath)) {
+      yamlViewerEngine = await loadWasmFromDisk(yamlViewerWasmPath);
+      console.log("✅ [Backend Infra] 纯单一文件 yaml-viewer.wasm 加载成功");
+    } else {
+      console.warn("⚠️ yaml-viewer.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
     }
   } catch (err) {
     console.error("❌ 后端 WASM 基础设施初始化失败:", err);
@@ -4131,6 +4140,163 @@ app.get("/api/backend/json/viewer-sample", async (c) => {
   }
 });
 
+// API: HTMX 提交 YAML 树状节点探针与检索
+app.post("/api/backend/yaml/view", async (c) => {
+  try {
+    let mode = "inspect";
+    let yamlStr = "";
+    let query = "";
+
+    const contentType = c.req.header("content-type") || "";
+    if (contentType.includes("application/json")) {
+      const json = await c.req.json().catch(() => ({}));
+      if (json.mode) mode = json.mode;
+      yamlStr = (json.yaml || json.text || "").toString();
+      if (json.query !== undefined) query = json.query.toString();
+    } else {
+      const body = await c.req.parseBody().catch(() => ({}));
+      if (body.mode) mode = body.mode;
+      yamlStr = (body.yaml || body.text || "").toString();
+      if (body.query !== undefined) query = body.query.toString();
+    }
+
+    if (!yamlStr) {
+      if (contentType.includes("application/json") && !c.req.header("HX-Request")) {
+        return c.json({ code: 400, msg: "YAML 文本不能为空", data: null }, 400);
+      }
+      return c.html(`
+        <div class="result-box error">
+          <strong>解析失败:</strong> YAML 文本不能为空
+        </div>
+      `, 400);
+    }
+
+    if (!yamlViewerEngine) {
+      throw new Error("yaml-viewer WASM 引擎未就绪");
+    }
+
+    const t0 = performance.now();
+    const action = mode === "query" ? "yaml/query" : "yaml/inspect";
+    const params = mode === "query" ? { yaml: yamlStr, query } : { yaml: yamlStr };
+
+    const response = yamlViewerEngine.dispatch({
+      action,
+      requestId: `srv-${Date.now()}`,
+      params
+    });
+    const duration = (performance.now() - t0).toFixed(4);
+
+    if (contentType.includes("application/json") && !c.req.header("HX-Request")) {
+      return c.json(response);
+    }
+
+    if (response.code !== 0) {
+      return c.html(`
+        <div class="result-box error">
+          <strong>YAML 树解析失败:</strong> ${response.msg}
+        </div>
+      `, 400);
+    }
+
+    const d = response.data;
+    if (mode === "query") {
+      const matchRows = d.matches.map((n) => `
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:4px 8px; border-bottom:1px solid rgba(255,255,255,0.05); font-family:var(--font-mono); font-size:12px;">
+          <span style="color:#38bdf8;">${escapeHtml(n.path)}</span>
+          <span style="color:var(--text-muted); font-size:11px;">[${n.nodeType}]</span>
+          <span style="color:#34d399;">${escapeHtml(n.preview)}</span>
+        </div>
+      `).join("");
+
+      return c.html(`
+        <div class="result-box">
+          <div class="result-header">
+            <span class="tag tag-rust">🦀 Rust WASM: YAML 节点检索成功</span>
+            <span class="badge-time">⚡ ${duration} ms (Hono 后端原生)</span>
+          </div>
+
+          <div style="font-size:12px; color:var(--text-muted); margin-bottom:8px;">
+            检索词: <strong style="color:#38bdf8;">"${escapeHtml(d.query)}"</strong> | 匹配节点数: <strong style="color:#34d399;">${d.matchCount}</strong>
+          </div>
+
+          <div style="background:rgba(255,255,255,0.02); border-radius:6px; border:1px solid rgba(255,255,255,0.08); max-height:200px; overflow-y:auto;">
+            ${matchRows || '<div style="padding:10px; color:var(--text-muted); font-size:12px;">无匹配节点</div>'}
+          </div>
+        </div>
+      `);
+    }
+
+    const s = d.stats;
+    const nodeRows = d.nodes.slice(0, 60).map((n) => {
+      const indentPx = n.depth * 14;
+      const typeBadgeColor = {
+        mapping: "#a78bfa",
+        sequence: "#f472b6",
+        string: "#34d399",
+        number: "#38bdf8",
+        boolean: "#f59e0b",
+        null: "#94a3b8"
+      }[n.nodeType] || "#94a3b8";
+
+      return `
+        <div style="display:flex; align-items:center; gap:8px; padding:3px 8px; margin-left:${indentPx}px; font-family:var(--font-mono); font-size:12px; border-left:1px dashed rgba(255,255,255,0.1);">
+          <span style="color:#e2e8f0; font-weight:600;">${escapeHtml(n.key)}:</span>
+          <span style="font-size:10px; padding:1px 5px; border-radius:3px; background:${typeBadgeColor}20; color:${typeBadgeColor}; border:1px solid ${typeBadgeColor}40;">${n.nodeType}</span>
+          <span style="color:#94a3b8;">${escapeHtml(n.preview)}</span>
+        </div>
+      `;
+    }).join("");
+
+    return c.html(`
+      <div class="result-box">
+        <div class="result-header">
+          <span class="tag tag-rust">🦀 Rust WASM: YAML 树状层级探针解析成功</span>
+          <span class="badge-time">⚡ ${duration} ms (Hono 后端原生)</span>
+        </div>
+
+        <div style="display:flex; flex-wrap:wrap; gap:16px; margin-bottom:12px; font-size:12px; color:var(--text-muted);">
+          <span>总节点数: <strong style="color:#38bdf8;">${s.totalNodes}</strong></span>
+          <span>叶子值: <strong style="color:#34d399;">${s.leafNodes}</strong></span>
+          <span>文档数: <strong style="color:#f59e0b;">${d.documentCount}</strong></span>
+          <span>映射: <strong>${s.mappingCount}</strong> | 序列: <strong>${s.sequenceCount}</strong></span>
+          <span>最大层深: <strong style="color:#a78bfa;">${s.maxDepth} 层</strong></span>
+        </div>
+
+        <div style="background:rgba(255,255,255,0.02); border-radius:6px; border:1px solid rgba(255,255,255,0.08); padding:8px; max-height:220px; overflow-y:auto;">
+          ${nodeRows}
+          ${d.nodes.length > 60 ? `<div style="padding:4px 8px; font-size:11px; color:var(--text-muted);">... 其余 ${d.nodes.length - 60} 个节点已折叠</div>` : ""}
+        </div>
+      </div>
+    `);
+  } catch (err) {
+    return c.html(`
+      <div class="result-box error">
+        <strong>处理失败:</strong> ${err.message}
+      </div>
+    `, 400);
+  }
+});
+
+// API: 获取 YAML Viewer 示例
+app.get("/api/backend/yaml/viewer-sample", async (c) => {
+  try {
+    if (!yamlViewerEngine) {
+      throw new Error("yaml-viewer WASM 引擎未就绪");
+    }
+    const response = yamlViewerEngine.dispatch({
+      action: "yaml/sample",
+      requestId: `srv-${Date.now()}`,
+      params: {}
+    });
+    if (response.code !== 0) {
+      throw new Error(response.msg || "获取示例失败");
+    }
+    return c.json(response.data);
+  } catch (err) {
+    return c.json({ sampleYaml: "app: WasmForge\nversion: 1.0" }, 500);
+  }
+});
+
 // API: 获取 Markdown 示例
 app.get("/api/backend/markdown/sample", async (c) => {
   try {
@@ -4291,6 +4457,7 @@ app.get("/api/stats", (c) => {
   const xmlFormatterSize = fs.existsSync(xmlFormatterWasmPath) ? fs.statSync(xmlFormatterWasmPath).size : 0;
   const jsonMinifySize = fs.existsSync(jsonMinifyWasmPath) ? fs.statSync(jsonMinifyWasmPath).size : 0;
   const jsonViewerSize = fs.existsSync(jsonViewerWasmPath) ? fs.statSync(jsonViewerWasmPath).size : 0;
+  const yamlViewerSize = fs.existsSync(yamlViewerWasmPath) ? fs.statSync(yamlViewerWasmPath).size : 0;
   return c.json({
     rust: {
       file: "rs.wasm",
@@ -4481,6 +4648,11 @@ app.get("/api/stats", (c) => {
       file: "json-viewer.wasm",
       sizeBytes: jsonViewerSize,
       sizeFormatted: `${(jsonViewerSize / 1024).toFixed(2)} KB`,
+    },
+    yamlViewer: {
+      file: "yaml-viewer.wasm",
+      sizeBytes: yamlViewerSize,
+      sizeFormatted: `${(yamlViewerSize / 1024).toFixed(2)} KB`,
     },
   });
 });
