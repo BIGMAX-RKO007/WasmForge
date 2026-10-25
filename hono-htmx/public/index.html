@@ -1128,6 +1128,68 @@
           </div>
         </div>
       </div>
+    <!-- ================= 核心工具 1.9: RSA Key Pair Generator ================= -->
+    <div class="card" style="margin-bottom: 32px; border: 1px solid rgba(168, 85, 247, 0.3); background: rgba(15, 23, 42, 0.85);">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px;">
+        <div>
+          <h2 style="margin:0 0 4px; display:flex; align-items:center; gap:10px;">
+            <span>🗝️ 1.9 RSA 非对称密钥对生成器 (PKCS#1 & PKCS#8 PEM)</span>
+            <span class="tag tag-rust" style="background:rgba(168,85,247,0.2); color:#c084fc; border-color:rgba(168,85,247,0.4);">rsa-key-pair.wasm (~258 KB)</span>
+          </h2>
+          <p style="color:var(--text-muted); font-size:13px; margin:0;">
+            工业级 RSA 非对称加密密钥生成器：支持 1024 / 2048 / 4096 位模长，输出符合 RFC 5208 (PKCS#8) 与 RFC 8017 (PKCS#1) 的标准 PEM 证书格式。
+          </p>
+        </div>
+        <div style="font-size:12px; font-family:var(--font-mono); color:#c084fc; background:rgba(168, 85, 247, 0.1); padding:4px 10px; border-radius:6px; border:1px solid rgba(168, 85, 247, 0.2);">
+          C-ABI: alloc / dealloc / dispatch
+        </div>
+      </div>
+
+      <!-- RSA 生成表单 -->
+      <form id="rsa-gen-form" hx-post="/api/backend/rsa/generate" hx-target="#backend-rsa-result" hx-swap="innerHTML" style="margin-top:20px;">
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:16px;">
+          <div>
+            <label style="display:block; font-size:13px; margin-bottom:6px; color:var(--text-muted);">RSA 密钥模长 (Key Size):</label>
+            <select id="rsa-input-bits" name="bits" style="width:100%; padding:8px 12px; background:#1e293b; border:1px solid rgba(255,255,255,0.1); color:#fff; border-radius:6px;">
+              <option value="1024">1024 bits (轻量快速)</option>
+              <option value="2048" selected>2048 bits (推荐工业标准)</option>
+              <option value="4096">4096 bits (超高安全级别)</option>
+            </select>
+          </div>
+          <div>
+            <label style="display:block; font-size:13px; margin-bottom:6px; color:var(--text-muted);">导出格式规范 (PEM Standard):</label>
+            <select id="rsa-input-format" name="format" style="width:100%; padding:8px 12px; background:#1e293b; border:1px solid rgba(255,255,255,0.1); color:#fff; border-radius:6px;">
+              <option value="pkcs8" selected>PKCS#8 (BEGIN PRIVATE KEY / Modern)</option>
+              <option value="pkcs1">PKCS#1 (BEGIN RSA PRIVATE KEY / Legacy)</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:12px; margin-top:16px; flex-wrap:wrap;">
+          <button type="submit" style="padding:8px 16px; background:linear-gradient(135deg, #a855f7, #9333ea); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600; display:flex; align-items:center; gap:6px;">
+            <span>🖥️ HTMX 提交后端生成</span>
+            <span class="htmx-indicator">⏳</span>
+          </button>
+          <button type="button" onclick="runFrontendRsaGen()" style="padding:8px 16px; background:linear-gradient(135deg, #9333ea, #7e22ce); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600;">
+            🌐 浏览器前端本地生成
+          </button>
+        </div>
+      </form>
+
+      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:16px; margin-top:16px;">
+        <div>
+          <div style="font-size:12px; color:var(--text-muted); margin-bottom:4px;">后端生成结果 (Hono HTMX):</div>
+          <div id="backend-rsa-result" class="result-container">
+            <div class="result-box" style="opacity:0.5;">点击上方紫色按钮生成密钥对</div>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:12px; color:var(--text-muted); margin-bottom:4px;">前端生成结果 (Browser WASM):</div>
+          <div id="frontend-rsa-result" class="result-container">
+            <div class="result-box" style="opacity:0.5;">点击上方深紫色按钮生成密钥对</div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- ================= 区域 3: 4 象限综合矩阵基准测试 ================= -->
@@ -1170,6 +1232,7 @@
       encryptionReady: false,
       bip39Ready: false,
       hmacReady: false,
+      rsaReady: false,
       rust: null,
       ts: null,
       tokenGenerator: null,
@@ -1180,6 +1243,7 @@
       encryption: null,
       bip39: null,
       hmac: null,
+      rsa: null,
       activeFrontendEngine: "rust",
       activeBackendEngine: "rust"
     };
@@ -1196,6 +1260,7 @@
         const encEngine = await loadWasmFromUrl("./wasm/encryption.wasm");
         const bipEngine = await loadWasmFromUrl("./wasm/bip39-generator.wasm");
         const hmacEngine = await loadWasmFromUrl("./wasm/hmac-generator.wasm");
+        const rsaEngine = await loadWasmFromUrl("./wasm/rsa-key-pair.wasm");
 
         window.wasmContext.rust = rsEngine;
         window.wasmContext.ts = tsEngine;
@@ -1207,6 +1272,7 @@
         window.wasmContext.encryption = encEngine;
         window.wasmContext.bip39 = bipEngine;
         window.wasmContext.hmac = hmacEngine;
+        window.wasmContext.rsa = rsaEngine;
         window.wasmContext.rustReady = true;
         window.wasmContext.tsReady = true;
         window.wasmContext.tokenReady = true;
@@ -1217,11 +1283,12 @@
         window.wasmContext.encryptionReady = true;
         window.wasmContext.bip39Ready = true;
         window.wasmContext.hmacReady = true;
+        window.wasmContext.rsaReady = true;
 
         const statusEl = document.getElementById("frontend-status");
-        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载 10 大模块: rs, ts, token-gen, hash-text, bcrypt, uuid-gen, ulid-gen, encryption, bip39 & hmac)`;
+        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载 11 大模块: rs, ts, token-gen, hash-text, bcrypt, uuid-gen, ulid-gen, encryption, bip39, hmac & rsa)`;
 
-        // 初始自动运行一次前端计算、Token、Hash、Bcrypt、UUID、ULID、AES、BIP-39、HMAC
+        // 初始自动运行一次前端计算、Token、Hash、Bcrypt、UUID、ULID、AES、BIP-39、HMAC、RSA
         window.runFrontendCalc();
         window.runFrontendGreet();
         window.runFrontendTokenGen();
@@ -1232,6 +1299,7 @@
         window.runFrontendAesEncrypt();
         window.runFrontendBip39Gen();
         window.runFrontendHmacAll();
+        window.runFrontendRsaGen();
       } catch (err) {
         console.error("加载浏览器端 WASM 失败:", err);
         const statusEl = document.getElementById("frontend-status");
@@ -2093,6 +2161,72 @@
           </div>
           <div style="font-size:14px; font-weight:bold; color:${badgeColor}; margin:4px 0;">
             ${statusText}
+          </div>
+        </div>
+      `;
+    };
+
+    // 前端 RSA 密钥对生成 (rsa/generate)
+    window.runFrontendRsaGen = function() {
+      const engine = window.wasmContext.rsa;
+      if (!engine) {
+        document.getElementById("frontend-rsa-result").innerHTML = `
+          <div class="result-box error">rsa-key-pair.wasm 尚未加载完毕</div>
+        `;
+        return;
+      }
+
+      const bits = parseInt(document.getElementById("rsa-input-bits").value) || 2048;
+      const format = document.getElementById("rsa-input-format").value || "pkcs8";
+
+      const t0 = performance.now();
+      const response = engine.dispatch({
+        action: "rsa/generate",
+        requestId: `req-front-${Date.now()}`,
+        params: {
+          bits,
+          seed: Math.floor(Math.random() * 0xFFFFFFFF)
+        }
+      });
+      const duration = (performance.now() - t0).toFixed(4);
+
+      if (response.code !== 0) {
+        document.getElementById("frontend-rsa-result").innerHTML = `
+          <div class="result-box error"><strong>RSA 生成失败:</strong> ${response.msg}</div>
+        `;
+        return;
+      }
+
+      const d = response.data;
+      const pubPem = format === "pkcs1" ? d.publicKeyPkcs1Pem : d.publicKeyPkcs8Pem;
+      const privPem = format === "pkcs1" ? d.privateKeyPkcs1Pem : d.privateKeyPkcs8Pem;
+
+      document.getElementById("frontend-rsa-result").innerHTML = `
+        <div class="result-box">
+          <div class="result-header">
+            <span class="tag tag-rust">🦀 Browser WASM: RSA-${d.bits} (${format.toUpperCase()})</span>
+            <span class="badge-time">⚡ ${duration} ms (纯前端内存非对称生成)</span>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:12px; margin:10px 0;">
+            <div>
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                <span style="font-size:12px; color:var(--text-muted);">公钥 (${format.toUpperCase()} Public Key):</span>
+                <button type="button" class="btn-copy" style="padding:2px 8px; border-radius:4px; background:#1e293b; color:#fff; border:1px solid #c084fc; cursor:pointer;" onclick="navigator.clipboard.writeText(document.getElementById('cli-rsa-pub').innerText); this.innerText='已复制!'; setTimeout(()=>this.innerText='复制公钥', 1500)">复制公钥</button>
+              </div>
+              <pre id="cli-rsa-pub" style="background:rgba(0,0,0,0.4); padding:10px; border-radius:6px; font-family:var(--font-mono); font-size:11px; color:#c084fc; overflow-x:auto; margin:0; max-height:140px;">${pubPem}</pre>
+            </div>
+            <div>
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                <span style="font-size:12px; color:var(--text-muted);">私钥 (${format.toUpperCase()} Private Key):</span>
+                <button type="button" class="btn-copy" style="padding:2px 8px; border-radius:4px; background:#1e293b; color:#fff; border:1px solid #e879f9; cursor:pointer;" onclick="navigator.clipboard.writeText(document.getElementById('cli-rsa-priv').innerText); this.innerText='已复制!'; setTimeout(()=>this.innerText='复制私钥', 1500)">复制私钥</button>
+              </div>
+              <pre id="cli-rsa-priv" style="background:rgba(0,0,0,0.4); padding:10px; border-radius:6px; font-family:var(--font-mono); font-size:11px; color:#e879f9; overflow-x:auto; margin:0; max-height:140px;">${privPem}</pre>
+            </div>
+          </div>
+          <div class="token-meta" style="display:flex; gap:16px; font-size:12px; color:var(--text-muted);">
+            <span>模长: <strong style="color:#fff;">${d.bits} bits</strong></span>
+            <span>标准: <strong style="color:#38bdf8;">${format.toUpperCase()} PEM</strong></span>
+            <span>算法: <strong style="color:#c084fc;">RSA (PKCS#1 / PKCS#8)</strong></span>
           </div>
         </div>
       `;

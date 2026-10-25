@@ -20,6 +20,7 @@ const ulidWasmPath = path.resolve(__dirname, "../public/wasm/ulid-generator.wasm
 const encryptionWasmPath = path.resolve(__dirname, "../public/wasm/encryption.wasm");
 const bip39WasmPath = path.resolve(__dirname, "../public/wasm/bip39-generator.wasm");
 const hmacWasmPath = path.resolve(__dirname, "../public/wasm/hmac-generator.wasm");
+const rsaWasmPath = path.resolve(__dirname, "../public/wasm/rsa-key-pair.wasm");
 
 let rsEngine = null;
 let tsEngine = null;
@@ -31,6 +32,7 @@ let ulidEngine = null;
 let encryptionEngine = null;
 let bip39Engine = null;
 let hmacEngine = null;
+let rsaEngine = null;
 
 async function initEngines() {
   try {
@@ -102,6 +104,13 @@ async function initEngines() {
       console.log("✅ [Backend Infra] 纯单一文件 hmac-generator.wasm 加载成功");
     } else {
       console.warn("⚠️ hmac-generator.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    if (fs.existsSync(rsaWasmPath)) {
+      rsaEngine = await loadWasmFromDisk(rsaWasmPath);
+      console.log("✅ [Backend Infra] 纯单一文件 rsa-key-pair.wasm 加载成功");
+    } else {
+      console.warn("⚠️ rsa-key-pair.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
     }
   } catch (err) {
     console.error("❌ 后端 WASM 基础设施初始化失败:", err);
@@ -992,6 +1001,74 @@ app.post("/api/backend/hmac/verify", async (c) => {
   }
 });
 
+// API: 后端 RSA 密钥对生成 (由 HTMX 调用)
+app.post("/api/backend/rsa/generate", async (c) => {
+  try {
+    if (!rsaEngine) {
+      throw new Error("rsa-key-pair.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    const body = await c.req.parseBody();
+    const bits = parseInt(body.bits) || 2048;
+    const format = (body.format || "pkcs8").toString();
+
+    const t0 = performance.now();
+    const response = rsaEngine.dispatch({
+      action: "rsa/generate",
+      requestId: `srv-${Date.now()}`,
+      params: {
+        bits,
+        seed: Math.floor(Math.random() * 0xFFFFFFFF)
+      }
+    });
+    const duration = (performance.now() - t0).toFixed(4);
+
+    if (response.code !== 0) {
+      throw new Error(response.msg);
+    }
+
+    const d = response.data;
+    const pubPem = format === "pkcs1" ? d.publicKeyPkcs1Pem : d.publicKeyPkcs8Pem;
+    const privPem = format === "pkcs1" ? d.privateKeyPkcs1Pem : d.privateKeyPkcs8Pem;
+
+    return c.html(`
+      <div class="result-box">
+        <div class="result-header">
+          <span class="tag tag-rust">🦀 Rust WASM: RSA-${d.bits} (${format.toUpperCase()})</span>
+          <span class="badge-time">⚡ ${duration} ms (Hono 原生极速生成)</span>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:12px; margin:10px 0;">
+          <div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+              <span style="font-size:12px; color:var(--text-muted);">公钥 (${format.toUpperCase()} Public Key):</span>
+              <button type="button" class="btn-copy" style="padding:2px 8px; border-radius:4px; background:#1e293b; color:#fff; border:1px solid #34d399; cursor:pointer;" onclick="navigator.clipboard.writeText(document.getElementById('srv-rsa-pub').innerText); this.innerText='已复制!'; setTimeout(()=>this.innerText='复制公钥', 1500)">复制公钥</button>
+            </div>
+            <pre id="srv-rsa-pub" style="background:rgba(0,0,0,0.4); padding:10px; border-radius:6px; font-family:var(--font-mono); font-size:11px; color:#34d399; overflow-x:auto; margin:0; max-height:140px;">${pubPem}</pre>
+          </div>
+          <div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+              <span style="font-size:12px; color:var(--text-muted);">私钥 (${format.toUpperCase()} Private Key):</span>
+              <button type="button" class="btn-copy" style="padding:2px 8px; border-radius:4px; background:#1e293b; color:#fff; border:1px solid #f97316; cursor:pointer;" onclick="navigator.clipboard.writeText(document.getElementById('srv-rsa-priv').innerText); this.innerText='已复制!'; setTimeout(()=>this.innerText='复制私钥', 1500)">复制私钥</button>
+            </div>
+            <pre id="srv-rsa-priv" style="background:rgba(0,0,0,0.4); padding:10px; border-radius:6px; font-family:var(--font-mono); font-size:11px; color:#f97316; overflow-x:auto; margin:0; max-height:140px;">${privPem}</pre>
+          </div>
+        </div>
+        <div class="token-meta" style="display:flex; gap:16px; font-size:12px; color:var(--text-muted);">
+          <span>模长: <strong style="color:#fff;">${d.bits} bits</strong></span>
+          <span>标准: <strong style="color:#38bdf8;">${format.toUpperCase()} PEM</strong></span>
+          <span>算法: <strong style="color:#34d399;">RSA (PKCS#1 / PKCS#8)</strong></span>
+        </div>
+      </div>
+    `);
+  } catch (err) {
+    return c.html(`
+      <div class="result-box error">
+        <strong>RSA 生成失败:</strong> ${err.message}
+      </div>
+    `, 400);
+  }
+});
+
 // API: 模块统计信息
 app.get("/api/stats", (c) => {
   const rsSize = fs.existsSync(rsWasmPath) ? fs.statSync(rsWasmPath).size : 0;
@@ -1004,6 +1081,7 @@ app.get("/api/stats", (c) => {
   const encryptionSize = fs.existsSync(encryptionWasmPath) ? fs.statSync(encryptionWasmPath).size : 0;
   const bip39Size = fs.existsSync(bip39WasmPath) ? fs.statSync(bip39WasmPath).size : 0;
   const hmacSize = fs.existsSync(hmacWasmPath) ? fs.statSync(hmacWasmPath).size : 0;
+  const rsaSize = fs.existsSync(rsaWasmPath) ? fs.statSync(rsaWasmPath).size : 0;
   return c.json({
     rust: {
       file: "rs.wasm",
@@ -1054,6 +1132,11 @@ app.get("/api/stats", (c) => {
       file: "hmac-generator.wasm",
       sizeBytes: hmacSize,
       sizeFormatted: `${(hmacSize / 1024).toFixed(2)} KB`,
+    },
+    rsa: {
+      file: "rsa-key-pair.wasm",
+      sizeBytes: rsaSize,
+      sizeFormatted: `${(rsaSize / 1024).toFixed(2)} KB`,
     },
   });
 });

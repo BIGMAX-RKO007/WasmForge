@@ -1,0 +1,24 @@
+[package]
+name = "rsa-key-pair"
+version = "0.1.0"
+edition = "2021"
+description = "Pure standalone WASM module for RSA key pair generation and PKCS#1/PKCS#8 PEM formatting"
+license = "MIT OR Apache-2.0"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+rsa = { version = "0.9", default-features = false, features = ["pem"] }
+pkcs8 = { version = "0.10", default-features = false, features = ["pem", "alloc"] }
+pkcs1 = { version = "0.7", default-features = false, features = ["pem", "alloc"] }
+rand_core = { version = "0.6", default-features = false }
+serde = { version = "1.0", default-features = false, features = ["alloc", "derive"] }
+serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

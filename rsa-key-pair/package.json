@@ -1,0 +1,21 @@
+{
+  "name": "@wasmforge/rsa-key-pair",
+  "version": "1.0.0",
+  "description": "Pure standalone WebAssembly RSA key pair generator with PKCS#1 & PKCS#8 PEM formatting",
+  "main": "dist/rsa-key-pair.wasm",
+  "scripts": {
+    "build": "cargo build --target wasm32-unknown-unknown --release",
+    "test": "cargo test"
+  },
+  "keywords": [
+    "webassembly",
+    "wasm",
+    "rsa",
+    "pkcs1",
+    "pkcs8",
+    "pem",
+    "cryptography"
+  ],
+  "author": "BIGMAX-RKO007",
+  "license": "MIT"
+}
