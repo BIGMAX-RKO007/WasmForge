@@ -1,0 +1,26 @@
+{
+  "name": "@wasm-forge/jwt-parser",
+  "version": "0.1.0",
+  "description": "Pure Standalone WebAssembly JWT Header/Payload Parser and Claims Inspector Engine",
+  "type": "module",
+  "main": "pkg/jwt_parser.wasm",
+  "files": [
+    "pkg/jwt_parser.wasm",
+    "README.md"
+  ],
+  "scripts": {
+    "build:wasm": "cargo build --target wasm32-unknown-unknown --release",
+    "test": "cargo test"
+  },
+  "keywords": [
+    "wasm",
+    "webassembly",
+    "jwt",
+    "json-web-token",
+    "claims",
+    "auth",
+    "base64url"
+  ],
+  "author": "WasmForge",
+  "license": "MIT"
+}

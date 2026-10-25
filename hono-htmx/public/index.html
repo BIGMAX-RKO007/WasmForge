@@ -4029,6 +4029,52 @@ spec:
           </div>
         </div>
       </div>
+
+      <!-- Card 5.1: JWT 令牌解析与声明检验 (JWT Parser) -->
+      <div class="card" id="card-jwt-parser">
+        <div class="card-header">
+          <div>
+            <div class="card-title">🔑 JWT 令牌解析与声明检验 (JWT Parser)</div>
+            <div class="card-desc">纯单一文件 Rust WASM 驱动的无密钥 JWT Base64URL 解码、Header 算法校验、Payload 声明审计与 exp/iat/nbf 时间戳检验引擎</div>
+          </div>
+          <span class="tag tag-rust">Tool #53: jwt-parser</span>
+        </div>
+
+        <form id="form-jwt-parser" hx-post="/api/backend/jwt/parse" hx-target="#backend-jwt-result" hx-swap="innerHTML">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+            <span style="font-size:12px; color:var(--text-muted); font-weight:600;">输入 JSON Web Token (Header.Payload.Signature):</span>
+
+            <div style="display:flex; gap:6px; font-size:11px;">
+              <span style="color:var(--text-muted); padding:3px 0;">快速令牌示例:</span>
+              <button type="button" onclick="loadJwtPreset('standard-user')" style="background:rgba(255,255,255,0.06); color:#38bdf8; border:1px solid rgba(56,189,248,0.3); border-radius:4px; padding:3px 8px; cursor:pointer;">⚡ 标准用户 (HS256)</button>
+              <button type="button" onclick="loadJwtPreset('expired-token')" style="background:rgba(255,255,255,0.06); color:#ef4444; border:1px solid rgba(239,68,68,0.3); border-radius:4px; padding:3px 8px; cursor:pointer;">⏰ 已过期 (Expired)</button>
+              <button type="button" onclick="loadJwtPreset('rsa-service')" style="background:rgba(255,255,255,0.06); color:#34d399; border:1px solid rgba(52,211,153,0.3); border-radius:4px; padding:3px 8px; cursor:pointer;">🛡️ 微服务 (RS256)</button>
+            </div>
+          </div>
+
+          <textarea name="token" id="jwt-input" rows="3" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." style="width:100%; box-sizing:border-box; background:#0f172a; color:#f8fafc; border:1px solid rgba(255,255,255,0.15); border-radius:6px; padding:8px 12px; font-size:12px; font-family:var(--font-mono); margin-bottom:12px; word-break:break-all;" oninput="runFrontendJwtParse()">eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEyMzQ1NiIsIm5hbWUiOiJBbGljZSBXYXNtIiwiZW1haWwiOiJhbGljZUB3YXNtZm9yZ2UuZGV2Iiwicm9sZXMiOlsidXNlciIsImFkbWluIl0sImlhdCI6MTc3MDAwMDAwMCwiZXhwIjoyMDgwMDAwMDAwfQ.cnhk-G5n7183H2L3a5jK7V8B3_N8Q4_92h62xK4P7k8</textarea>
+
+          <div style="display:flex; gap:8px;">
+            <button type="submit" style="padding:8px 16px; background:linear-gradient(135deg, #3b82f6, #1d4ed8); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:12px;">
+              🖥️ 后端解析 (HTMX)
+            </button>
+            <button type="button" onclick="runFrontendJwtParse()" style="padding:8px 16px; background:linear-gradient(135deg, #10b981, #059669); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:12px;">
+              🌐 前端极速解析
+            </button>
+          </div>
+        </form>
+
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:16px; margin-top:16px;">
+          <div>
+            <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px;">后端投影输出:</div>
+            <div id="backend-jwt-result" class="result-container"><div class="result-box" style="opacity:0.5; font-size:12px;">等待解析...</div></div>
+          </div>
+          <div>
+            <div style="font-size:11px; color:var(--text-muted); margin-top:0px; margin-bottom:4px;">前端投影输出:</div>
+            <div id="frontend-jwt-result" class="result-container"><div class="result-box" style="opacity:0.5; font-size:12px;">等待解析...</div></div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- ================= 区域 3: 4 象限综合矩阵基准测试 ================= -->
@@ -4211,6 +4257,7 @@ spec:
         const asciiTextDrawerEngine = await loadWasmFromUrl("./wasm/ascii-text-drawer.wasm");
         const numeronymGeneratorEngine = await loadWasmFromUrl("./wasm/numeronym-generator.wasm");
         const emojiPickerEngine = await loadWasmFromUrl("./wasm/emoji-picker.wasm");
+        const jwtParserEngine = await loadWasmFromUrl("./wasm/jwt-parser.wasm");
 
         window.wasmContext.rust = rsEngine;
         window.wasmContext.ts = tsEngine;
@@ -4266,6 +4313,7 @@ spec:
         window.wasmContext.asciiTextDrawer = asciiTextDrawerEngine;
         window.wasmContext.numeronymGenerator = numeronymGeneratorEngine;
         window.wasmContext.emojiPicker = emojiPickerEngine;
+        window.wasmContext.jwtParser = jwtParserEngine;
         window.wasmContext.rustReady = true;
         window.wasmContext.tsReady = true;
         window.wasmContext.tokenReady = true;
@@ -4320,9 +4368,10 @@ spec:
         window.wasmContext.asciiTextDrawerReady = true;
         window.wasmContext.numeronymGeneratorReady = true;
         window.wasmContext.emojiPickerReady = true;
+        window.wasmContext.jwtParserReady = true;
 
         const statusEl = document.getElementById("frontend-status");
-        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载 54 大模块: rs, ts, token-gen, hash-text, bcrypt, uuid-gen, ulid-gen, encryption, bip39, hmac, rsa, password-strength, pdf-sig, yaml-to-json, yaml-to-toml, json-to-yaml, json-to-toml, toml-to-json, toml-to-yaml, xml-to-json, json-to-xml, json-to-csv, base64-string, base64-file, color-converter, case-converter, date-time-converter, integer-base-converter, roman-numeral-converter, text-to-binary, text-to-unicode, markdown-to-html, list-converter, text-to-nato, sql-prettify, xml-formatter, json-minify, json-viewer, yaml-viewer, regex-tester, regex-memo, crontab-generator, chmod-calculator, docker-run-to-compose, email-normalizer, git-memo, random-port, text-diff, text-statistics, string-obfuscator, lorem-ipsum, ascii-text-drawer, numeronym-generator & emoji-picker)`;
+        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载 55 大模块: rs, ts, token-gen, hash-text, bcrypt, uuid-gen, ulid-gen, encryption, bip39, hmac, rsa, password-strength, pdf-sig, yaml-to-json, yaml-to-toml, json-to-yaml, json-to-toml, toml-to-json, toml-to-yaml, xml-to-json, json-to-xml, json-to-csv, base64-string, base64-file, color-converter, case-converter, date-time-converter, integer-base-converter, roman-numeral-converter, text-to-binary, text-to-unicode, markdown-to-html, list-converter, text-to-nato, sql-prettify, xml-formatter, json-minify, json-viewer, yaml-viewer, regex-tester, regex-memo, crontab-generator, chmod-calculator, docker-run-to-compose, email-normalizer, git-memo, random-port, text-diff, text-statistics, string-obfuscator, lorem-ipsum, ascii-text-drawer, numeronym-generator, emoji-picker & jwt-parser)`;
 
         // 初始自动运行一次前端计算
         window.runFrontendCalc();
@@ -9475,6 +9524,116 @@ spec:
           </div>
           <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap:10px; max-height:280px; overflow-y:auto; padding:4px;">
             ${cards}
+          </div>
+        </div>
+      `;
+    };
+
+    // JWT Parser 前端极速解析
+    const jwtPresets = {
+      "standard-user": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzEyMzQ1NiIsIm5hbWUiOiJBbGljZSBXYXNtIiwiZW1haWwiOiJhbGljZUB3YXNtZm9yZ2UuZGV2Iiwicm9sZXMiOlsidXNlciIsImFkbWluIl0sImlhdCI6MTc3MDAwMDAwMCwiZXhwIjoyMDgwMDAwMDAwfQ.cnhk-G5n7183H2L3a5jK7V8B3_N8Q4_92h62xK4P7k8",
+      "expired-token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyXzk5OTk5OSIsIm5hbWUiOiJCb2IgRXhwaXJlZCIsImlhdCI6MTYwMDAwMDAwMCwiZXhwIjoxNjAwMDAzNjAwfQ.uC4W0K9K2B1P8N7V6X3H4_L2jK5_89h62xK4P7k8",
+      "rsa-service": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImFwaS1rZXktMjAyNiJ9.eyJpc3MiOiJhdXRoLndhc21mb3JnZS5pbyIsInN1YiI6InNydi1jYXJnbzAxIiwiYXVkIjoiaHR0cHM6Ly9hcGkud2FzbWZvcmdlLmlvIiwic2NvcGUiOiJyZWFkOndhc20gd3JpdGU6d2FzbSIsImlhdCI6MTc3MDAwMDAwMCwiZXhwIjoyMDgwMDAwMDAwfQ.dGhpcy1pcy1hLXNhbXBsZS1yc2Etc2lnbmF0dXJlLWZvci13YXNtLWZvcmdl"
+    };
+
+    window.loadJwtPreset = function(presetId) {
+      const token = jwtPresets[presetId];
+      if (token) {
+        document.getElementById("jwt-input").value = token;
+        window.runFrontendJwtParse();
+      }
+    };
+
+    window.runFrontendJwtParse = function() {
+      if (!window.wasmContext.jwtParserReady || !window.wasmContext.jwtParser) {
+        document.getElementById("frontend-jwt-result").innerHTML = `
+          <div class="result-box error">jwt-parser.wasm 尚未加载完毕</div>
+        `;
+        return;
+      }
+
+      const token = (document.getElementById("jwt-input").value || "").trim();
+      const currentTime = Math.floor(Date.now() / 1000);
+
+      const t0 = performance.now();
+      const response = window.wasmContext.jwtParser.dispatch({
+        action: "jwt/parse",
+        requestId: `front-${Date.now()}`,
+        params: {
+          token,
+          currentTime
+        }
+      });
+      const duration = (performance.now() - t0).toFixed(4);
+
+      if (response.code !== 0) {
+        document.getElementById("frontend-jwt-result").innerHTML = `
+          <div class="result-box error">解析失败: ${escapeHtmlFront(response.msg)}</div>
+        `;
+        return;
+      }
+
+      const d = response.data;
+      const claimsRows = d.claims.map(cl => {
+        let badge = '<span style="color:#94a3b8;">信息</span>';
+        if (cl.status === "valid") badge = '<span style="color:#34d399; font-weight:600;">有效 (Active)</span>';
+        else if (cl.status === "expired") badge = '<span style="color:#ef4444; font-weight:600;">已过期 (Expired)</span>';
+        else if (cl.status === "not_yet_valid") badge = '<span style="color:#f59e0b; font-weight:600;">尚未生效 (NBF)</span>';
+
+        return `
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
+            <td style="padding:6px 10px; font-family:var(--font-mono); color:#38bdf8; font-weight:600;">${escapeHtmlFront(cl.name)}</td>
+            <td style="padding:6px 10px; font-family:var(--font-mono); color:#f8fafc;">${escapeHtmlFront(JSON.stringify(cl.value))}</td>
+            <td style="padding:6px 10px; color:var(--text-muted); font-size:11px;">${escapeHtmlFront(cl.description)}</td>
+            <td style="padding:6px 10px;">${badge}</td>
+          </tr>
+        `;
+      }).join("");
+
+      document.getElementById("frontend-jwt-result").innerHTML = `
+        <div class="result-box">
+          <div class="result-header">
+            <span class="tag tag-rust">🦀 Browser WASM: JWT 解析成功 (${escapeHtmlFront(d.algorithm)} / ${escapeHtmlFront(d.tokenType)})</span>
+            <span class="badge-time">⚡ ${duration} ms (纯前端内存)</span>
+          </div>
+          <div style="display:flex; flex-wrap:wrap; gap:16px; margin-bottom:12px; font-size:12px; color:var(--text-muted);">
+            <span>签名算法: <strong style="color:#38bdf8;">${escapeHtmlFront(d.algorithm)}</strong></span>
+            <span>令牌类型: <strong style="color:#34d399;">${escapeHtmlFront(d.tokenType)}</strong></span>
+            <span>时间状态: <strong>${d.isValidTime === false || d.is_valid_time === false ? '<span style="color:#ef4444;">时间异常/已过期</span>' : '<span style="color:#34d399;">时间校验正常</span>'}</strong></span>
+          </div>
+
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:12px;">
+            <div>
+              <div style="font-size:11px; color:#38bdf8; font-weight:600; margin-bottom:4px;">Header 头部声明:</div>
+              <pre style="padding:10px; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1); border-radius:6px; font-family:var(--font-mono); font-size:11px; color:#38bdf8; overflow-x:auto;">${escapeHtmlFront(d.formattedHeader)}</pre>
+            </div>
+            <div>
+              <div style="font-size:11px; color:#34d399; font-weight:600; margin-bottom:4px;">Payload 载荷声明:</div>
+              <pre style="padding:10px; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1); border-radius:6px; font-family:var(--font-mono); font-size:11px; color:#34d399; overflow-x:auto;">${escapeHtmlFront(d.formattedPayload)}</pre>
+            </div>
+          </div>
+
+          ${d.claims.length > 0 ? `
+            <div style="margin-top:12px;">
+              <div style="font-size:11px; color:var(--text-muted); font-weight:600; margin-bottom:4px;">核心声明审计表:</div>
+              <table style="width:100%; border-collapse:collapse; font-size:11px; text-align:left;">
+                <thead>
+                  <tr style="color:var(--text-muted); border-bottom:1px solid rgba(255,255,255,0.1);">
+                    <th style="padding:4px 10px;">声明</th>
+                    <th style="padding:4px 10px;">值</th>
+                    <th style="padding:4px 10px;">解析描述</th>
+                    <th style="padding:4px 10px;">校验状态</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${claimsRows}
+                </tbody>
+              </table>
+            </div>
+          ` : ''}
+
+          <div style="margin-top:10px; font-size:11px; color:var(--text-muted);">
+            <span>数字签名 (Base64URL): </span><code style="font-family:var(--font-mono); color:#f59e0b;">${escapeHtmlFront(d.signature)}</code>
           </div>
         </div>
       `;

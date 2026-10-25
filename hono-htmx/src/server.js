@@ -64,6 +64,7 @@ const loremIpsumWasmPath = path.resolve(__dirname, "../public/wasm/lorem-ipsum.w
 const asciiTextDrawerWasmPath = path.resolve(__dirname, "../public/wasm/ascii-text-drawer.wasm");
 const numeronymGeneratorWasmPath = path.resolve(__dirname, "../public/wasm/numeronym-generator.wasm");
 const emojiPickerWasmPath = path.resolve(__dirname, "../public/wasm/emoji-picker.wasm");
+const jwtParserWasmPath = path.resolve(__dirname, "../public/wasm/jwt-parser.wasm");
 
 let rsEngine = null;
 let tsEngine = null;
@@ -119,6 +120,7 @@ let loremIpsumEngine = null;
 let asciiTextDrawerEngine = null;
 let numeronymGeneratorEngine = null;
 let emojiPickerEngine = null;
+let jwtParserEngine = null;
 
 async function initEngines() {
   try {
@@ -498,6 +500,13 @@ async function initEngines() {
       console.log("✅ [Backend Infra] 纯单一文件 emoji-picker.wasm 加载成功");
     } else {
       console.warn("⚠️ emoji-picker.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    if (fs.existsSync(jwtParserWasmPath)) {
+      jwtParserEngine = await loadWasmFromDisk(jwtParserWasmPath);
+      console.log("✅ [Backend Infra] 纯单一文件 jwt-parser.wasm 加载成功");
+    } else {
+      console.warn("⚠️ jwt-parser.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
     }
   } catch (err) {
     console.error("❌ 后端 WASM 基础设施初始化失败:", err);
@@ -6431,6 +6440,144 @@ app.get("/api/backend/emoji/presets", async (c) => {
   }
 });
 
+// API: JWT 令牌解析与声明检验 (JWT Parser)
+app.post("/api/backend/jwt/parse", async (c) => {
+  try {
+    const contentType = c.req.header("Content-Type") || "";
+    let token = "";
+    let currentTime = Math.floor(Date.now() / 1000);
+
+    if (contentType.includes("application/json")) {
+      const json = await c.req.json().catch(() => ({}));
+      token = (json.token || "").toString();
+      if (typeof json.currentTime === "number") {
+        currentTime = json.currentTime;
+      }
+    } else {
+      const body = await c.req.parseBody().catch(() => ({}));
+      token = (body.token || "").toString();
+      if (body.currentTime) {
+        currentTime = parseInt(body.currentTime, 10) || currentTime;
+      }
+    }
+
+    if (!jwtParserEngine) {
+      throw new Error("jwt-parser WASM 引擎未就绪");
+    }
+
+    const t0 = performance.now();
+    const response = jwtParserEngine.dispatch({
+      action: "jwt/parse",
+      requestId: `srv-${Date.now()}`,
+      params: {
+        token,
+        currentTime,
+      }
+    });
+    const duration = (performance.now() - t0).toFixed(4);
+
+    if (contentType.includes("application/json") && !c.req.header("HX-Request")) {
+      return c.json(response);
+    }
+
+    if (response.code !== 0) {
+      return c.html(`
+        <div class="result-box error">
+          <strong>JWT 解析失败:</strong> ${escapeHtml(response.msg)}
+        </div>
+      `, 400);
+    }
+
+    const d = response.data;
+    const claimsRows = d.claims.map(cl => {
+      let badge = '<span style="color:#94a3b8;">信息</span>';
+      if (cl.status === "valid") badge = '<span style="color:#34d399; font-weight:600;">有效 (Active)</span>';
+      else if (cl.status === "expired") badge = '<span style="color:#ef4444; font-weight:600;">已过期 (Expired)</span>';
+      else if (cl.status === "not_yet_valid") badge = '<span style="color:#f59e0b; font-weight:600;">尚未生效 (NBF)</span>';
+
+      return `
+        <tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
+          <td style="padding:6px 10px; font-family:var(--font-mono); color:#38bdf8; font-weight:600;">${escapeHtml(cl.name)}</td>
+          <td style="padding:6px 10px; font-family:var(--font-mono); color:#f8fafc;">${escapeHtml(JSON.stringify(cl.value))}</td>
+          <td style="padding:6px 10px; color:var(--text-muted); font-size:11px;">${escapeHtml(cl.description)}</td>
+          <td style="padding:6px 10px;">${badge}</td>
+        </tr>
+      `;
+    }).join("");
+
+    return c.html(`
+      <div class="result-box">
+        <div class="result-header">
+          <span class="tag tag-rust">🦀 Rust WASM: JWT 解析成功 (${escapeHtml(d.algorithm)} / ${escapeHtml(d.tokenType)})</span>
+          <span class="badge-time">⚡ ${duration} ms (Hono 后端原生)</span>
+        </div>
+        <div style="display:flex; flex-wrap:wrap; gap:16px; margin-bottom:12px; font-size:12px; color:var(--text-muted);">
+          <span>签名算法: <strong style="color:#38bdf8;">${escapeHtml(d.algorithm)}</strong></span>
+          <span>令牌类型: <strong style="color:#34d399;">${escapeHtml(d.tokenType)}</strong></span>
+          <span>时间状态: <strong>${d.isValidTime === false || d.is_valid_time === false ? '<span style="color:#ef4444;">时间异常/已过期</span>' : '<span style="color:#34d399;">时间校验正常</span>'}</strong></span>
+        </div>
+
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:12px;">
+          <div>
+            <div style="font-size:11px; color:#38bdf8; font-weight:600; margin-bottom:4px;">Header 头部声明:</div>
+            <pre style="padding:10px; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1); border-radius:6px; font-family:var(--font-mono); font-size:11px; color:#38bdf8; overflow-x:auto;">${escapeHtml(d.formattedHeader)}</pre>
+          </div>
+          <div>
+            <div style="font-size:11px; color:#34d399; font-weight:600; margin-bottom:4px;">Payload 载荷声明:</div>
+            <pre style="padding:10px; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1); border-radius:6px; font-family:var(--font-mono); font-size:11px; color:#34d399; overflow-x:auto;">${escapeHtml(d.formattedPayload)}</pre>
+          </div>
+        </div>
+
+        ${d.claims.length > 0 ? `
+          <div style="margin-top:12px;">
+            <div style="font-size:11px; color:var(--text-muted); font-weight:600; margin-bottom:4px;">核心声明审计表:</div>
+            <table style="width:100%; border-collapse:collapse; font-size:11px; text-align:left;">
+              <thead>
+                <tr style="color:var(--text-muted); border-bottom:1px solid rgba(255,255,255,0.1);">
+                  <th style="padding:4px 10px;">声明</th>
+                  <th style="padding:4px 10px;">值</th>
+                  <th style="padding:4px 10px;">解析描述</th>
+                  <th style="padding:4px 10px;">校验状态</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${claimsRows}
+              </tbody>
+            </table>
+          </div>
+        ` : ''}
+
+        <div style="margin-top:10px; font-size:11px; color:var(--text-muted);">
+          <span>数字签名 (Base64URL): </span><code style="font-family:var(--font-mono); color:#f59e0b;">${escapeHtml(d.signature)}</code>
+        </div>
+      </div>
+    `);
+  } catch (err) {
+    return c.html(`
+      <div class="result-box error">
+        <strong>执行失败:</strong> ${escapeHtml(err.message)}
+      </div>
+    `, 500);
+  }
+});
+
+// API: 获取 JWT 预设示例
+app.get("/api/backend/jwt/presets", async (c) => {
+  try {
+    if (!jwtParserEngine) {
+      throw new Error("jwt-parser WASM 引擎未就绪");
+    }
+    const response = jwtParserEngine.dispatch({
+      action: "jwt/presets",
+      requestId: `srv-${Date.now()}`,
+      params: {}
+    });
+    return c.json(response);
+  } catch (err) {
+    return c.json({ code: 500, msg: err.message, data: null }, 500);
+  }
+});
+
 // API: 获取 Markdown 示例
 app.get("/api/backend/markdown/sample", async (c) => {
   try {
@@ -6607,6 +6754,7 @@ app.get("/api/stats", (c) => {
   const asciiTextDrawerSize = fs.existsSync(asciiTextDrawerWasmPath) ? fs.statSync(asciiTextDrawerWasmPath).size : 0;
   const numeronymGeneratorSize = fs.existsSync(numeronymGeneratorWasmPath) ? fs.statSync(numeronymGeneratorWasmPath).size : 0;
   const emojiPickerSize = fs.existsSync(emojiPickerWasmPath) ? fs.statSync(emojiPickerWasmPath).size : 0;
+  const jwtParserSize = fs.existsSync(jwtParserWasmPath) ? fs.statSync(jwtParserWasmPath).size : 0;
   return c.json({
     rust: {
       file: "rs.wasm",
@@ -6877,6 +7025,11 @@ app.get("/api/stats", (c) => {
       file: "emoji-picker.wasm",
       sizeBytes: emojiPickerSize,
       sizeFormatted: `${(emojiPickerSize / 1024).toFixed(2)} KB`,
+    },
+    jwtParser: {
+      file: "jwt-parser.wasm",
+      sizeBytes: jwtParserSize,
+      sizeFormatted: `${(jwtParserSize / 1024).toFixed(2)} KB`,
     },
   });
 });
