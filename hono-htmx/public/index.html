@@ -4075,6 +4075,71 @@ spec:
           </div>
         </div>
       </div>
+
+      <!-- Card 5.2: OTP 动态令牌与双因子验证 (OTP Generator) -->
+      <div class="card" id="card-otp-generator">
+        <div class="card-header">
+          <div>
+            <div class="card-title">⏳ OTP 动态令牌与双因子验证 (OTP Generator)</div>
+            <div class="card-desc">纯单一文件 Rust WASM 驱动的 RFC 6238 (TOTP) / RFC 4226 (HOTP) 双因子认证口令生成、时间步长倒计时与验证引擎</div>
+          </div>
+          <span class="tag tag-rust">Tool #54: otp-generator</span>
+        </div>
+
+        <form id="form-otp-generator" hx-post="/api/backend/otp/totp" hx-target="#backend-otp-result" hx-swap="innerHTML">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+            <div style="display:flex; gap:16px; flex-wrap:wrap; align-items:center;">
+              <div style="display:flex; align-items:center; gap:6px;">
+                <span style="font-size:12px; color:var(--text-muted); font-weight:600;">位数:</span>
+                <select name="digits" id="otp-digits" onchange="runFrontendOtpGenerate()" style="background:#0f172a; color:#f8fafc; border:1px solid rgba(255,255,255,0.15); border-radius:4px; padding:4px 8px; font-size:12px;">
+                  <option value="6">6 位 (Google Auth)</option>
+                  <option value="8">8 位 (高安全标准)</option>
+                </select>
+              </div>
+
+              <div style="display:flex; align-items:center; gap:6px;">
+                <span style="font-size:12px; color:var(--text-muted); font-weight:600;">刷新周期:</span>
+                <select name="period" id="otp-period" onchange="runFrontendOtpGenerate()" style="background:#0f172a; color:#f8fafc; border:1px solid rgba(255,255,255,0.15); border-radius:4px; padding:4px 8px; font-size:12px;">
+                  <option value="30">30 秒 (标准)</option>
+                  <option value="60">60 秒 (长周期)</option>
+                </select>
+              </div>
+            </div>
+
+            <div style="display:flex; gap:6px; font-size:11px;">
+              <span style="color:var(--text-muted); padding:3px 0;">快速密钥:</span>
+              <button type="button" onclick="loadOtpPreset('standard-google')" style="background:rgba(255,255,255,0.06); color:#38bdf8; border:1px solid rgba(56,189,248,0.3); border-radius:4px; padding:3px 8px; cursor:pointer;">⚡ Google 规范</button>
+              <button type="button" onclick="loadOtpPreset('rfc6238-vector')" style="background:rgba(255,255,255,0.06); color:#34d399; border:1px solid rgba(52,211,153,0.3); border-radius:4px; padding:3px 8px; cursor:pointer;">🛡️ RFC 向量 (8位)</button>
+              <button type="button" onclick="loadOtpPreset('devops-admin')" style="background:rgba(255,255,255,0.06); color:#c084fc; border:1px solid rgba(192,132,252,0.3); border-radius:4px; padding:3px 8px; cursor:pointer;">🔒 运维 (60s)</button>
+            </div>
+          </div>
+
+          <div style="margin-bottom:12px;">
+            <span style="font-size:12px; color:var(--text-muted); font-weight:600;">Base32 认证私钥 (Secret Key):</span>
+            <input type="text" name="secret" id="otp-secret" value="JBSWY3DPEHPK3PXP" placeholder="输入 Base32 密钥..." style="width:100%; box-sizing:border-box; background:#0f172a; color:#f8fafc; border:1px solid rgba(255,255,255,0.15); border-radius:6px; padding:8px 12px; font-size:13px; font-family:var(--font-mono); margin-top:4px;" oninput="runFrontendOtpGenerate()" />
+          </div>
+
+          <div style="display:flex; gap:8px;">
+            <button type="submit" style="padding:8px 16px; background:linear-gradient(135deg, #3b82f6, #1d4ed8); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:12px;">
+              🖥️ 后端生成 (HTMX)
+            </button>
+            <button type="button" onclick="runFrontendOtpGenerate()" style="padding:8px 16px; background:linear-gradient(135deg, #10b981, #059669); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:12px;">
+              🌐 前端实时动态口令
+            </button>
+          </div>
+        </form>
+
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:16px; margin-top:16px;">
+          <div>
+            <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px;">后端投影输出:</div>
+            <div id="backend-otp-result" class="result-container"><div class="result-box" style="opacity:0.5; font-size:12px;">等待生成...</div></div>
+          </div>
+          <div>
+            <div style="font-size:11px; color:var(--text-muted); margin-top:0px; margin-bottom:4px;">前端投影输出:</div>
+            <div id="frontend-otp-result" class="result-container"><div class="result-box" style="opacity:0.5; font-size:12px;">等待生成...</div></div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- ================= 区域 3: 4 象限综合矩阵基准测试 ================= -->
@@ -4258,6 +4323,7 @@ spec:
         const numeronymGeneratorEngine = await loadWasmFromUrl("./wasm/numeronym-generator.wasm");
         const emojiPickerEngine = await loadWasmFromUrl("./wasm/emoji-picker.wasm");
         const jwtParserEngine = await loadWasmFromUrl("./wasm/jwt-parser.wasm");
+        const otpGeneratorEngine = await loadWasmFromUrl("./wasm/otp-generator.wasm");
 
         window.wasmContext.rust = rsEngine;
         window.wasmContext.ts = tsEngine;
@@ -4314,6 +4380,7 @@ spec:
         window.wasmContext.numeronymGenerator = numeronymGeneratorEngine;
         window.wasmContext.emojiPicker = emojiPickerEngine;
         window.wasmContext.jwtParser = jwtParserEngine;
+        window.wasmContext.otpGenerator = otpGeneratorEngine;
         window.wasmContext.rustReady = true;
         window.wasmContext.tsReady = true;
         window.wasmContext.tokenReady = true;
@@ -4369,9 +4436,10 @@ spec:
         window.wasmContext.numeronymGeneratorReady = true;
         window.wasmContext.emojiPickerReady = true;
         window.wasmContext.jwtParserReady = true;
+        window.wasmContext.otpGeneratorReady = true;
 
         const statusEl = document.getElementById("frontend-status");
-        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载 55 大模块: rs, ts, token-gen, hash-text, bcrypt, uuid-gen, ulid-gen, encryption, bip39, hmac, rsa, password-strength, pdf-sig, yaml-to-json, yaml-to-toml, json-to-yaml, json-to-toml, toml-to-json, toml-to-yaml, xml-to-json, json-to-xml, json-to-csv, base64-string, base64-file, color-converter, case-converter, date-time-converter, integer-base-converter, roman-numeral-converter, text-to-binary, text-to-unicode, markdown-to-html, list-converter, text-to-nato, sql-prettify, xml-formatter, json-minify, json-viewer, yaml-viewer, regex-tester, regex-memo, crontab-generator, chmod-calculator, docker-run-to-compose, email-normalizer, git-memo, random-port, text-diff, text-statistics, string-obfuscator, lorem-ipsum, ascii-text-drawer, numeronym-generator, emoji-picker & jwt-parser)`;
+        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载 56 大模块: rs, ts, token-gen, hash-text, bcrypt, uuid-gen, ulid-gen, encryption, bip39, hmac, rsa, password-strength, pdf-sig, yaml-to-json, yaml-to-toml, json-to-yaml, json-to-toml, toml-to-json, toml-to-yaml, xml-to-json, json-to-xml, json-to-csv, base64-string, base64-file, color-converter, case-converter, date-time-converter, integer-base-converter, roman-numeral-converter, text-to-binary, text-to-unicode, markdown-to-html, list-converter, text-to-nato, sql-prettify, xml-formatter, json-minify, json-viewer, yaml-viewer, regex-tester, regex-memo, crontab-generator, chmod-calculator, docker-run-to-compose, email-normalizer, git-memo, random-port, text-diff, text-statistics, string-obfuscator, lorem-ipsum, ascii-text-drawer, numeronym-generator, emoji-picker, jwt-parser & otp-generator)`;
 
         // 初始自动运行一次前端计算
         window.runFrontendCalc();
@@ -9634,6 +9702,81 @@ spec:
 
           <div style="margin-top:10px; font-size:11px; color:var(--text-muted);">
             <span>数字签名 (Base64URL): </span><code style="font-family:var(--font-mono); color:#f59e0b;">${escapeHtmlFront(d.signature)}</code>
+          </div>
+        </div>
+      `;
+    };
+
+    // OTP Generator 前端极速生成
+    const otpPresets = {
+      "standard-google": { secret: "JBSWY3DPEHPK3PXP", digits: 6, period: 30 },
+      "rfc6238-vector": { secret: "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ", digits: 8, period: 30 },
+      "devops-admin": { secret: "MZXW633PN5XW6MZX", digits: 6, period: 60 }
+    };
+
+    window.loadOtpPreset = function(presetId) {
+      const p = otpPresets[presetId];
+      if (p) {
+        document.getElementById("otp-secret").value = p.secret;
+        document.getElementById("otp-digits").value = p.digits;
+        document.getElementById("otp-period").value = p.period;
+        window.runFrontendOtpGenerate();
+      }
+    };
+
+    window.runFrontendOtpGenerate = function() {
+      if (!window.wasmContext.otpGeneratorReady || !window.wasmContext.otpGenerator) {
+        document.getElementById("frontend-otp-result").innerHTML = `
+          <div class="result-box error">otp-generator.wasm 尚未加载完毕</div>
+        `;
+        return;
+      }
+
+      const secret = (document.getElementById("otp-secret").value || "JBSWY3DPEHPK3PXP").trim();
+      const digits = parseInt(document.getElementById("otp-digits").value || "6", 10) || 6;
+      const period = parseInt(document.getElementById("otp-period").value || "30", 10) || 30;
+      const currentTime = Math.floor(Date.now() / 1000);
+
+      const t0 = performance.now();
+      const response = window.wasmContext.otpGenerator.dispatch({
+        action: "otp/totp",
+        requestId: `front-${Date.now()}`,
+        params: {
+          secret,
+          digits,
+          period,
+          currentTime
+        }
+      });
+      const duration = (performance.now() - t0).toFixed(4);
+
+      if (response.code !== 0) {
+        document.getElementById("frontend-otp-result").innerHTML = `
+          <div class="result-box error">生成失败: ${escapeHtmlFront(response.msg)}</div>
+        `;
+        return;
+      }
+
+      const d = response.data;
+      document.getElementById("frontend-otp-result").innerHTML = `
+        <div class="result-box">
+          <div class="result-header">
+            <span class="tag tag-rust">🦀 Browser WASM: TOTP 生成成功 (RFC 6238 / ${d.digits} 位)</span>
+            <span class="badge-time">⚡ ${duration} ms (纯前端内存)</span>
+          </div>
+          <div style="display:flex; flex-direction:column; align-items:center; margin:16px 0;">
+            <div style="font-family:var(--font-mono); font-size:36px; font-weight:800; letter-spacing:6px; color:#10b981; background:rgba(0,0,0,0.4); padding:10px 24px; border-radius:8px; border:1px solid rgba(16,185,129,0.3); text-shadow:0 0 12px rgba(16,185,129,0.4); cursor:pointer;" onclick="navigator.clipboard.writeText('${d.code}')" title="点击复制动态验证码">
+              ${escapeHtmlFront(d.code)}
+            </div>
+            <div style="margin-top:10px; font-size:12px; color:var(--text-muted); display:flex; gap:16px;">
+              <span>有效周期: <strong style="color:#34d399;">${d.periodSeconds} 秒</strong></span>
+              <span>当前时间步剩余: <strong style="color:#f59e0b;">${d.remainingSeconds} 秒</strong></span>
+              <span>计数器步数: <strong style="color:#c084fc;">#${d.counter}</strong></span>
+            </div>
+          </div>
+          <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--text-muted); padding-top:6px; border-top:1px solid rgba(255,255,255,0.06);">
+            <span>算法标准: RFC 6238 HMAC-SHA1</span>
+            <span>有效截止时间戳: ${d.validUntil}</span>
           </div>
         </div>
       `;

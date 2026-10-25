@@ -65,6 +65,7 @@ const asciiTextDrawerWasmPath = path.resolve(__dirname, "../public/wasm/ascii-te
 const numeronymGeneratorWasmPath = path.resolve(__dirname, "../public/wasm/numeronym-generator.wasm");
 const emojiPickerWasmPath = path.resolve(__dirname, "../public/wasm/emoji-picker.wasm");
 const jwtParserWasmPath = path.resolve(__dirname, "../public/wasm/jwt-parser.wasm");
+const otpGeneratorWasmPath = path.resolve(__dirname, "../public/wasm/otp-generator.wasm");
 
 let rsEngine = null;
 let tsEngine = null;
@@ -121,6 +122,7 @@ let asciiTextDrawerEngine = null;
 let numeronymGeneratorEngine = null;
 let emojiPickerEngine = null;
 let jwtParserEngine = null;
+let otpGeneratorEngine = null;
 
 async function initEngines() {
   try {
@@ -507,6 +509,13 @@ async function initEngines() {
       console.log("✅ [Backend Infra] 纯单一文件 jwt-parser.wasm 加载成功");
     } else {
       console.warn("⚠️ jwt-parser.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    if (fs.existsSync(otpGeneratorWasmPath)) {
+      otpGeneratorEngine = await loadWasmFromDisk(otpGeneratorWasmPath);
+      console.log("✅ [Backend Infra] 纯单一文件 otp-generator.wasm 加载成功");
+    } else {
+      console.warn("⚠️ otp-generator.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
     }
   } catch (err) {
     console.error("❌ 后端 WASM 基础设施初始化失败:", err);
@@ -6578,6 +6587,133 @@ app.get("/api/backend/jwt/presets", async (c) => {
   }
 });
 
+// API: TOTP / HOTP 双因子动态令牌计算 (OTP Generator)
+app.post("/api/backend/otp/totp", async (c) => {
+  try {
+    const contentType = c.req.header("Content-Type") || "";
+    let secret = "JBSWY3DPEHPK3PXP";
+    let digits = 6;
+    let period = 30;
+    let currentTime = Math.floor(Date.now() / 1000);
+
+    if (contentType.includes("application/json")) {
+      const json = await c.req.json().catch(() => ({}));
+      if (json.secret) secret = json.secret.toString();
+      if (json.digits) digits = parseInt(json.digits, 10) || 6;
+      if (json.period) period = parseInt(json.period, 10) || 30;
+      if (json.currentTime) currentTime = parseInt(json.currentTime, 10) || currentTime;
+    } else {
+      const body = await c.req.parseBody().catch(() => ({}));
+      if (body.secret) secret = body.secret.toString();
+      if (body.digits) digits = parseInt(body.digits, 10) || 6;
+      if (body.period) period = parseInt(body.period, 10) || 30;
+      if (body.currentTime) currentTime = parseInt(body.currentTime, 10) || currentTime;
+    }
+
+    if (!otpGeneratorEngine) {
+      throw new Error("otp-generator WASM 引擎未就绪");
+    }
+
+    const t0 = performance.now();
+    const response = otpGeneratorEngine.dispatch({
+      action: "otp/totp",
+      requestId: `srv-${Date.now()}`,
+      params: {
+        secret,
+        digits,
+        period,
+        currentTime,
+      }
+    });
+    const duration = (performance.now() - t0).toFixed(4);
+
+    if (contentType.includes("application/json") && !c.req.header("HX-Request")) {
+      return c.json(response);
+    }
+
+    if (response.code !== 0) {
+      return c.html(`
+        <div class="result-box error">
+          <strong>OTP 生成失败:</strong> ${escapeHtml(response.msg)}
+        </div>
+      `, 400);
+    }
+
+    const d = response.data;
+
+    return c.html(`
+      <div class="result-box">
+        <div class="result-header">
+          <span class="tag tag-rust">🦀 Rust WASM: TOTP 生成成功 (RFC 6238 / ${d.digits} 位)</span>
+          <span class="badge-time">⚡ ${duration} ms (Hono 后端原生)</span>
+        </div>
+        <div style="display:flex; flex-direction:column; align-items:center; margin:16px 0;">
+          <div style="font-family:var(--font-mono); font-size:36px; font-weight:800; letter-spacing:6px; color:#38bdf8; background:rgba(0,0,0,0.4); padding:10px 24px; border-radius:8px; border:1px solid rgba(56,189,248,0.3); text-shadow:0 0 12px rgba(56,189,248,0.4);">
+            ${escapeHtml(d.code)}
+          </div>
+          <div style="margin-top:10px; font-size:12px; color:var(--text-muted); display:flex; gap:16px;">
+            <span>有效周期: <strong style="color:#34d399;">${d.periodSeconds} 秒</strong></span>
+            <span>当前时间步剩余: <strong style="color:#f59e0b;">${d.remainingSeconds} 秒</strong></span>
+            <span>计数器步数: <strong style="color:#c084fc;">#${d.counter}</strong></span>
+          </div>
+        </div>
+        <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--text-muted); padding-top:6px; border-top:1px solid rgba(255,255,255,0.06);">
+          <span>算法标准: RFC 6238 HMAC-SHA1</span>
+          <span>有效截止时间戳: ${d.validUntil}</span>
+        </div>
+      </div>
+    `);
+  } catch (err) {
+    return c.html(`
+      <div class="result-box error">
+        <strong>执行失败:</strong> ${escapeHtml(err.message)}
+      </div>
+    `, 500);
+  }
+});
+
+// API: TOTP 口令验证
+app.post("/api/backend/otp/verify", async (c) => {
+  try {
+    const json = await c.req.json().catch(() => ({}));
+    if (!otpGeneratorEngine) {
+      throw new Error("otp-generator WASM 引擎未就绪");
+    }
+    const response = otpGeneratorEngine.dispatch({
+      action: "otp/verify",
+      requestId: `srv-${Date.now()}`,
+      params: {
+        secret: json.secret || "JBSWY3DPEHPK3PXP",
+        code: json.code || "",
+        digits: json.digits || 6,
+        period: json.period || 30,
+        window: json.window ?? 1,
+        currentTime: json.currentTime || Math.floor(Date.now() / 1000),
+      }
+    });
+    return c.json(response);
+  } catch (err) {
+    return c.json({ code: 500, msg: err.message, data: null }, 500);
+  }
+});
+
+// API: 获取 OTP 预设
+app.get("/api/backend/otp/presets", async (c) => {
+  try {
+    if (!otpGeneratorEngine) {
+      throw new Error("otp-generator WASM 引擎未就绪");
+    }
+    const response = otpGeneratorEngine.dispatch({
+      action: "otp/presets",
+      requestId: `srv-${Date.now()}`,
+      params: {}
+    });
+    return c.json(response);
+  } catch (err) {
+    return c.json({ code: 500, msg: err.message, data: null }, 500);
+  }
+});
+
 // API: 获取 Markdown 示例
 app.get("/api/backend/markdown/sample", async (c) => {
   try {
@@ -6755,6 +6891,7 @@ app.get("/api/stats", (c) => {
   const numeronymGeneratorSize = fs.existsSync(numeronymGeneratorWasmPath) ? fs.statSync(numeronymGeneratorWasmPath).size : 0;
   const emojiPickerSize = fs.existsSync(emojiPickerWasmPath) ? fs.statSync(emojiPickerWasmPath).size : 0;
   const jwtParserSize = fs.existsSync(jwtParserWasmPath) ? fs.statSync(jwtParserWasmPath).size : 0;
+  const otpGeneratorSize = fs.existsSync(otpGeneratorWasmPath) ? fs.statSync(otpGeneratorWasmPath).size : 0;
   return c.json({
     rust: {
       file: "rs.wasm",
@@ -7030,6 +7167,11 @@ app.get("/api/stats", (c) => {
       file: "jwt-parser.wasm",
       sizeBytes: jwtParserSize,
       sizeFormatted: `${(jwtParserSize / 1024).toFixed(2)} KB`,
+    },
+    otpGenerator: {
+      file: "otp-generator.wasm",
+      sizeBytes: otpGeneratorSize,
+      sizeFormatted: `${(otpGeneratorSize / 1024).toFixed(2)} KB`,
     },
   });
 });

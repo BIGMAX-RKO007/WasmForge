@@ -1,0 +1,28 @@
+{
+  "name": "@wasm-forge/otp-generator",
+  "version": "0.1.0",
+  "description": "Pure Standalone WebAssembly TOTP/HOTP Two-Factor Authentication Engine (RFC 6238 & RFC 4226)",
+  "type": "module",
+  "main": "pkg/otp_generator.wasm",
+  "files": [
+    "pkg/otp_generator.wasm",
+    "README.md"
+  ],
+  "scripts": {
+    "build:wasm": "cargo build --target wasm32-unknown-unknown --release",
+    "test": "cargo test"
+  },
+  "keywords": [
+    "wasm",
+    "webassembly",
+    "totp",
+    "hotp",
+    "2fa",
+    "mfa",
+    "otp",
+    "rfc6238",
+    "google-authenticator"
+  ],
+  "author": "WasmForge",
+  "license": "MIT"
+}
