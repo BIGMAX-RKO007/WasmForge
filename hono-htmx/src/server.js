@@ -46,6 +46,7 @@ const listConverterWasmPath = path.resolve(__dirname, "../public/wasm/list-conve
 const textToNatoWasmPath = path.resolve(__dirname, "../public/wasm/text-to-nato.wasm");
 const sqlPrettifyWasmPath = path.resolve(__dirname, "../public/wasm/sql-prettify.wasm");
 const xmlFormatterWasmPath = path.resolve(__dirname, "../public/wasm/xml-formatter.wasm");
+const jsonMinifyWasmPath = path.resolve(__dirname, "../public/wasm/json-minify.wasm");
 
 let rsEngine = null;
 let tsEngine = null;
@@ -83,6 +84,7 @@ let listConverterEngine = null;
 let textToNatoEngine = null;
 let sqlPrettifyEngine = null;
 let xmlFormatterEngine = null;
+let jsonMinifyEngine = null;
 
 async function initEngines() {
   try {
@@ -336,6 +338,13 @@ async function initEngines() {
       console.log("✅ [Backend Infra] 纯单一文件 xml-formatter.wasm 加载成功");
     } else {
       console.warn("⚠️ xml-formatter.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    if (fs.existsSync(jsonMinifyWasmPath)) {
+      jsonMinifyEngine = await loadWasmFromDisk(jsonMinifyWasmPath);
+      console.log("✅ [Backend Infra] 纯单一文件 json-minify.wasm 加载成功");
+    } else {
+      console.warn("⚠️ json-minify.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
     }
   } catch (err) {
     console.error("❌ 后端 WASM 基础设施初始化失败:", err);
@@ -3795,6 +3804,168 @@ app.get("/api/backend/xml/sample", async (c) => {
   }
 });
 
+// API: HTMX 提交 JSON 压缩与格式化美化
+app.post("/api/backend/json/minify", async (c) => {
+  try {
+    let mode = "minify";
+    let jsonStr = "";
+    let indent = 2;
+
+    const contentType = c.req.header("content-type") || "";
+    if (contentType.includes("application/json")) {
+      const json = await c.req.json().catch(() => ({}));
+      if (json.mode) mode = json.mode;
+      jsonStr = (json.json || json.text || "").toString();
+      if (json.indent !== undefined) indent = parseInt(json.indent, 10) || 2;
+    } else {
+      const body = await c.req.parseBody().catch(() => ({}));
+      if (body.mode) mode = body.mode;
+      jsonStr = (body.json || body.text || "").toString();
+      if (body.indent !== undefined) indent = parseInt(body.indent, 10) || 2;
+    }
+
+    if (!jsonStr) {
+      if (contentType.includes("application/json") && !c.req.header("HX-Request")) {
+        return c.json({ code: 400, msg: "JSON 文本不能为空", data: null }, 400);
+      }
+      return c.html(`
+        <div class="result-box error">
+          <strong>处理失败:</strong> JSON 文本不能为空
+        </div>
+      `, 400);
+    }
+
+    if (!jsonMinifyEngine) {
+      throw new Error("json-minify WASM 引擎未就绪");
+    }
+
+    const t0 = performance.now();
+    let action = "json/minify";
+    let params = { json: jsonStr };
+
+    if (mode === "prettify") {
+      action = "json/prettify";
+      params = { json: jsonStr, indent };
+    } else if (mode === "validate") {
+      action = "json/validate";
+      params = { json: jsonStr };
+    }
+
+    const response = jsonMinifyEngine.dispatch({
+      action,
+      requestId: `srv-${Date.now()}`,
+      params
+    });
+    const duration = (performance.now() - t0).toFixed(4);
+
+    if (contentType.includes("application/json") && !c.req.header("HX-Request")) {
+      return c.json(response);
+    }
+
+    if (response.code !== 0) {
+      return c.html(`
+        <div class="result-box error">
+          <strong>JSON 处理失败:</strong> ${response.msg}
+        </div>
+      `, 400);
+    }
+
+    const d = response.data;
+    if (mode === "prettify") {
+      return c.html(`
+        <div class="result-box">
+          <div class="result-header">
+            <span class="tag tag-rust">🦀 Rust WASM: JSON 美化排版成功</span>
+            <span class="badge-time">⚡ ${duration} ms (Hono 后端原生)</span>
+          </div>
+
+          <div style="font-size:12px; color:var(--text-muted); margin-bottom:8px;">
+            排版后体积: <strong style="color:#38bdf8;">${d.stats.processedLength} 字节</strong> | 行数: <strong style="color:#a78bfa;">${d.stats.lineCount} 行</strong>
+          </div>
+
+          <div>
+            <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px;">美化后 JSON:</div>
+            <pre style="background:rgba(255,255,255,0.03); padding:10px 12px; border-radius:6px; border:1px solid rgba(255,255,255,0.08); font-family:var(--font-mono); font-size:12px; color:#34d399; margin:0; overflow-x:auto; line-height:1.4;"><code>${escapeHtml(d.prettified)}</code></pre>
+          </div>
+        </div>
+      `);
+    }
+
+    if (mode === "validate") {
+      const b = d.typeBreakdown;
+      return c.html(`
+        <div class="result-box">
+          <div class="result-header">
+            <span class="tag tag-rust">🦀 Rust WASM: JSON 结构合法性校验通过</span>
+            <span class="badge-time">⚡ ${duration} ms (Hono 后端原生)</span>
+          </div>
+
+          <div style="display:flex; flex-wrap:wrap; gap:16px; margin-bottom:12px; font-size:12px; color:var(--text-muted);">
+            <span>根节点类型: <strong style="color:#38bdf8;">${d.rootType}</strong></span>
+            <span>最大嵌套深度: <strong style="color:#a78bfa;">${b.maxDepth} 层</strong></span>
+            <span>对象(Object): <strong>${b.objects}</strong></span>
+            <span>数组(Array): <strong>${b.arrays}</strong></span>
+            <span>字符串(String): <strong>${b.strings}</strong></span>
+            <span>数字(Number): <strong>${b.numbers}</strong></span>
+          </div>
+
+          <div style="background:rgba(52,211,153,0.1); border:1px solid rgba(52,211,153,0.3); padding:8px 12px; border-radius:6px; font-size:12px; color:#34d399;">
+            ✅ ${d.message}
+          </div>
+        </div>
+      `);
+    }
+
+    return c.html(`
+      <div class="result-box">
+        <div class="result-header">
+          <span class="tag tag-rust">🦀 Rust WASM: JSON 极速压缩瘦身成功</span>
+          <span class="badge-time">⚡ ${duration} ms (Hono 后端原生)</span>
+        </div>
+
+        <div style="display:flex; flex-wrap:wrap; gap:16px; margin-bottom:12px; font-size:12px; color:var(--text-muted);">
+          <span>原长: <strong>${d.stats.originalLength} 字节</strong></span>
+          <span>压缩后: <strong style="color:#38bdf8;">${d.stats.processedLength} 字节</strong></span>
+          <span>压缩率: <strong style="color:#34d399;">${d.stats.compressionRatioPercent}%</strong></span>
+        </div>
+
+        <div>
+          <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px;">单行紧凑 JSON:</div>
+          <div style="background:rgba(255,255,255,0.03); padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,0.08); font-family:var(--font-mono); font-size:12px; color:#38bdf8; word-break:break-all; max-height:180px; overflow-y:auto; white-space:pre-wrap;">
+            ${escapeHtml(d.minified)}
+          </div>
+        </div>
+      </div>
+    `);
+  } catch (err) {
+    return c.html(`
+      <div class="result-box error">
+        <strong>处理失败:</strong> ${err.message}
+      </div>
+    `, 400);
+  }
+});
+
+// API: 获取 JSON 示例
+app.get("/api/backend/json/sample", async (c) => {
+  try {
+    if (!jsonMinifyEngine) {
+      throw new Error("json-minify WASM 引擎未就绪");
+    }
+    const response = jsonMinifyEngine.dispatch({
+      action: "json/sample",
+      requestId: `srv-${Date.now()}`,
+      params: {}
+    });
+    if (response.code !== 0) {
+      throw new Error(response.msg || "获取示例失败");
+    }
+    return c.json(response.data);
+  } catch (err) {
+    return c.json({ sampleJson: '{"key": "value"}' }, 500);
+  }
+});
+
 // API: 获取 Markdown 示例
 app.get("/api/backend/markdown/sample", async (c) => {
   try {
@@ -3953,6 +4124,7 @@ app.get("/api/stats", (c) => {
   const textToNatoSize = fs.existsSync(textToNatoWasmPath) ? fs.statSync(textToNatoWasmPath).size : 0;
   const sqlPrettifySize = fs.existsSync(sqlPrettifyWasmPath) ? fs.statSync(sqlPrettifyWasmPath).size : 0;
   const xmlFormatterSize = fs.existsSync(xmlFormatterWasmPath) ? fs.statSync(xmlFormatterWasmPath).size : 0;
+  const jsonMinifySize = fs.existsSync(jsonMinifyWasmPath) ? fs.statSync(jsonMinifyWasmPath).size : 0;
   return c.json({
     rust: {
       file: "rs.wasm",
@@ -4133,6 +4305,11 @@ app.get("/api/stats", (c) => {
       file: "xml-formatter.wasm",
       sizeBytes: xmlFormatterSize,
       sizeFormatted: `${(xmlFormatterSize / 1024).toFixed(2)} KB`,
+    },
+    jsonMinify: {
+      file: "json-minify.wasm",
+      sizeBytes: jsonMinifySize,
+      sizeFormatted: `${(jsonMinifySize / 1024).toFixed(2)} KB`,
     },
   });
 });

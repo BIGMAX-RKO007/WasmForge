@@ -1,0 +1,21 @@
+{
+  "name": "@wasmforge/json-minify",
+  "version": "0.1.0",
+  "description": "Pure Standalone WebAssembly JSON Minifier, Prettifier and Syntax Analyzer for WasmForge",
+  "main": "json_minify.wasm",
+  "scripts": {
+    "build": "cargo build --target wasm32-unknown-unknown --release",
+    "test": "cargo test"
+  },
+  "keywords": [
+    "wasm",
+    "webassembly",
+    "json",
+    "minify",
+    "prettify",
+    "serde_json",
+    "wasmforge"
+  ],
+  "author": "WasmForge",
+  "license": "MIT"
+}

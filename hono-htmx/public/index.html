@@ -2742,6 +2742,97 @@ Banana</textarea>
       </div>
     </div>
 
+    <!-- ================= 卡片 3.3: JSON 压缩瘦身与美化校验 (JSON Minifier & Syntax Analyzer) ================= -->
+    <div class="card" style="margin-bottom: 24px;">
+      <div class="card-header">
+        <div>
+          <h3>卡片 3.3: JSON 压缩瘦身与美化校验 (JSON Minifier & Prettifier)</h3>
+          <p style="margin:0; font-size:12px; color:var(--text-muted);">
+            支持单行极致紧凑瘦身、2/4 空格优雅美化排版、安全剥离 JSONC 注释(// 与 /* */) 以及深层节点类型与层级分析。
+          </p>
+        </div>
+        <span class="tag tag-rust">Tool #35: json-minify</span>
+      </div>
+
+      <div style="margin-top:16px;">
+        <form hx-post="/api/backend/json/minify" hx-target="#backend-json-minify-result" hx-swap="innerHTML">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <div style="display:flex; gap:16px; align-items:center;">
+              <label style="font-size:12px; font-weight:600; color:var(--text-muted);">输入待处理 JSON 文本 (支持 JSONC 注释):</label>
+              <div style="display:flex; gap:10px; font-size:12px;">
+                <label style="cursor:pointer; display:flex; align-items:center; gap:4px;">
+                  <input type="radio" name="mode" value="minify" checked id="json-mode-min" /> 压缩瘦身 (Minify)
+                </label>
+                <label style="cursor:pointer; display:flex; align-items:center; gap:4px;">
+                  <input type="radio" name="mode" value="prettify" id="json-mode-pret" /> 美化排版 (Prettify)
+                </label>
+                <label style="cursor:pointer; display:flex; align-items:center; gap:4px;">
+                  <input type="radio" name="mode" value="validate" id="json-mode-val" /> 语法校验 (Validate)
+                </label>
+              </div>
+            </div>
+            <div style="display:flex; gap:8px;">
+              <button type="button" onclick="loadJsonMinifySample()" style="padding:2px 8px; font-size:11px; background:rgba(56,189,248,0.15); color:#38bdf8; border:1px solid rgba(56,189,248,0.3); border-radius:4px; cursor:pointer;">
+                载入样例
+              </button>
+            </div>
+          </div>
+          <textarea id="json-minify-input" name="json" rows="6" placeholder="输入 JSON 文本，例如: { &quot;key&quot;: &quot;value&quot; }" style="width:100%; padding:10px 12px; background:#1e293b; border:1px solid rgba(255,255,255,0.1); color:#fff; border-radius:6px; font-family:var(--font-mono); font-size:13px; box-sizing:border-box;">{
+  // WasmForge platform configuration
+  "platform": "WasmForge",
+  "version": 1.0,
+  "active": true,
+  /* List of core architectural capabilities */
+  "tools": [
+    {
+      "id": "json-minify",
+      "category": "development",
+      "speedMs": 0.05
+    },
+    {
+      "id": "xml-formatter",
+      "category": "development",
+      "speedMs": 0.12
+    }
+  ],
+  "meta": null
+}</textarea>
+
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px;">
+            <div style="display:flex; gap:16px; align-items:center; font-size:12px; color:var(--text-muted);">
+              <div style="display:flex; align-items:center; gap:4px;">
+                <span>美化缩进:</span>
+                <select id="json-minify-indent" name="indent" style="background:#1e293b; color:#fff; border:1px solid rgba(255,255,255,0.2); padding:3px 6px; border-radius:4px; font-size:12px;">
+                  <option value="2" selected>2 空格</option>
+                  <option value="4">4 空格</option>
+                </select>
+              </div>
+            </div>
+
+            <div style="display:flex; gap:10px;">
+              <button type="submit" style="padding:6px 12px; background:linear-gradient(135deg, #0284c7, #0369a1); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:12px;">
+                🖥️ 后端 JSON 处理
+              </button>
+              <button type="button" onclick="runFrontendJsonMinify()" style="padding:6px 12px; background:linear-gradient(135deg, #0ea5e9, #0284c7); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:12px;">
+                🌐 前端本地处理
+              </button>
+            </div>
+          </div>
+        </form>
+
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:16px; margin-top:16px;">
+          <div>
+            <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px;">后端投影输出:</div>
+            <div id="backend-json-minify-result" class="result-container"><div class="result-box" style="opacity:0.5; font-size:12px;">等待处理...</div></div>
+          </div>
+          <div>
+            <div style="font-size:11px; color:var(--text-muted); margin-top:0px; margin-bottom:4px;">前端投影输出:</div>
+            <div id="frontend-json-minify-result" class="result-container"><div class="result-box" style="opacity:0.5; font-size:12px;">等待处理...</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- ================= 区域 3: 4 象限综合矩阵基准测试 ================= -->
     <div class="matrix-card">
       <h2>📊 4 维度跨场景一致性与性能矩阵</h2>
@@ -2844,6 +2935,8 @@ Banana</textarea>
       sqlPrettifyReady: false,
       xmlFormatter: null,
       xmlFormatterReady: false,
+      jsonMinify: null,
+      jsonMinifyReady: false,
       activeFrontendEngine: "rust",
       activeBackendEngine: "rust"
     };
@@ -2886,6 +2979,7 @@ Banana</textarea>
         const textToNatoEngine = await loadWasmFromUrl("./wasm/text-to-nato.wasm");
         const sqlPrettifyEngine = await loadWasmFromUrl("./wasm/sql-prettify.wasm");
         const xmlFormatterEngine = await loadWasmFromUrl("./wasm/xml-formatter.wasm");
+        const jsonMinifyEngine = await loadWasmFromUrl("./wasm/json-minify.wasm");
 
         window.wasmContext.rust = rsEngine;
         window.wasmContext.ts = tsEngine;
@@ -2923,6 +3017,7 @@ Banana</textarea>
         window.wasmContext.textToNato = textToNatoEngine;
         window.wasmContext.sqlPrettify = sqlPrettifyEngine;
         window.wasmContext.xmlFormatter = xmlFormatterEngine;
+        window.wasmContext.jsonMinify = jsonMinifyEngine;
         window.wasmContext.rustReady = true;
         window.wasmContext.tsReady = true;
         window.wasmContext.tokenReady = true;
@@ -2959,9 +3054,10 @@ Banana</textarea>
         window.wasmContext.textToNatoReady = true;
         window.wasmContext.sqlPrettifyReady = true;
         window.wasmContext.xmlFormatterReady = true;
+        window.wasmContext.jsonMinifyReady = true;
 
         const statusEl = document.getElementById("frontend-status");
-        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载 36 大模块: rs, ts, token-gen, hash-text, bcrypt, uuid-gen, ulid-gen, encryption, bip39, hmac, rsa, password-strength, pdf-sig, yaml-to-json, yaml-to-toml, json-to-yaml, json-to-toml, toml-to-json, toml-to-yaml, xml-to-json, json-to-xml, json-to-csv, base64-string, base64-file, color-converter, case-converter, date-time-converter, integer-base-converter, roman-numeral-converter, text-to-binary, text-to-unicode, markdown-to-html, list-converter, text-to-nato, sql-prettify & xml-formatter)`;
+        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载 37 大模块: rs, ts, token-gen, hash-text, bcrypt, uuid-gen, ulid-gen, encryption, bip39, hmac, rsa, password-strength, pdf-sig, yaml-to-json, yaml-to-toml, json-to-yaml, json-to-toml, toml-to-json, toml-to-yaml, xml-to-json, json-to-xml, json-to-csv, base64-string, base64-file, color-converter, case-converter, date-time-converter, integer-base-converter, roman-numeral-converter, text-to-binary, text-to-unicode, markdown-to-html, list-converter, text-to-nato, sql-prettify, xml-formatter & json-minify)`;
 
         // 初始自动运行一次前端计算
         window.runFrontendCalc();
@@ -6032,6 +6128,154 @@ Banana</textarea>
           <div>
             <div style="font-size:10px; color:var(--text-muted); margin-bottom:2px;">格式化输出:</div>
             <pre style="background:rgba(255,255,255,0.03); padding:8px 10px; border-radius:4px; border:1px solid rgba(255,255,255,0.06); font-family:var(--font-mono); font-size:12px; color:#34d399; margin:0; overflow-x:auto; line-height:1.4;"><code>${escapeHtmlFront(d.formatted)}</code></pre>
+          </div>
+        </div>
+      `;
+    };
+
+    // 载入 JSON Minify 示例
+    window.loadJsonMinifySample = async function() {
+      const input = document.getElementById("json-minify-input");
+      if (window.wasmContext.jsonMinify) {
+        const resp = window.wasmContext.jsonMinify.dispatch({
+          action: "json/sample",
+          requestId: `sample-${Date.now()}`,
+          params: {}
+        });
+        if (resp.code === 0 && resp.data?.sampleJson) {
+          input.value = resp.data.sampleJson;
+          window.runFrontendJsonMinify();
+          return;
+        }
+      }
+      try {
+        const res = await fetch("/api/backend/json/sample");
+        const data = await res.json();
+        input.value = data.sampleJson || '{"key": "value"}';
+        window.runFrontendJsonMinify();
+      } catch (e) {
+        console.error("加载 JSON 示例失败:", e);
+      }
+    };
+
+    // 前端执行 JSON 压缩与排版
+    window.runFrontendJsonMinify = function() {
+      const engine = window.wasmContext.jsonMinify;
+      if (!engine) {
+        document.getElementById("frontend-json-minify-result").innerHTML = `
+          <div class="result-box error">json-minify.wasm 尚未加载完毕</div>
+        `;
+        return;
+      }
+
+      const isMinify = document.getElementById("json-mode-min").checked;
+      const isPrettify = document.getElementById("json-mode-pret").checked;
+      const isValidate = document.getElementById("json-mode-val").checked;
+      const json = (document.getElementById("json-minify-input").value || "").trim();
+      const indent = parseInt(document.getElementById("json-minify-indent").value, 10) || 2;
+
+      if (!json) {
+        document.getElementById("frontend-json-minify-result").innerHTML = `
+          <div class="result-box error"><strong>处理失败:</strong> JSON 文本不能为空</div>
+        `;
+        return;
+      }
+
+      const t0 = performance.now();
+      let action = "json/minify";
+      let params = { json };
+
+      if (isPrettify) {
+        action = "json/prettify";
+        params = { json, indent };
+      } else if (isValidate) {
+        action = "json/validate";
+        params = { json };
+      }
+
+      const response = engine.dispatch({
+        action,
+        requestId: `req-front-${Date.now()}`,
+        params
+      });
+      const duration = (performance.now() - t0).toFixed(4);
+
+      if (response.code !== 0) {
+        document.getElementById("frontend-json-minify-result").innerHTML = `
+          <div class="result-box error"><strong>处理失败:</strong> ${response.msg}</div>
+        `;
+        return;
+      }
+
+      function escapeHtmlFront(str) {
+        return (str || "").replace(/[&<>"']/g, (m) => ({
+          "&": "&amp;",
+          "<": "&lt;",
+          ">": "&gt;",
+          '"': "&quot;",
+          "'": "&#39;"
+        }[m]));
+      }
+
+      const d = response.data;
+      if (isPrettify) {
+        document.getElementById("frontend-json-minify-result").innerHTML = `
+          <div class="result-box">
+            <div class="result-header">
+              <span class="tag tag-rust">🦀 Browser WASM: JSON 美化排版成功</span>
+              <span class="badge-time">⚡ ${duration} ms (纯前端内存)</span>
+            </div>
+
+            <div style="font-size:11px; color:var(--text-muted); margin-bottom:6px;">
+              排版后体积: <strong style="color:#38bdf8;">${d.stats.processedLength} 字节</strong> | 行数: <strong style="color:#a78bfa;">${d.stats.lineCount} 行</strong>
+            </div>
+
+            <div>
+              <div style="font-size:10px; color:var(--text-muted); margin-bottom:2px;">美化后 JSON:</div>
+              <pre style="background:rgba(255,255,255,0.03); padding:8px 10px; border-radius:4px; border:1px solid rgba(255,255,255,0.06); font-family:var(--font-mono); font-size:12px; color:#34d399; margin:0; overflow-x:auto; line-height:1.4;"><code>${escapeHtmlFront(d.prettified)}</code></pre>
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      if (isValidate) {
+        const b = d.typeBreakdown;
+        document.getElementById("frontend-json-minify-result").innerHTML = `
+          <div class="result-box">
+            <div class="result-header">
+              <span class="tag tag-rust">🦀 Browser WASM: JSON 语法校验通过</span>
+              <span class="badge-time">⚡ ${duration} ms (纯前端内存)</span>
+            </div>
+
+            <div style="font-size:11px; color:var(--text-muted); margin-bottom:6px;">
+              根类型: <strong style="color:#38bdf8;">${d.rootType}</strong> | 最大深度: <strong style="color:#a78bfa;">${b.maxDepth} 层</strong> | 对象: <strong>${b.objects}</strong> | 数组: <strong>${b.arrays}</strong> | 字符串: <strong>${b.strings}</strong> | 数字: <strong>${b.numbers}</strong>
+            </div>
+
+            <div style="background:rgba(52,211,153,0.1); border:1px solid rgba(52,211,153,0.3); padding:6px 10px; border-radius:4px; font-size:11px; color:#34d399;">
+              ✅ ${d.message}
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      document.getElementById("frontend-json-minify-result").innerHTML = `
+        <div class="result-box">
+          <div class="result-header">
+            <span class="tag tag-rust">🦀 Browser WASM: JSON 极速压缩瘦身成功</span>
+            <span class="badge-time">⚡ ${duration} ms (纯前端内存)</span>
+          </div>
+
+          <div style="font-size:11px; color:var(--text-muted); margin-bottom:6px;">
+            原长: <strong>${d.stats.originalLength} 字节</strong> | 压缩后: <strong style="color:#38bdf8;">${d.stats.processedLength} 字节</strong> | 压缩率: <strong style="color:#34d399;">${d.stats.compressionRatioPercent}%</strong>
+          </div>
+
+          <div>
+            <div style="font-size:10px; color:var(--text-muted); margin-bottom:2px;">单行紧凑 JSON:</div>
+            <div style="background:rgba(255,255,255,0.03); padding:8px; border-radius:4px; border:1px solid rgba(255,255,255,0.06); font-family:var(--font-mono); font-size:12px; color:#38bdf8; word-break:break-all; max-height:140px; overflow-y:auto; white-space:pre-wrap;">
+              ${escapeHtmlFront(d.minified)}
+            </div>
           </div>
         </div>
       `;
