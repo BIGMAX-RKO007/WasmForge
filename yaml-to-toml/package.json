@@ -1,0 +1,21 @@
+{
+  "name": "@wasmforge/yaml-to-toml",
+  "version": "0.1.0",
+  "description": "Pure WebAssembly YAML to TOML converter module following WasmForge Universal Envelope Protocol",
+  "main": "dist/yaml-to-toml.wasm",
+  "type": "module",
+  "scripts": {
+    "build": "cargo build --target wasm32-unknown-unknown --release",
+    "test": "cargo test"
+  },
+  "keywords": [
+    "wasm",
+    "webassembly",
+    "yaml",
+    "toml",
+    "converter",
+    "pure-c-abi"
+  ],
+  "author": "Antigravity Pair Programmer",
+  "license": "MIT"
+}
