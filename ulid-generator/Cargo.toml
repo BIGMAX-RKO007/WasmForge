@@ -1,0 +1,21 @@
+[package]
+name = "ulid-generator"
+version = "1.0.0"
+edition = "2021"
+description = "High-performance WebAssembly ULID (Universally Unique Lexicographically Sortable Identifier) generator and parser"
+authors = ["WasmForge Team"]
+license = "MIT"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+serde = { version = "1.0", default-features = false, features = ["alloc", "derive"] }
+serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

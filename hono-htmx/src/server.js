@@ -16,6 +16,7 @@ const tokenWasmPath = path.resolve(__dirname, "../public/wasm/token-generator.wa
 const hashWasmPath = path.resolve(__dirname, "../public/wasm/hash-text.wasm");
 const bcryptWasmPath = path.resolve(__dirname, "../public/wasm/bcrypt.wasm");
 const uuidWasmPath = path.resolve(__dirname, "../public/wasm/uuid-generator.wasm");
+const ulidWasmPath = path.resolve(__dirname, "../public/wasm/ulid-generator.wasm");
 
 let rsEngine = null;
 let tsEngine = null;
@@ -23,6 +24,7 @@ let tokenEngine = null;
 let hashEngine = null;
 let bcryptEngine = null;
 let uuidEngine = null;
+let ulidEngine = null;
 
 async function initEngines() {
   try {
@@ -66,6 +68,13 @@ async function initEngines() {
       console.log("✅ [Backend Infra] 纯单一文件 uuid-generator.wasm 加载成功");
     } else {
       console.warn("⚠️ uuid-generator.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    if (fs.existsSync(ulidWasmPath)) {
+      ulidEngine = await loadWasmFromDisk(ulidWasmPath);
+      console.log("✅ [Backend Infra] 纯单一文件 ulid-generator.wasm 加载成功");
+    } else {
+      console.warn("⚠️ ulid-generator.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
     }
   } catch (err) {
     console.error("❌ 后端 WASM 基础设施初始化失败:", err);
@@ -475,6 +484,112 @@ app.post("/api/backend/uuid/generate", async (c) => {
   }
 });
 
+// API: 后端 ULID 生成 (由 HTMX 调用)
+app.post("/api/backend/ulid/generate", async (c) => {
+  try {
+    if (!ulidEngine) {
+      throw new Error("ulid-generator.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    const body = await c.req.parseBody();
+    const count = parseInt(body.count || "3", 10);
+    const customTs = body.timestampMs ? parseInt(body.timestampMs, 10) : Date.now();
+
+    const t0 = performance.now();
+    const response = ulidEngine.dispatch({
+      action: "ulid/generate",
+      requestId: `srv-${Date.now()}`,
+      params: {
+        count,
+        timestampMs: customTs,
+        seed: Math.floor(Math.random() * 0xFFFFFFFF)
+      }
+    });
+    const duration = (performance.now() - t0).toFixed(4);
+
+    if (response.code !== 0) {
+      throw new Error(response.msg);
+    }
+
+    const { ulids, timestampMs, datetimeIso } = response.data;
+
+    return c.html(`
+      <div class="result-box">
+        <div class="result-header">
+          <span class="tag tag-rust">🦀 Rust WASM: ulid-generator (${count} 个)</span>
+          <span class="badge-time">⚡ ${duration} ms (Hono 后端原生毫秒级生成)</span>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:6px; margin:8px 0;">
+          ${ulids.map((id, idx) => `
+            <div class="token-display-wrap" style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,0.3); padding:8px 12px; border-radius:6px;">
+              <div class="result-value" id="srv-ulid-${idx}" style="font-size:14px; color:#a855f7; word-break:break-all; flex:1;">${id}</div>
+              <button type="button" class="btn-copy" style="margin-left:8px; padding:2px 8px; border-radius:4px; background:#1e293b; color:#fff; border:1px solid #a855f7; cursor:pointer;" onclick="navigator.clipboard.writeText(document.getElementById('srv-ulid-${idx}').innerText); this.innerText='已复制!'; setTimeout(()=>this.innerText='复制', 1500)">复制</button>
+            </div>
+          `).join("")}
+        </div>
+        <div class="token-meta" style="display:flex; gap:16px; font-size:12px; color:var(--text-muted);">
+          <span>编码规范: <strong style="color:#fff;">Crockford's Base32 (26 字符)</strong></span>
+          <span>时间戳: <strong style="color:#34d399;">${timestampMs}</strong> (${datetimeIso})</span>
+          <span>字典排序: <strong style="color:#38bdf8;">单调递增</strong></span>
+        </div>
+      </div>
+    `);
+  } catch (err) {
+    return c.html(`
+      <div class="result-box error">
+        <strong>生成失败:</strong> ${err.message}
+      </div>
+    `, 400);
+  }
+});
+
+// API: 后端 ULID 解析 (由 HTMX 调用)
+app.post("/api/backend/ulid/parse", async (c) => {
+  try {
+    if (!ulidEngine) {
+      throw new Error("ulid-generator.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    const body = await c.req.parseBody();
+    const ulid = (body.ulid || "").toString().trim();
+
+    const t0 = performance.now();
+    const response = ulidEngine.dispatch({
+      action: "ulid/parse",
+      requestId: `srv-${Date.now()}`,
+      params: { ulid }
+    });
+    const duration = (performance.now() - t0).toFixed(4);
+
+    if (response.code !== 0) {
+      throw new Error(response.msg);
+    }
+
+    const { timestampMs, datetimeIso, isValid } = response.data;
+
+    return c.html(`
+      <div class="result-box">
+        <div class="result-header">
+          <span class="tag tag-rust">🦀 Rust WASM: ULID 结构逆向解析</span>
+          <span class="badge-time">⚡ ${duration} ms</span>
+        </div>
+        <div style="font-size:13px; font-family:var(--font-mono); margin:8px 0; color:#fff;">
+          <div>目标 ULID: <strong style="color:#a855f7;">${ulid}</strong></div>
+          <div style="margin-top:6px; color:#34d399;">⏱️ 提取时间戳: <strong>${timestampMs} ms</strong></div>
+          <div style="margin-top:4px; color:#38bdf8;">📅 ISO 8601 UTC: <strong>${datetimeIso}</strong></div>
+          <div style="margin-top:4px; color:#e2e8f0;">48-bit 毫秒前缀: <strong>${ulid.slice(0, 10)}</strong> | 80-bit 随机后缀: <strong>${ulid.slice(10)}</strong></div>
+        </div>
+      </div>
+    `);
+  } catch (err) {
+    return c.html(`
+      <div class="result-box error">
+        <strong>解析失败:</strong> ${err.message}
+      </div>
+    `, 400);
+  }
+});
+
 // API: 模块统计信息
 app.get("/api/stats", (c) => {
   const rsSize = fs.existsSync(rsWasmPath) ? fs.statSync(rsWasmPath).size : 0;
@@ -483,6 +598,7 @@ app.get("/api/stats", (c) => {
   const hashSize = fs.existsSync(hashWasmPath) ? fs.statSync(hashWasmPath).size : 0;
   const bcryptSize = fs.existsSync(bcryptWasmPath) ? fs.statSync(bcryptWasmPath).size : 0;
   const uuidSize = fs.existsSync(uuidWasmPath) ? fs.statSync(uuidWasmPath).size : 0;
+  const ulidSize = fs.existsSync(ulidWasmPath) ? fs.statSync(ulidWasmPath).size : 0;
   return c.json({
     rust: {
       file: "rs.wasm",
@@ -513,6 +629,11 @@ app.get("/api/stats", (c) => {
       file: "uuid-generator.wasm",
       sizeBytes: uuidSize,
       sizeFormatted: `${(uuidSize / 1024).toFixed(2)} KB`,
+    },
+    ulidGenerator: {
+      file: "ulid-generator.wasm",
+      sizeBytes: ulidSize,
+      sizeFormatted: `${(ulidSize / 1024).toFixed(2)} KB`,
     },
   });
 });

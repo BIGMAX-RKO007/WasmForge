@@ -1,0 +1,14 @@
+{
+  "name": "@wasmforge/ulid-generator",
+  "version": "1.0.0",
+  "description": "High-performance WebAssembly ULID generator and parser conforming to Crockford's Base32 and WasmForge Envelope Protocol",
+  "main": "dist/ulid-generator.wasm",
+  "scripts": {
+    "test": "cargo test",
+    "build": "cargo build --target wasm32-unknown-unknown --release",
+    "export": "copy ..\\target\\wasm32-unknown-unknown\\release\\ulid_generator.wasm ..\\hono-htmx\\public\\wasm\\ulid-generator.wasm"
+  },
+  "keywords": ["wasm", "webassembly", "ulid", "crockford-base32", "sortable-id"],
+  "author": "WasmForge Team",
+  "license": "MIT"
+}
