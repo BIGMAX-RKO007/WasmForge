@@ -1,0 +1,21 @@
+{
+  "name": "@wasmforge/json-to-xml",
+  "version": "0.1.0",
+  "description": "Pure standalone WebAssembly JSON to XML serializer & converter following WasmForge Universal Envelope Protocol",
+  "main": "index.js",
+  "scripts": {
+    "build": "cargo build --target wasm32-unknown-unknown --release",
+    "test": "cargo test"
+  },
+  "keywords": [
+    "wasm",
+    "webassembly",
+    "json",
+    "xml",
+    "converter",
+    "c-abi",
+    "wasmforge"
+  ],
+  "author": "Antigravity Team",
+  "license": "MIT"
+}
