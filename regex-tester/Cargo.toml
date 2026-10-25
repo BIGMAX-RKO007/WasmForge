@@ -1,0 +1,21 @@
+[package]
+name = "regex-tester"
+version = "0.1.0"
+edition = "2021"
+description = "Pure standalone WASM module for ReDoS-safe regular expression testing, capture groups and substitution"
+license = "MIT OR Apache-2.0"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+serde = { version = "1.0", default-features = false, features = ["alloc", "derive"] }
+serde_json = { version = "1.0", default-features = false, features = ["alloc", "preserve_order"] }
+regex = { version = "1.10", default-features = false, features = ["std", "perf", "unicode"] }
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

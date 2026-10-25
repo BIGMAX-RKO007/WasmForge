@@ -49,6 +49,7 @@ const xmlFormatterWasmPath = path.resolve(__dirname, "../public/wasm/xml-formatt
 const jsonMinifyWasmPath = path.resolve(__dirname, "../public/wasm/json-minify.wasm");
 const jsonViewerWasmPath = path.resolve(__dirname, "../public/wasm/json-viewer.wasm");
 const yamlViewerWasmPath = path.resolve(__dirname, "../public/wasm/yaml-viewer.wasm");
+const regexTesterWasmPath = path.resolve(__dirname, "../public/wasm/regex-tester.wasm");
 
 let rsEngine = null;
 let tsEngine = null;
@@ -89,6 +90,7 @@ let xmlFormatterEngine = null;
 let jsonMinifyEngine = null;
 let jsonViewerEngine = null;
 let yamlViewerEngine = null;
+let regexTesterEngine = null;
 
 async function initEngines() {
   try {
@@ -363,6 +365,13 @@ async function initEngines() {
       console.log("✅ [Backend Infra] 纯单一文件 yaml-viewer.wasm 加载成功");
     } else {
       console.warn("⚠️ yaml-viewer.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    if (fs.existsSync(regexTesterWasmPath)) {
+      regexTesterEngine = await loadWasmFromDisk(regexTesterWasmPath);
+      console.log("✅ [Backend Infra] 纯单一文件 regex-tester.wasm 加载成功");
+    } else {
+      console.warn("⚠️ regex-tester.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
     }
   } catch (err) {
     console.error("❌ 后端 WASM 基础设施初始化失败:", err);
@@ -4297,6 +4306,172 @@ app.get("/api/backend/yaml/viewer-sample", async (c) => {
   }
 });
 
+// API: HTMX 提交 正则表达式测试与替换
+app.post("/api/backend/regex/test", async (c) => {
+  try {
+    let mode = "test";
+    let pattern = "";
+    let text = "";
+    let replacement = "";
+    let replaceAll = true;
+    let flags = {
+      caseInsensitive: false,
+      multiLine: false,
+      dotMatchesNewLine: false,
+      unicode: true
+    };
+
+    const contentType = c.req.header("content-type") || "";
+    if (contentType.includes("application/json")) {
+      const json = await c.req.json().catch(() => ({}));
+      if (json.mode) mode = json.mode;
+      pattern = (json.pattern || "").toString();
+      text = (json.text || "").toString();
+      if (json.replacement !== undefined) replacement = json.replacement.toString();
+      if (json.replaceAll !== undefined) replaceAll = Boolean(json.replaceAll);
+      if (json.flags) flags = { ...flags, ...json.flags };
+    } else {
+      const body = await c.req.parseBody().catch(() => ({}));
+      if (body.mode) mode = body.mode;
+      pattern = (body.pattern || "").toString();
+      text = (body.text || "").toString();
+      if (body.replacement !== undefined) replacement = body.replacement.toString();
+      if (body.replaceAll !== undefined) replaceAll = body.replaceAll === "true" || body.replaceAll === true;
+      flags.caseInsensitive = Boolean(body.caseInsensitive);
+      flags.multiLine = Boolean(body.multiLine);
+      flags.dotMatchesNewLine = Boolean(body.dotMatchesNewLine);
+    }
+
+    if (!pattern) {
+      if (contentType.includes("application/json") && !c.req.header("HX-Request")) {
+        return c.json({ code: 400, msg: "正则表达式 pattern 不能为空", data: null }, 400);
+      }
+      return c.html(`
+        <div class="result-box error">
+          <strong>测试失败:</strong> 正则表达式 pattern 不能为空
+        </div>
+      `, 400);
+    }
+
+    if (!regexTesterEngine) {
+      throw new Error("regex-tester WASM 引擎未就绪");
+    }
+
+    const t0 = performance.now();
+    const action = mode === "replace" ? "regex/replace" : "regex/test";
+    const params = mode === "replace"
+      ? { pattern, text, replacement, replaceAll, flags }
+      : { pattern, text, flags };
+
+    const response = regexTesterEngine.dispatch({
+      action,
+      requestId: `srv-${Date.now()}`,
+      params
+    });
+    const duration = (performance.now() - t0).toFixed(4);
+
+    if (contentType.includes("application/json") && !c.req.header("HX-Request")) {
+      return c.json(response);
+    }
+
+    if (response.code !== 0) {
+      return c.html(`
+        <div class="result-box error">
+          <strong>正则执行错误:</strong> ${escapeHtml(response.msg)}
+        </div>
+      `, 400);
+    }
+
+    const d = response.data;
+    if (mode === "replace") {
+      return c.html(`
+        <div class="result-box">
+          <div class="result-header">
+            <span class="tag tag-rust">🦀 Rust WASM: 正则文本替换完成 (ReDoS-Safe)</span>
+            <span class="badge-time">⚡ ${duration} ms (Hono 后端原生)</span>
+          </div>
+
+          <div style="font-size:12px; color:var(--text-muted); margin-bottom:8px;">
+            替换次数: <strong style="color:#38bdf8;">${d.replacementsMade} 处</strong> | 规则: <code>${escapeHtml(pattern)}</code> ➜ <code>${escapeHtml(replacement)}</code>
+          </div>
+
+          <div>
+            <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px;">替换结果:</div>
+            <pre style="background:rgba(255,255,255,0.03); padding:8px 10px; border-radius:4px; border:1px solid rgba(255,255,255,0.06); font-family:var(--font-mono); font-size:12px; color:#34d399; margin:0; overflow-x:auto; line-height:1.4;"><code>${escapeHtml(d.result)}</code></pre>
+          </div>
+        </div>
+      `);
+    }
+
+    // mode === "test"
+    const matchRows = d.matches.slice(0, 30).map((m) => {
+      const groupRows = m.captures.map((g) => `
+        <span style="background:rgba(255,255,255,0.06); padding:1px 5px; border-radius:3px; font-size:11px;">
+          <span style="color:#a78bfa;">${g.name ? escapeHtml(g.name) : '#' + g.index}:</span>
+          <span style="color:#34d399;">"${escapeHtml(g.text)}"</span>
+        </span>
+      `).join(" ");
+
+      return `
+        <div style="padding:6px 8px; border-bottom:1px solid rgba(255,255,255,0.05); font-family:var(--font-mono); font-size:12px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2px;">
+            <span style="color:#38bdf8; font-weight:600;">Match #${m.index + 1}</span>
+            <span style="color:var(--text-muted); font-size:11px;">[${m.start}..${m.end}]</span>
+          </div>
+          <div style="color:#facc15; margin-bottom:4px; word-break:break-all;">"${escapeHtml(m.text)}"</div>
+          ${m.captures.length > 1 ? `<div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:2px;">${groupRows}</div>` : ""}
+        </div>
+      `;
+    }).join("");
+
+    return c.html(`
+      <div class="result-box">
+        <div class="result-header">
+          <span class="tag tag-rust">🦀 Rust WASM: 正则匹配成功 (ReDoS-Safe 线性保证)</span>
+          <span class="badge-time">⚡ ${duration} ms (Hono 后端原生)</span>
+        </div>
+
+        <div style="display:flex; flex-wrap:wrap; gap:16px; margin-bottom:12px; font-size:12px; color:var(--text-muted);">
+          <span>匹配状态: <strong style="color:${d.isMatch ? '#34d399' : '#ef4444'};">${d.isMatch ? '✅ MATCHED' : '❌ NO MATCH'}</strong></span>
+          <span>匹配次数: <strong style="color:#38bdf8;">${d.matchCount} 处</strong></span>
+          <span>引擎安全保证: <strong style="color:#a78bfa;">${escapeHtml(d.executionInfo)}</strong></span>
+        </div>
+
+        <div style="background:rgba(255,255,255,0.02); border-radius:6px; border:1px solid rgba(255,255,255,0.08); max-height:220px; overflow-y:auto;">
+          ${matchRows || '<div style="padding:10px; color:var(--text-muted); font-size:12px;">无任何匹配项</div>'}
+          ${d.matches.length > 30 ? `<div style="padding:4px 8px; font-size:11px; color:var(--text-muted);">... 其余 ${d.matches.length - 30} 个匹配项已折叠</div>` : ""}
+        </div>
+      </div>
+    `);
+  } catch (err) {
+    return c.html(`
+      <div class="result-box error">
+        <strong>处理失败:</strong> ${err.message}
+      </div>
+    `, 400);
+  }
+});
+
+// API: 获取 Regex 经典模板示例
+app.get("/api/backend/regex/samples", async (c) => {
+  try {
+    if (!regexTesterEngine) {
+      throw new Error("regex-tester WASM 引擎未就绪");
+    }
+    const response = regexTesterEngine.dispatch({
+      action: "regex/sample",
+      requestId: `srv-${Date.now()}`,
+      params: {}
+    });
+    if (response.code !== 0) {
+      throw new Error(response.msg || "获取示例失败");
+    }
+    return c.json(response.data);
+  } catch (err) {
+    return c.json({ samples: [] }, 500);
+  }
+});
+
 // API: 获取 Markdown 示例
 app.get("/api/backend/markdown/sample", async (c) => {
   try {
@@ -4458,6 +4633,7 @@ app.get("/api/stats", (c) => {
   const jsonMinifySize = fs.existsSync(jsonMinifyWasmPath) ? fs.statSync(jsonMinifyWasmPath).size : 0;
   const jsonViewerSize = fs.existsSync(jsonViewerWasmPath) ? fs.statSync(jsonViewerWasmPath).size : 0;
   const yamlViewerSize = fs.existsSync(yamlViewerWasmPath) ? fs.statSync(yamlViewerWasmPath).size : 0;
+  const regexTesterSize = fs.existsSync(regexTesterWasmPath) ? fs.statSync(regexTesterWasmPath).size : 0;
   return c.json({
     rust: {
       file: "rs.wasm",
@@ -4653,6 +4829,11 @@ app.get("/api/stats", (c) => {
       file: "yaml-viewer.wasm",
       sizeBytes: yamlViewerSize,
       sizeFormatted: `${(yamlViewerSize / 1024).toFixed(2)} KB`,
+    },
+    regexTester: {
+      file: "regex-tester.wasm",
+      sizeBytes: regexTesterSize,
+      sizeFormatted: `${(regexTesterSize / 1024).toFixed(2)} KB`,
     },
   });
 });

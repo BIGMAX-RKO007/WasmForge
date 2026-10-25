@@ -3006,6 +3006,86 @@ spec:
       </div>
     </div>
 
+    <!-- ================= 卡片 3.6: ReDoS-Safe 正则表达式测试与替换 (Regex Tester & Safe Evaluator) ================= -->
+    <div class="card" style="margin-bottom: 24px;">
+      <div class="card-header">
+        <div>
+          <h3>卡片 3.6: ReDoS-Safe 正则表达式测试与替换 (Regex Tester)</h3>
+          <p style="margin:0; font-size:12px; color:var(--text-muted);">
+            基于 Rust 自动机 DFA 算法实现，线性时间复杂度绝对免疫灾难性回溯 (ReDoS 攻击)，支持命名捕获组解析、多行/大小写标志与正则文本替换。
+          </p>
+        </div>
+        <span class="tag tag-rust">Tool #38: regex-tester</span>
+      </div>
+
+      <div style="margin-top:16px;">
+        <form hx-post="/api/backend/regex/test" hx-target="#backend-regex-result" hx-swap="innerHTML">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <div style="display:flex; gap:16px; align-items:center;">
+              <label style="font-size:12px; font-weight:600; color:var(--text-muted);">正则表达式 Pattern:</label>
+              <div style="display:flex; gap:10px; font-size:12px;">
+                <label style="cursor:pointer; display:flex; align-items:center; gap:4px;">
+                  <input type="radio" name="mode" value="test" checked id="regex-mode-test" /> 匹配提取 (Match & Captures)
+                </label>
+                <label style="cursor:pointer; display:flex; align-items:center; gap:4px;">
+                  <input type="radio" name="mode" value="replace" id="regex-mode-replace" /> 正则替换 (Replace)
+                </label>
+              </div>
+            </div>
+            <div style="display:flex; gap:8px;">
+              <button type="button" onclick="loadRegexSample()" style="padding:2px 8px; font-size:11px; background:rgba(56,189,248,0.15); color:#38bdf8; border:1px solid rgba(56,189,248,0.3); border-radius:4px; cursor:pointer;">
+                载入经典模板
+              </button>
+            </div>
+          </div>
+
+          <div style="display:flex; gap:10px; margin-bottom:8px;">
+            <input type="text" id="regex-pattern" name="pattern" placeholder="例如: (?P<user>[a-zA-Z0-9_.+-]+)@(?P<domain>[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)" value="(?P<user>[a-zA-Z0-9_.+-]+)@(?P<domain>[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)" style="flex:1; padding:8px 12px; background:#1e293b; border:1px solid rgba(255,255,255,0.1); color:#38bdf8; border-radius:6px; font-family:var(--font-mono); font-size:13px; box-sizing:border-box;" />
+            <input type="text" id="regex-replacement" name="replacement" placeholder="替换文本 (如: [EMAIL_MASKED])" value="[MASKED_EMAIL]" style="width:200px; padding:8px 12px; background:#1e293b; border:1px solid rgba(255,255,255,0.1); color:#34d399; border-radius:6px; font-family:var(--font-mono); font-size:13px; box-sizing:border-box;" />
+          </div>
+
+          <div style="display:flex; gap:16px; align-items:center; margin-bottom:8px; font-size:12px; color:var(--text-muted);">
+            <span>修饰标志:</span>
+            <label style="cursor:pointer; display:flex; align-items:center; gap:4px;">
+              <input type="checkbox" id="regex-flag-i" name="caseInsensitive" /> 忽略大小写 (i)
+            </label>
+            <label style="cursor:pointer; display:flex; align-items:center; gap:4px;">
+              <input type="checkbox" id="regex-flag-m" name="multiLine" /> 多行模式 (m)
+            </label>
+            <label style="cursor:pointer; display:flex; align-items:center; gap:4px;">
+              <input type="checkbox" id="regex-flag-s" name="dotMatchesNewLine" /> 点号匹配换行 (s)
+            </label>
+            <label style="cursor:pointer; display:flex; align-items:center; gap:4px;">
+              <input type="checkbox" id="regex-flag-all" name="replaceAll" checked /> 全局匹配/替换
+            </label>
+          </div>
+
+          <label style="font-size:12px; font-weight:600; color:var(--text-muted); display:block; margin-bottom:4px;">测试目标文本:</label>
+          <textarea id="regex-input-text" name="text" rows="5" placeholder="在此输入需要测试的文本..." style="width:100%; padding:10px 12px; background:#1e293b; border:1px solid rgba(255,255,255,0.1); color:#fff; border-radius:6px; font-family:var(--font-mono); font-size:13px; box-sizing:border-box;">Hello team, contact support@wasmforge.dev or security@google.com for immediate enterprise assistance.</textarea>
+
+          <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:10px;">
+            <button type="submit" style="padding:6px 12px; background:linear-gradient(135deg, #0284c7, #0369a1); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:12px;">
+              🖥️ 后端正则运算
+            </button>
+            <button type="button" onclick="runFrontendRegexTest()" style="padding:6px 12px; background:linear-gradient(135deg, #0ea5e9, #0284c7); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:12px;">
+              🌐 前端本地运算
+            </button>
+          </div>
+        </form>
+
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:16px; margin-top:16px;">
+          <div>
+            <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px;">后端投影输出:</div>
+            <div id="backend-regex-result" class="result-container"><div class="result-box" style="opacity:0.5; font-size:12px;">等待执行...</div></div>
+          </div>
+          <div>
+            <div style="font-size:11px; color:var(--text-muted); margin-top:0px; margin-bottom:4px;">前端投影输出:</div>
+            <div id="frontend-regex-result" class="result-container"><div class="result-box" style="opacity:0.5; font-size:12px;">等待执行...</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- ================= 区域 3: 4 象限综合矩阵基准测试 ================= -->
     <div class="matrix-card">
       <h2>📊 4 维度跨场景一致性与性能矩阵</h2>
@@ -3155,6 +3235,7 @@ spec:
         const jsonMinifyEngine = await loadWasmFromUrl("./wasm/json-minify.wasm");
         const jsonViewerEngine = await loadWasmFromUrl("./wasm/json-viewer.wasm");
         const yamlViewerEngine = await loadWasmFromUrl("./wasm/yaml-viewer.wasm");
+        const regexTesterEngine = await loadWasmFromUrl("./wasm/regex-tester.wasm");
 
         window.wasmContext.rust = rsEngine;
         window.wasmContext.ts = tsEngine;
@@ -3195,6 +3276,7 @@ spec:
         window.wasmContext.jsonMinify = jsonMinifyEngine;
         window.wasmContext.jsonViewer = jsonViewerEngine;
         window.wasmContext.yamlViewer = yamlViewerEngine;
+        window.wasmContext.regexTester = regexTesterEngine;
         window.wasmContext.rustReady = true;
         window.wasmContext.tsReady = true;
         window.wasmContext.tokenReady = true;
@@ -3234,9 +3316,10 @@ spec:
         window.wasmContext.jsonMinifyReady = true;
         window.wasmContext.jsonViewerReady = true;
         window.wasmContext.yamlViewerReady = true;
+        window.wasmContext.regexTesterReady = true;
 
         const statusEl = document.getElementById("frontend-status");
-        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载 39 大模块: rs, ts, token-gen, hash-text, bcrypt, uuid-gen, ulid-gen, encryption, bip39, hmac, rsa, password-strength, pdf-sig, yaml-to-json, yaml-to-toml, json-to-yaml, json-to-toml, toml-to-json, toml-to-yaml, xml-to-json, json-to-xml, json-to-csv, base64-string, base64-file, color-converter, case-converter, date-time-converter, integer-base-converter, roman-numeral-converter, text-to-binary, text-to-unicode, markdown-to-html, list-converter, text-to-nato, sql-prettify, xml-formatter, json-minify, json-viewer & yaml-viewer)`;
+        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载 40 大模块: rs, ts, token-gen, hash-text, bcrypt, uuid-gen, ulid-gen, encryption, bip39, hmac, rsa, password-strength, pdf-sig, yaml-to-json, yaml-to-toml, json-to-yaml, json-to-toml, toml-to-json, toml-to-yaml, xml-to-json, json-to-xml, json-to-csv, base64-string, base64-file, color-converter, case-converter, date-time-converter, integer-base-converter, roman-numeral-converter, text-to-binary, text-to-unicode, markdown-to-html, list-converter, text-to-nato, sql-prettify, xml-formatter, json-minify, json-viewer, yaml-viewer & regex-tester)`;
 
         // 初始自动运行一次前端计算
         window.runFrontendCalc();
@@ -6748,6 +6831,167 @@ spec:
           <div style="background:rgba(255,255,255,0.02); border-radius:6px; border:1px solid rgba(255,255,255,0.08); padding:8px; max-height:220px; overflow-y:auto;">
             ${nodeRows}
             ${d.nodes.length > 60 ? `<div style="padding:4px 8px; font-size:11px; color:var(--text-muted);">... 其余 ${d.nodes.length - 60} 个节点已折叠</div>` : ""}
+          </div>
+        </div>
+      `;
+    };
+
+    // 载入 Regex 经典模板
+    window.loadRegexSample = async function() {
+      const patternInput = document.getElementById("regex-pattern");
+      const textInput = document.getElementById("regex-input-text");
+      const replacementInput = document.getElementById("regex-replacement");
+
+      if (window.wasmContext.regexTester) {
+        const resp = window.wasmContext.regexTester.dispatch({
+          action: "regex/sample",
+          requestId: `sample-${Date.now()}`,
+          params: {}
+        });
+        if (resp.code === 0 && resp.data?.samples?.length > 0) {
+          // 随机挑选一个模板
+          const s = resp.data.samples[Math.floor(Math.random() * resp.data.samples.length)];
+          patternInput.value = s.pattern;
+          textInput.value = s.sample_text || s.sampleText;
+          replacementInput.value = "[REDACTED]";
+          window.runFrontendRegexTest();
+          return;
+        }
+      }
+      try {
+        const res = await fetch("/api/backend/regex/samples");
+        const data = await res.json();
+        if (data.samples?.length > 0) {
+          const s = data.samples[0];
+          patternInput.value = s.pattern;
+          textInput.value = s.sampleText || s.sample_text;
+          replacementInput.value = "[REDACTED]";
+          window.runFrontendRegexTest();
+        }
+      } catch (e) {
+        console.error("加载正则模板失败:", e);
+      }
+    };
+
+    // 前端执行 Regex 匹配与替换
+    window.runFrontendRegexTest = function() {
+      const engine = window.wasmContext.regexTester;
+      if (!engine) {
+        document.getElementById("frontend-regex-result").innerHTML = `
+          <div class="result-box error">regex-tester.wasm 尚未加载完毕</div>
+        `;
+        return;
+      }
+
+      const isReplace = document.getElementById("regex-mode-replace").checked;
+      const pattern = (document.getElementById("regex-pattern").value || "").trim();
+      const text = document.getElementById("regex-input-text").value || "";
+      const replacement = document.getElementById("regex-replacement").value || "";
+      const replaceAll = document.getElementById("regex-flag-all").checked;
+
+      const flags = {
+        caseInsensitive: document.getElementById("regex-flag-i").checked,
+        multiLine: document.getElementById("regex-flag-m").checked,
+        dotMatchesNewLine: document.getElementById("regex-flag-s").checked,
+        unicode: true
+      };
+
+      if (!pattern) {
+        document.getElementById("frontend-regex-result").innerHTML = `
+          <div class="result-box error"><strong>测试失败:</strong> 正则表达式 pattern 不能为空</div>
+        `;
+        return;
+      }
+
+      const t0 = performance.now();
+      const action = isReplace ? "regex/replace" : "regex/test";
+      const params = isReplace
+        ? { pattern, text, replacement, replaceAll, flags }
+        : { pattern, text, flags };
+
+      const response = engine.dispatch({
+        action,
+        requestId: `req-front-${Date.now()}`,
+        params
+      });
+      const duration = (performance.now() - t0).toFixed(4);
+
+      if (response.code !== 0) {
+        document.getElementById("frontend-regex-result").innerHTML = `
+          <div class="result-box error"><strong>正则执行错误:</strong> ${response.msg}</div>
+        `;
+        return;
+      }
+
+      function escapeHtmlFront(str) {
+        return (str || "").replace(/[&<>"']/g, (m) => ({
+          "&": "&amp;",
+          "<": "&lt;",
+          ">": "&gt;",
+          '"': "&quot;",
+          "'": "&#39;"
+        }[m]));
+      }
+
+      const d = response.data;
+      if (isReplace) {
+        document.getElementById("frontend-regex-result").innerHTML = `
+          <div class="result-box">
+            <div class="result-header">
+              <span class="tag tag-rust">🦀 Browser WASM: 正则文本替换完成 (ReDoS-Safe)</span>
+              <span class="badge-time">⚡ ${duration} ms (纯前端内存)</span>
+            </div>
+
+            <div style="font-size:12px; color:var(--text-muted); margin-bottom:8px;">
+              替换次数: <strong style="color:#38bdf8;">${d.replacementsMade} 处</strong> | 规则: <code>${escapeHtmlFront(pattern)}</code> ➜ <code>${escapeHtmlFront(replacement)}</code>
+            </div>
+
+            <div>
+              <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px;">替换结果:</div>
+              <pre style="background:rgba(255,255,255,0.03); padding:8px 10px; border-radius:4px; border:1px solid rgba(255,255,255,0.06); font-family:var(--font-mono); font-size:12px; color:#34d399; margin:0; overflow-x:auto; line-height:1.4;"><code>${escapeHtmlFront(d.result)}</code></pre>
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      // isTest
+      const matchRows = d.matches.slice(0, 30).map((m) => {
+        const groupRows = m.captures.map((g) => `
+          <span style="background:rgba(255,255,255,0.06); padding:1px 5px; border-radius:3px; font-size:11px;">
+            <span style="color:#a78bfa;">${g.name ? escapeHtmlFront(g.name) : '#' + g.index}:</span>
+            <span style="color:#34d399;">"${escapeHtmlFront(g.text)}"</span>
+          </span>
+        `).join(" ");
+
+        return `
+          <div style="padding:6px 8px; border-bottom:1px solid rgba(255,255,255,0.05); font-family:var(--font-mono); font-size:12px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2px;">
+              <span style="color:#38bdf8; font-weight:600;">Match #${m.index + 1}</span>
+              <span style="color:var(--text-muted); font-size:11px;">[${m.start}..${m.end}]</span>
+            </div>
+            <div style="color:#facc15; margin-bottom:4px; word-break:break-all;">"${escapeHtmlFront(m.text)}"</div>
+            ${m.captures.length > 1 ? `<div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:2px;">${groupRows}</div>` : ""}
+          </div>
+        `;
+      }).join("");
+
+      document.getElementById("frontend-regex-result").innerHTML = `
+        <div class="result-box">
+          <div class="result-header">
+            <span class="tag tag-rust">🦀 Browser WASM: 正则匹配成功 (ReDoS-Safe 线性保证)</span>
+            <span class="badge-time">⚡ ${duration} ms (纯前端内存)</span>
+          </div>
+
+          <div style="display:flex; flex-wrap:wrap; gap:16px; margin-bottom:12px; font-size:12px; color:var(--text-muted);">
+            <span>匹配状态: <strong style="color:${d.isMatch ? '#34d399' : '#ef4444'};">${d.isMatch ? '✅ MATCHED' : '❌ NO MATCH'}</strong></span>
+            <span>匹配次数: <strong style="color:#38bdf8;">${d.matchCount} 处</strong></span>
+            <span>引擎安全保证: <strong style="color:#a78bfa;">${escapeHtmlFront(d.executionInfo)}</strong></span>
+          </div>
+
+          <div style="background:rgba(255,255,255,0.02); border-radius:6px; border:1px solid rgba(255,255,255,0.08); max-height:220px; overflow-y:auto;">
+            ${matchRows || '<div style="padding:10px; color:var(--text-muted); font-size:12px;">无任何匹配项</div>'}
+            ${d.matches.length > 30 ? `<div style="padding:4px 8px; font-size:11px; color:var(--text-muted);">... 其余 ${d.matches.length - 30} 个匹配项已折叠</div>` : ""}
           </div>
         </div>
       `;

@@ -1,0 +1,25 @@
+{
+  "name": "@wasmforge/regex-tester",
+  "version": "0.1.0",
+  "description": "Pure standalone WebAssembly module for ReDoS-safe regex evaluation and capture extraction",
+  "main": "pkg/regex_tester.js",
+  "types": "pkg/regex_tester.d.ts",
+  "files": [
+    "pkg",
+    "src"
+  ],
+  "scripts": {
+    "build": "cargo build --target wasm32-unknown-unknown --release",
+    "test": "cargo test"
+  },
+  "keywords": [
+    "wasm",
+    "webassembly",
+    "regex",
+    "tester",
+    "captures",
+    "redos-safe",
+    "rust"
+  ],
+  "license": "MIT"
+}
