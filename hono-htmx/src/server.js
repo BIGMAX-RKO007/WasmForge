@@ -27,6 +27,7 @@ const yamlToJsonWasmPath = path.resolve(__dirname, "../public/wasm/yaml-to-json.
 const yamlToTomlWasmPath = path.resolve(__dirname, "../public/wasm/yaml-to-toml.wasm");
 const jsonToYamlWasmPath = path.resolve(__dirname, "../public/wasm/json-to-yaml.wasm");
 const jsonToTomlWasmPath = path.resolve(__dirname, "../public/wasm/json-to-toml.wasm");
+const tomlToJsonWasmPath = path.resolve(__dirname, "../public/wasm/toml-to-json.wasm");
 
 let rsEngine = null;
 let tsEngine = null;
@@ -45,6 +46,7 @@ let yamlToJsonEngine = null;
 let yamlToTomlEngine = null;
 let jsonToYamlEngine = null;
 let jsonToTomlEngine = null;
+let tomlToJsonEngine = null;
 
 async function initEngines() {
   try {
@@ -165,6 +167,13 @@ async function initEngines() {
       console.log("✅ [Backend Infra] 纯单一文件 json-to-toml.wasm 加载成功");
     } else {
       console.warn("⚠️ json-to-toml.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    if (fs.existsSync(tomlToJsonWasmPath)) {
+      tomlToJsonEngine = await loadWasmFromDisk(tomlToJsonWasmPath);
+      console.log("✅ [Backend Infra] 纯单一文件 toml-to-json.wasm 加载成功");
+    } else {
+      console.warn("⚠️ toml-to-json.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
     }
   } catch (err) {
     console.error("❌ 后端 WASM 基础设施初始化失败:", err);
@@ -1573,6 +1582,77 @@ app.get("/api/backend/json-to-toml/sample", async (c) => {
   }
 });
 
+// API: TOML 转 JSON (由 HTMX 调用)
+app.post("/api/backend/toml/to-json", async (c) => {
+  const start = performance.now();
+  try {
+    const body = await c.req.parseBody();
+    const toml = (body.toml || "").toString();
+    const indent = parseInt(body.indent || "2", 10);
+
+    if (!tomlToJsonEngine) {
+      throw new Error("toml-to-json WASM 引擎未就绪");
+    }
+
+    const response = tomlToJsonEngine.dispatch({
+      action: "toml/to-json",
+      requestId: `srv-${Date.now()}`,
+      params: {
+        toml,
+        indent: isNaN(indent) ? 2 : indent
+      }
+    });
+
+    const duration = (performance.now() - start).toFixed(2);
+
+    if (response.code !== 0) {
+      throw new Error(response.msg || "转换 TOML 失败");
+    }
+
+    const d = response.data;
+
+    return c.html(`
+      <div class="result-box">
+        <div class="result-header">
+          <span class="tag tag-rust">🦀 Rust WASM: TOML ➜ JSON (缩进: ${d.indent} 空格)</span>
+          <span class="badge-time">⚡ ${duration} ms (Hono 后端原生)</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; font-size:12px; color:var(--text-muted);">
+          <span>输入 TOML 大小: <strong>${d.sourceSizeBytes} 字节</strong></span>
+          <span>转换 JSON 大小: <strong>${d.targetSizeBytes} 字节</strong></span>
+        </div>
+        <pre class="code-preview" style="max-height:280px; overflow-y:auto; background:rgba(0,0,0,0.4); padding:10px; border-radius:6px; font-size:12px; font-family:var(--font-mono); color:#38bdf8;"><code>${d.json.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</code></pre>
+      </div>
+    `);
+  } catch (err) {
+    return c.html(`
+      <div class="result-box error">
+        <strong>TOML 转 JSON 失败:</strong> ${err.message}
+      </div>
+    `, 400);
+  }
+});
+
+// API: 获取 TOML 示例模版
+app.get("/api/backend/toml/sample", async (c) => {
+  try {
+    if (!tomlToJsonEngine) {
+      throw new Error("toml-to-json WASM 引擎未就绪");
+    }
+    const response = tomlToJsonEngine.dispatch({
+      action: "toml/sample",
+      requestId: `srv-${Date.now()}`,
+      params: {}
+    });
+    if (response.code !== 0) {
+      throw new Error(response.msg || "获取示例失败");
+    }
+    return c.text(response.data.toml);
+  } catch (err) {
+    return c.text("# 获取示例失败: " + err.message, 500);
+  }
+});
+
 // API: 模块统计信息
 app.get("/api/stats", (c) => {
   const rsSize = fs.existsSync(rsWasmPath) ? fs.statSync(rsWasmPath).size : 0;
@@ -1592,6 +1672,7 @@ app.get("/api/stats", (c) => {
   const yamlToTomlSize = fs.existsSync(yamlToTomlWasmPath) ? fs.statSync(yamlToTomlWasmPath).size : 0;
   const jsonToYamlSize = fs.existsSync(jsonToYamlWasmPath) ? fs.statSync(jsonToYamlWasmPath).size : 0;
   const jsonToTomlSize = fs.existsSync(jsonToTomlWasmPath) ? fs.statSync(jsonToTomlWasmPath).size : 0;
+  const tomlToJsonSize = fs.existsSync(tomlToJsonWasmPath) ? fs.statSync(tomlToJsonWasmPath).size : 0;
   return c.json({
     rust: {
       file: "rs.wasm",
@@ -1677,6 +1758,11 @@ app.get("/api/stats", (c) => {
       file: "json-to-toml.wasm",
       sizeBytes: jsonToTomlSize,
       sizeFormatted: `${(jsonToTomlSize / 1024).toFixed(2)} KB`,
+    },
+    tomlToJson: {
+      file: "toml-to-json.wasm",
+      sizeBytes: tomlToJsonSize,
+      sizeFormatted: `${(tomlToJsonSize / 1024).toFixed(2)} KB`,
     },
   });
 });
