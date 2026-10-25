@@ -52,6 +52,7 @@ const yamlViewerWasmPath = path.resolve(__dirname, "../public/wasm/yaml-viewer.w
 const regexTesterWasmPath = path.resolve(__dirname, "../public/wasm/regex-tester.wasm");
 const regexMemoWasmPath = path.resolve(__dirname, "../public/wasm/regex-memo.wasm");
 const crontabGeneratorWasmPath = path.resolve(__dirname, "../public/wasm/crontab-generator.wasm");
+const chmodCalculatorWasmPath = path.resolve(__dirname, "../public/wasm/chmod-calculator.wasm");
 
 let rsEngine = null;
 let tsEngine = null;
@@ -95,6 +96,7 @@ let yamlViewerEngine = null;
 let regexTesterEngine = null;
 let regexMemoEngine = null;
 let crontabGeneratorEngine = null;
+let chmodCalculatorEngine = null;
 
 async function initEngines() {
   try {
@@ -390,6 +392,13 @@ async function initEngines() {
       console.log("✅ [Backend Infra] 纯单一文件 crontab-generator.wasm 加载成功");
     } else {
       console.warn("⚠️ crontab-generator.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    if (fs.existsSync(chmodCalculatorWasmPath)) {
+      chmodCalculatorEngine = await loadWasmFromDisk(chmodCalculatorWasmPath);
+      console.log("✅ [Backend Infra] 纯单一文件 chmod-calculator.wasm 加载成功");
+    } else {
+      console.warn("⚠️ chmod-calculator.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
     }
   } catch (err) {
     console.error("❌ 后端 WASM 基础设施初始化失败:", err);
@@ -4728,6 +4737,160 @@ app.get("/api/backend/cron/presets", async (c) => {
   }
 });
 
+// API: HTMX / JSON 提交 Chmod 计算与权限分析
+app.post("/api/backend/chmod/calculate", async (c) => {
+  try {
+    let octal = "";
+    let symbolic = "";
+    let umask = "022";
+    let bits = null;
+
+    const contentType = c.req.header("content-type") || "";
+    if (contentType.includes("application/json")) {
+      const json = await c.req.json().catch(() => ({}));
+      octal = (json.octal || "").toString();
+      symbolic = (json.symbolic || "").toString();
+      if (json.umask !== undefined) umask = json.umask.toString();
+      if (json.bits) bits = json.bits;
+    } else {
+      const body = await c.req.parseBody().catch(() => ({}));
+      octal = (body.octal || "").toString();
+      symbolic = (body.symbolic || "").toString();
+      if (body.umask) umask = body.umask.toString();
+      
+      // 解析三元组复选框
+      bits = {
+        user: {
+          read: body["u_r"] === "on" || body["u_r"] === "true",
+          write: body["u_w"] === "on" || body["u_w"] === "true",
+          execute: body["u_x"] === "on" || body["u_x"] === "true",
+        },
+        group: {
+          read: body["g_r"] === "on" || body["g_r"] === "true",
+          write: body["g_w"] === "on" || body["g_w"] === "true",
+          execute: body["g_x"] === "on" || body["g_x"] === "true",
+        },
+        others: {
+          read: body["o_r"] === "on" || body["o_r"] === "true",
+          write: body["o_w"] === "on" || body["o_w"] === "true",
+          execute: body["o_x"] === "on" || body["o_x"] === "true",
+        },
+        special: {
+          suid: body["s_suid"] === "on" || body["s_suid"] === "true",
+          sgid: body["s_sgid"] === "on" || body["s_sgid"] === "true",
+          sticky: body["s_sticky"] === "on" || body["s_sticky"] === "true",
+        }
+      };
+    }
+
+    if (!chmodCalculatorEngine) {
+      throw new Error("chmod-calculator WASM 引擎未就绪");
+    }
+
+    const t0 = performance.now();
+    const response = chmodCalculatorEngine.dispatch({
+      action: "chmod/calculate",
+      requestId: `srv-${Date.now()}`,
+      params: { octal, symbolic, bits, umask }
+    });
+    const duration = (performance.now() - t0).toFixed(4);
+
+    if (contentType.includes("application/json") && !c.req.header("HX-Request")) {
+      return c.json(response);
+    }
+
+    if (response.code !== 0) {
+      return c.html(`
+        <div class="result-box error">
+          <strong>计算失败:</strong> ${escapeHtml(response.msg)}
+        </div>
+      `, 400);
+    }
+
+    const d = response.data;
+    const b = d.bits;
+    const notesHtml = d.security_notes.map((n) => `
+      <div style="font-size:12px; padding:3px 0; color:${n.includes('高危') ? '#ef4444' : n.includes('警告') ? '#f59e0b' : '#38bdf8'};">
+        ${escapeHtml(n)}
+      </div>
+    `).join("");
+
+    return c.html(`
+      <div class="result-box">
+        <div class="result-header">
+          <span class="tag tag-rust">🦀 Rust WASM: Linux Chmod 权限计算成功</span>
+          <span class="badge-time">⚡ ${duration} ms (Hono 后端原生)</span>
+        </div>
+
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap:10px; margin-bottom:12px;">
+          <div style="background:rgba(255,255,255,0.04); padding:8px 12px; border-radius:6px; border:1px solid rgba(255,255,255,0.08); text-align:center;">
+            <div style="font-size:11px; color:var(--text-muted);">八进制 (Octal)</div>
+            <div style="font-size:20px; font-weight:700; color:#38bdf8; font-family:var(--font-mono);">${escapeHtml(d.octal4)} <span style="font-size:13px; color:var(--text-muted); font-weight:400;">(${escapeHtml(d.octal3)})</span></div>
+          </div>
+          <div style="background:rgba(255,255,255,0.04); padding:8px 12px; border-radius:6px; border:1px solid rgba(255,255,255,0.08); text-align:center;">
+            <div style="font-size:11px; color:var(--text-muted);">符号模式 (Symbolic)</div>
+            <div style="font-size:18px; font-weight:700; color:#34d399; font-family:var(--font-mono);">${escapeHtml(d.symbolic10)}</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.04); padding:8px 12px; border-radius:6px; border:1px solid rgba(255,255,255,0.08); text-align:center;">
+            <div style="font-size:11px; color:var(--text-muted);">目录视图</div>
+            <div style="font-size:18px; font-weight:700; color:#f59e0b; font-family:var(--font-mono);">d${escapeHtml(d.symbolic9)}</div>
+          </div>
+        </div>
+
+        <!-- 常用命令复制区 -->
+        <div style="margin-bottom:12px; background:rgba(0,0,0,0.25); border-radius:6px; padding:8px 12px; font-family:var(--font-mono); font-size:12px; display:flex; flex-direction:column; gap:6px;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span><span style="color:#a78bfa;">$</span> <span style="color:#f1f5f9;">${escapeHtml(d.commands.numeric)}</span></span>
+            <button type="button" class="btn-copy" style="padding:2px 8px; font-size:11px; background:#1e293b; color:#fff; border:1px solid rgba(255,255,255,0.2); border-radius:3px; cursor:pointer;" onclick="navigator.clipboard.writeText('${escapeHtml(d.commands.numeric)}'); this.innerText='已复制!'; setTimeout(()=>this.innerText='复制', 1500)">复制</button>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span><span style="color:#a78bfa;">$</span> <span style="color:#f1f5f9;">${escapeHtml(d.commands.symbolic)}</span></span>
+            <button type="button" class="btn-copy" style="padding:2px 8px; font-size:11px; background:#1e293b; color:#fff; border:1px solid rgba(255,255,255,0.2); border-radius:3px; cursor:pointer;" onclick="navigator.clipboard.writeText('${escapeHtml(d.commands.symbolic)}'); this.innerText='已复制!'; setTimeout(()=>this.innerText='复制', 1500)">复制</button>
+          </div>
+        </div>
+
+        ${d.umask_effect ? `
+          <div style="margin-bottom:10px; font-size:12px; color:var(--text-muted); background:rgba(255,255,255,0.02); padding:6px 10px; border-radius:4px; border:1px solid rgba(255,255,255,0.05);">
+            💡 <strong>Umask ${escapeHtml(d.umask_effect.umask)} 默认衍生:</strong> 文件为 <code>${escapeHtml(d.umask_effect.file_mode_octal)}</code> (${escapeHtml(d.umask_effect.file_mode_symbolic)})，目录为 <code>${escapeHtml(d.umask_effect.dir_mode_octal)}</code> (${escapeHtml(d.umask_effect.dir_mode_symbolic)})
+          </div>
+        ` : ''}
+
+        ${notesHtml ? `
+          <div style="border-top:1px solid rgba(255,255,255,0.08); padding-top:8px;">
+            ${notesHtml}
+          </div>
+        ` : ''}
+      </div>
+    `);
+  } catch (err) {
+    return c.html(`
+      <div class="result-box error">
+        <strong>处理失败:</strong> ${err.message}
+      </div>
+    `, 400);
+  }
+});
+
+// API: 获取 Chmod 常用预设列表
+app.get("/api/backend/chmod/presets", async (c) => {
+  try {
+    if (!chmodCalculatorEngine) {
+      throw new Error("chmod-calculator WASM 引擎未就绪");
+    }
+    const response = chmodCalculatorEngine.dispatch({
+      action: "chmod/presets",
+      requestId: `srv-${Date.now()}`,
+      params: {}
+    });
+    if (response.code !== 0) {
+      throw new Error(response.msg || "获取预设失败");
+    }
+    return c.json(response.data);
+  } catch (err) {
+    return c.json({ presets: [] }, 500);
+  }
+});
+
 // API: 获取 Markdown 示例
 app.get("/api/backend/markdown/sample", async (c) => {
   try {
@@ -4892,6 +5055,7 @@ app.get("/api/stats", (c) => {
   const regexTesterSize = fs.existsSync(regexTesterWasmPath) ? fs.statSync(regexTesterWasmPath).size : 0;
   const regexMemoSize = fs.existsSync(regexMemoWasmPath) ? fs.statSync(regexMemoWasmPath).size : 0;
   const crontabGeneratorSize = fs.existsSync(crontabGeneratorWasmPath) ? fs.statSync(crontabGeneratorWasmPath).size : 0;
+  const chmodCalculatorSize = fs.existsSync(chmodCalculatorWasmPath) ? fs.statSync(chmodCalculatorWasmPath).size : 0;
   return c.json({
     rust: {
       file: "rs.wasm",
@@ -5102,6 +5266,11 @@ app.get("/api/stats", (c) => {
       file: "crontab-generator.wasm",
       sizeBytes: crontabGeneratorSize,
       sizeFormatted: `${(crontabGeneratorSize / 1024).toFixed(2)} KB`,
+    },
+    chmodCalculator: {
+      file: "chmod-calculator.wasm",
+      sizeBytes: chmodCalculatorSize,
+      sizeFormatted: `${(chmodCalculatorSize / 1024).toFixed(2)} KB`,
     },
   });
 });

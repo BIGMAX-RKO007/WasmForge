@@ -1,0 +1,13 @@
+{
+  "name": "@wasmforge/chmod-calculator",
+  "version": "0.1.0",
+  "description": "Pure Standalone WebAssembly Linux chmod permissions calculator & translator",
+  "type": "module",
+  "main": "chmod-calculator.wasm",
+  "scripts": {
+    "build": "cargo build --target wasm32-unknown-unknown --release",
+    "test": "cargo test"
+  },
+  "keywords": ["wasm", "chmod", "linux", "permissions", "umask", "c-abi"],
+  "license": "MIT"
+}

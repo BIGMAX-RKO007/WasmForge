@@ -3202,6 +3202,106 @@ spec:
       </div>
     </div>
 
+    <!-- ================= 卡片 3.9: Linux Chmod 权限计算器与安全审计 (Chmod Calculator) ================= -->
+    <div class="card" style="margin-bottom: 24px;">
+      <div class="card-header">
+        <div>
+          <h3>卡片 3.9: Linux Chmod 权限计算器与安全审计 (Chmod Calculator)</h3>
+          <p style="margin:0; font-size:12px; color:var(--text-muted);">
+            纯 WASM 离线 Linux 权限双向转换器，支持三元组位图勾选、八进制(Octal)、符号串(Symbolic)、特殊位(SUID/SGID/Sticky)、Umask 衍生以及最小权限安全审计。
+          </p>
+        </div>
+        <span class="tag tag-rust">Tool #41: chmod-calculator</span>
+      </div>
+
+      <div style="margin-top:16px;">
+        <form id="chmod-form" hx-post="/api/backend/chmod/calculate" hx-target="#backend-chmod-result" hx-swap="innerHTML">
+          <!-- 预设快捷项 -->
+          <div style="margin-bottom:12px; display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
+            <label style="font-size:12px; font-weight:600; color:var(--text-muted); margin-right:4px;">常用预设:</label>
+            <button type="button" onclick="loadChmodPreset('755')" style="padding:2px 8px; font-size:11px; background:#1e293b; color:#fff; border:1px solid rgba(255,255,255,0.2); border-radius:4px; cursor:pointer;">755 (目录/程序)</button>
+            <button type="button" onclick="loadChmodPreset('644')" style="padding:2px 8px; font-size:11px; background:#1e293b; color:#fff; border:1px solid rgba(255,255,255,0.2); border-radius:4px; cursor:pointer;">644 (标准文件)</button>
+            <button type="button" onclick="loadChmodPreset('700')" style="padding:2px 8px; font-size:11px; background:#1e293b; color:#fff; border:1px solid rgba(255,255,255,0.2); border-radius:4px; cursor:pointer;">700 (私有目录)</button>
+            <button type="button" onclick="loadChmodPreset('600')" style="padding:2px 8px; font-size:11px; background:#1e293b; color:#fff; border:1px solid rgba(255,255,255,0.2); border-radius:4px; cursor:pointer;">600 (私钥/凭证)</button>
+            <button type="button" onclick="loadChmodPreset('400')" style="padding:2px 8px; font-size:11px; background:#1e293b; color:#fff; border:1px solid rgba(255,255,255,0.2); border-radius:4px; cursor:pointer;">400 (只读证书)</button>
+            <button type="button" onclick="loadChmodPreset('777')" style="padding:2px 8px; font-size:11px; background:rgba(239,68,68,0.15); color:#f87171; border:1px solid rgba(239,68,68,0.3); border-radius:4px; cursor:pointer;">777 (全开放高危)</button>
+            <button type="button" onclick="loadChmodPreset('4755')" style="padding:2px 8px; font-size:11px; background:#1e293b; color:#38bdf8; border:1px solid rgba(56,189,248,0.3); border-radius:4px; cursor:pointer;">4755 (SUID 特权)</button>
+            <button type="button" onclick="loadChmodPreset('2755')" style="padding:2px 8px; font-size:11px; background:#1e293b; color:#38bdf8; border:1px solid rgba(56,189,248,0.3); border-radius:4px; cursor:pointer;">2755 (SGID 共享)</button>
+            <button type="button" onclick="loadChmodPreset('1777')" style="padding:2px 8px; font-size:11px; background:#1e293b; color:#38bdf8; border:1px solid rgba(56,189,248,0.3); border-radius:4px; cursor:pointer;">1777 (Sticky /tmp)</button>
+          </div>
+
+          <!-- 交互复选框网格 -->
+          <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:12px; margin-bottom:14px; background:rgba(255,255,255,0.02); padding:12px; border-radius:8px; border:1px solid rgba(255,255,255,0.06);">
+            <!-- 所有者 (Owner) -->
+            <div style="display:flex; flex-direction:column; gap:6px;">
+              <div style="font-size:12px; font-weight:700; color:#38bdf8; border-bottom:1px solid rgba(56,189,248,0.2); padding-bottom:4px;">所有者 (Owner)</div>
+              <label style="font-size:12px; display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" id="chmod-u-r" name="u_r" checked onchange="syncChmodFromCheckboxes()" /> 读取 (Read, 4)</label>
+              <label style="font-size:12px; display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" id="chmod-u-w" name="u_w" checked onchange="syncChmodFromCheckboxes()" /> 写入 (Write, 2)</label>
+              <label style="font-size:12px; display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" id="chmod-u-x" name="u_x" checked onchange="syncChmodFromCheckboxes()" /> 执行 (Exec, 1)</label>
+            </div>
+            <!-- 用户组 (Group) -->
+            <div style="display:flex; flex-direction:column; gap:6px;">
+              <div style="font-size:12px; font-weight:700; color:#a78bfa; border-bottom:1px solid rgba(167,139,250,0.2); padding-bottom:4px;">所属组 (Group)</div>
+              <label style="font-size:12px; display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" id="chmod-g-r" name="g_r" checked onchange="syncChmodFromCheckboxes()" /> 读取 (Read, 4)</label>
+              <label style="font-size:12px; display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" id="chmod-g-w" name="g_w" onchange="syncChmodFromCheckboxes()" /> 写入 (Write, 2)</label>
+              <label style="font-size:12px; display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" id="chmod-g-x" name="g_x" checked onchange="syncChmodFromCheckboxes()" /> 执行 (Exec, 1)</label>
+            </div>
+            <!-- 其他人 (Others) -->
+            <div style="display:flex; flex-direction:column; gap:6px;">
+              <div style="font-size:12px; font-weight:700; color:#34d399; border-bottom:1px solid rgba(52,211,153,0.2); padding-bottom:4px;">其他人 (Others)</div>
+              <label style="font-size:12px; display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" id="chmod-o-r" name="o_r" checked onchange="syncChmodFromCheckboxes()" /> 读取 (Read, 4)</label>
+              <label style="font-size:12px; display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" id="chmod-o-w" name="o_w" onchange="syncChmodFromCheckboxes()" /> 写入 (Write, 2)</label>
+              <label style="font-size:12px; display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" id="chmod-o-x" name="o_x" checked onchange="syncChmodFromCheckboxes()" /> 执行 (Exec, 1)</label>
+            </div>
+            <!-- 特殊位 (Special) -->
+            <div style="display:flex; flex-direction:column; gap:6px;">
+              <div style="font-size:12px; font-weight:700; color:#f59e0b; border-bottom:1px solid rgba(245,158,11,0.2); padding-bottom:4px;">特殊标志 (Special)</div>
+              <label style="font-size:12px; display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" id="chmod-s-suid" name="s_suid" onchange="syncChmodFromCheckboxes()" /> SUID (4000)</label>
+              <label style="font-size:12px; display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" id="chmod-s-sgid" name="s_sgid" onchange="syncChmodFromCheckboxes()" /> SGID (2000)</label>
+              <label style="font-size:12px; display:flex; align-items:center; gap:6px; cursor:pointer;"><input type="checkbox" id="chmod-s-sticky" name="s_sticky" onchange="syncChmodFromCheckboxes()" /> Sticky Bit (1000)</label>
+            </div>
+          </div>
+
+          <!-- 八进制与符号位快速联动输入条 -->
+          <div style="display:grid; grid-template-columns: 1fr 1.5fr 0.8fr auto auto; gap:10px; align-items:center;">
+            <div>
+              <div style="font-size:11px; color:var(--text-muted); margin-bottom:2px;">八进制 (Octal):</div>
+              <input type="text" id="chmod-octal" name="octal" value="755" placeholder="755" oninput="syncChmodFromOctalInput()" style="width:100%; padding:7px 10px; background:#1e293b; border:1px solid rgba(255,255,255,0.1); color:#fff; border-radius:6px; font-family:var(--font-mono); font-size:14px; box-sizing:border-box;" />
+            </div>
+            <div>
+              <div style="font-size:11px; color:var(--text-muted); margin-bottom:2px;">符号模式 (Symbolic):</div>
+              <input type="text" id="chmod-symbolic" name="symbolic" value="rwxr-xr-x" placeholder="rwxr-xr-x" oninput="syncChmodFromSymbolicInput()" style="width:100%; padding:7px 10px; background:#1e293b; border:1px solid rgba(255,255,255,0.1); color:#fff; border-radius:6px; font-family:var(--font-mono); font-size:14px; box-sizing:border-box;" />
+            </div>
+            <div>
+              <div style="font-size:11px; color:var(--text-muted); margin-bottom:2px;">Umask 衍生:</div>
+              <input type="text" id="chmod-umask" name="umask" value="022" placeholder="022" oninput="runFrontendChmodCalculate()" style="width:100%; padding:7px 10px; background:#1e293b; border:1px solid rgba(255,255,255,0.1); color:#fff; border-radius:6px; font-family:var(--font-mono); font-size:14px; box-sizing:border-box;" />
+            </div>
+            <div style="align-self:flex-end;">
+              <button type="submit" style="padding:8px 14px; background:linear-gradient(135deg, #0284c7, #0369a1); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:12px; white-space:nowrap;">
+                🖥️ 后端分析
+              </button>
+            </div>
+            <div style="align-self:flex-end;">
+              <button type="button" onclick="runFrontendChmodCalculate()" style="padding:8px 14px; background:linear-gradient(135deg, #0ea5e9, #0284c7); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:12px; white-space:nowrap;">
+                🌐 前端分析
+              </button>
+            </div>
+          </div>
+        </form>
+
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:16px; margin-top:16px;">
+          <div>
+            <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px;">后端投影输出:</div>
+            <div id="backend-chmod-result" class="result-container"><div class="result-box" style="opacity:0.5; font-size:12px;">等待计算...</div></div>
+          </div>
+          <div>
+            <div style="font-size:11px; color:var(--text-muted); margin-top:0px; margin-bottom:4px;">前端投影输出:</div>
+            <div id="frontend-chmod-result" class="result-container"><div class="result-box" style="opacity:0.5; font-size:12px;">等待计算...</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- ================= 区域 3: 4 象限综合矩阵基准测试 ================= -->
     <div class="matrix-card">
       <h2>📊 4 维度跨场景一致性与性能矩阵</h2>
@@ -3316,6 +3416,8 @@ spec:
       regexMemoReady: false,
       crontabGenerator: null,
       crontabGeneratorReady: false,
+      chmodCalculator: null,
+      chmodCalculatorReady: false,
       activeFrontendEngine: "rust",
       activeBackendEngine: "rust"
     };
@@ -3364,6 +3466,7 @@ spec:
         const regexTesterEngine = await loadWasmFromUrl("./wasm/regex-tester.wasm");
         const regexMemoEngine = await loadWasmFromUrl("./wasm/regex-memo.wasm");
         const crontabGeneratorEngine = await loadWasmFromUrl("./wasm/crontab-generator.wasm");
+        const chmodCalculatorEngine = await loadWasmFromUrl("./wasm/chmod-calculator.wasm");
 
         window.wasmContext.rust = rsEngine;
         window.wasmContext.ts = tsEngine;
@@ -3407,6 +3510,7 @@ spec:
         window.wasmContext.regexTester = regexTesterEngine;
         window.wasmContext.regexMemo = regexMemoEngine;
         window.wasmContext.crontabGenerator = crontabGeneratorEngine;
+        window.wasmContext.chmodCalculator = chmodCalculatorEngine;
         window.wasmContext.rustReady = true;
         window.wasmContext.tsReady = true;
         window.wasmContext.tokenReady = true;
@@ -3449,9 +3553,10 @@ spec:
         window.wasmContext.regexTesterReady = true;
         window.wasmContext.regexMemoReady = true;
         window.wasmContext.crontabGeneratorReady = true;
+        window.wasmContext.chmodCalculatorReady = true;
 
         const statusEl = document.getElementById("frontend-status");
-        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载 42 大模块: rs, ts, token-gen, hash-text, bcrypt, uuid-gen, ulid-gen, encryption, bip39, hmac, rsa, password-strength, pdf-sig, yaml-to-json, yaml-to-toml, json-to-yaml, json-to-toml, toml-to-json, toml-to-yaml, xml-to-json, json-to-xml, json-to-csv, base64-string, base64-file, color-converter, case-converter, date-time-converter, integer-base-converter, roman-numeral-converter, text-to-binary, text-to-unicode, markdown-to-html, list-converter, text-to-nato, sql-prettify, xml-formatter, json-minify, json-viewer, yaml-viewer, regex-tester, regex-memo & crontab-generator)`;
+        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载 43 大模块: rs, ts, token-gen, hash-text, bcrypt, uuid-gen, ulid-gen, encryption, bip39, hmac, rsa, password-strength, pdf-sig, yaml-to-json, yaml-to-toml, json-to-yaml, json-to-toml, toml-to-json, toml-to-yaml, xml-to-json, json-to-xml, json-to-csv, base64-string, base64-file, color-converter, case-converter, date-time-converter, integer-base-converter, roman-numeral-converter, text-to-binary, text-to-unicode, markdown-to-html, list-converter, text-to-nato, sql-prettify, xml-formatter, json-minify, json-viewer, yaml-viewer, regex-tester, regex-memo, crontab-generator & chmod-calculator)`;
 
         // 初始自动运行一次前端计算
         window.runFrontendCalc();
@@ -3479,6 +3584,7 @@ spec:
         window.loadBase64Sample();
         if (window.runFrontendRegexMemo) window.runFrontendRegexMemo();
         if (window.runFrontendCronEvaluate) window.runFrontendCronEvaluate();
+        if (window.runFrontendChmodCalculate) window.runFrontendChmodCalculate();
       } catch (err) {
         console.error("加载浏览器端 WASM 失败:", err);
         const statusEl = document.getElementById("frontend-status");
@@ -7321,6 +7427,176 @@ spec:
               ${runRows || '<div style="padding:10px; color:var(--text-muted); font-size:12px;">无计划运行</div>'}
             </div>
           </div>
+        </div>
+      `;
+    };
+
+    // 载入 Chmod 预设
+    window.loadChmodPreset = function(octal) {
+      document.getElementById("chmod-octal").value = octal;
+      window.syncChmodFromOctalInput();
+    };
+
+    // 从复选框同步并计算
+    window.syncChmodFromCheckboxes = function() {
+      const bits = {
+        user: {
+          read: document.getElementById("chmod-u-r").checked,
+          write: document.getElementById("chmod-u-w").checked,
+          execute: document.getElementById("chmod-u-x").checked,
+        },
+        group: {
+          read: document.getElementById("chmod-g-r").checked,
+          write: document.getElementById("chmod-g-w").checked,
+          execute: document.getElementById("chmod-g-x").checked,
+        },
+        others: {
+          read: document.getElementById("chmod-o-r").checked,
+          write: document.getElementById("chmod-o-w").checked,
+          execute: document.getElementById("chmod-o-x").checked,
+        },
+        special: {
+          suid: document.getElementById("chmod-s-suid").checked,
+          sgid: document.getElementById("chmod-s-sgid").checked,
+          sticky: document.getElementById("chmod-s-sticky").checked,
+        }
+      };
+      window.runFrontendChmodCalculate({ bits });
+    };
+
+    // 从八进制输入同步
+    window.syncChmodFromOctalInput = function() {
+      const octal = (document.getElementById("chmod-octal").value || "").trim();
+      window.runFrontendChmodCalculate({ octal });
+    };
+
+    // 从符号位输入同步
+    window.syncChmodFromSymbolicInput = function() {
+      const symbolic = (document.getElementById("chmod-symbolic").value || "").trim();
+      if (symbolic.length >= 9) {
+        window.runFrontendChmodCalculate({ symbolic });
+      }
+    };
+
+    // 前端执行 Chmod 运算
+    window.runFrontendChmodCalculate = function(overrideParams = {}) {
+      const engine = window.wasmContext.chmodCalculator;
+      if (!engine) {
+        document.getElementById("frontend-chmod-result").innerHTML = `
+          <div class="result-box error">chmod-calculator.wasm 尚未加载完毕</div>
+        `;
+        return;
+      }
+
+      const umask = (document.getElementById("chmod-umask").value || "022").trim();
+      let params = { umask, ...overrideParams };
+
+      if (!params.bits && !params.octal && !params.symbolic) {
+        const octal = (document.getElementById("chmod-octal").value || "").trim();
+        params.octal = octal || "755";
+      }
+
+      const t0 = performance.now();
+      const response = engine.dispatch({
+        action: "chmod/calculate",
+        requestId: `req-front-${Date.now()}`,
+        params
+      });
+      const duration = (performance.now() - t0).toFixed(4);
+
+      if (response.code !== 0) {
+        document.getElementById("frontend-chmod-result").innerHTML = `
+          <div class="result-box error"><strong>计算错误:</strong> ${response.msg}</div>
+        `;
+        return;
+      }
+
+      const d = response.data;
+      const b = d.bits;
+
+      // 实时回填表单与复选框 (若不是用户在正在修改对应的输入框)
+      if (!overrideParams.octal) {
+        document.getElementById("chmod-octal").value = (d.octal4.startsWith("00") || d.octal4.startsWith("0") && !d.octal4.startsWith("01") && !d.octal4.startsWith("02") && !d.octal4.startsWith("04")) ? d.octal3 : d.octal4;
+      }
+      if (!overrideParams.symbolic) {
+        document.getElementById("chmod-symbolic").value = d.symbolic9;
+      }
+
+      // 回填复选框状态
+      document.getElementById("chmod-u-r").checked = b.user.read;
+      document.getElementById("chmod-u-w").checked = b.user.write;
+      document.getElementById("chmod-u-x").checked = b.user.execute;
+      document.getElementById("chmod-g-r").checked = b.group.read;
+      document.getElementById("chmod-g-w").checked = b.group.write;
+      document.getElementById("chmod-g-x").checked = b.group.execute;
+      document.getElementById("chmod-o-r").checked = b.others.read;
+      document.getElementById("chmod-o-w").checked = b.others.write;
+      document.getElementById("chmod-o-x").checked = b.others.execute;
+      document.getElementById("chmod-s-suid").checked = b.special.suid;
+      document.getElementById("chmod-s-sgid").checked = b.special.sgid;
+      document.getElementById("chmod-s-sticky").checked = b.special.sticky;
+
+      function escapeHtmlFront(str) {
+        return (str || "").replace(/[&<>"']/g, (m) => ({
+          "&": "&amp;",
+          "<": "&lt;",
+          ">": "&gt;",
+          '"': "&quot;",
+          "'": "&#39;"
+        }[m]));
+      }
+
+      const notesHtml = d.security_notes.map((n) => `
+        <div style="font-size:12px; padding:3px 0; color:${n.includes('高危') ? '#ef4444' : n.includes('警告') ? '#f59e0b' : '#38bdf8'};">
+          ${escapeHtmlFront(n)}
+        </div>
+      `).join("");
+
+      document.getElementById("frontend-chmod-result").innerHTML = `
+        <div class="result-box">
+          <div class="result-header">
+            <span class="tag tag-rust">🦀 Browser WASM: Linux Chmod 权限计算成功</span>
+            <span class="badge-time">⚡ ${duration} ms (纯前端内存)</span>
+          </div>
+
+          <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap:10px; margin-bottom:12px;">
+            <div style="background:rgba(255,255,255,0.04); padding:8px 12px; border-radius:6px; border:1px solid rgba(255,255,255,0.08); text-align:center;">
+              <div style="font-size:11px; color:var(--text-muted);">八进制 (Octal)</div>
+              <div style="font-size:20px; font-weight:700; color:#38bdf8; font-family:var(--font-mono);">${escapeHtmlFront(d.octal4)} <span style="font-size:13px; color:var(--text-muted); font-weight:400;">(${escapeHtmlFront(d.octal3)})</span></div>
+            </div>
+            <div style="background:rgba(255,255,255,0.04); padding:8px 12px; border-radius:6px; border:1px solid rgba(255,255,255,0.08); text-align:center;">
+              <div style="font-size:11px; color:var(--text-muted);">符号模式 (Symbolic)</div>
+              <div style="font-size:18px; font-weight:700; color:#34d399; font-family:var(--font-mono);">${escapeHtmlFront(d.symbolic10)}</div>
+            </div>
+            <div style="background:rgba(255,255,255,0.04); padding:8px 12px; border-radius:6px; border:1px solid rgba(255,255,255,0.08); text-align:center;">
+              <div style="font-size:11px; color:var(--text-muted);">目录视图</div>
+              <div style="font-size:18px; font-weight:700; color:#f59e0b; font-family:var(--font-mono);">d${escapeHtmlFront(d.symbolic9)}</div>
+            </div>
+          </div>
+
+          <!-- 常用命令复制区 -->
+          <div style="margin-bottom:12px; background:rgba(0,0,0,0.25); border-radius:6px; padding:8px 12px; font-family:var(--font-mono); font-size:12px; display:flex; flex-direction:column; gap:6px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span><span style="color:#a78bfa;">$</span> <span style="color:#f1f5f9;">${escapeHtmlFront(d.commands.numeric)}</span></span>
+              <button type="button" class="btn-copy" style="padding:2px 8px; font-size:11px; background:#1e293b; color:#fff; border:1px solid rgba(255,255,255,0.2); border-radius:3px; cursor:pointer;" onclick="navigator.clipboard.writeText('${escapeHtmlFront(d.commands.numeric)}'); this.innerText='已复制!'; setTimeout(()=>this.innerText='复制', 1500)">复制</button>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span><span style="color:#a78bfa;">$</span> <span style="color:#f1f5f9;">${escapeHtmlFront(d.commands.symbolic)}</span></span>
+              <button type="button" class="btn-copy" style="padding:2px 8px; font-size:11px; background:#1e293b; color:#fff; border:1px solid rgba(255,255,255,0.2); border-radius:3px; cursor:pointer;" onclick="navigator.clipboard.writeText('${escapeHtmlFront(d.commands.symbolic)}'); this.innerText='已复制!'; setTimeout(()=>this.innerText='复制', 1500)">复制</button>
+            </div>
+          </div>
+
+          ${d.umask_effect ? `
+            <div style="margin-bottom:10px; font-size:12px; color:var(--text-muted); background:rgba(255,255,255,0.02); padding:6px 10px; border-radius:4px; border:1px solid rgba(255,255,255,0.05);">
+              💡 <strong>Umask ${escapeHtmlFront(d.umask_effect.umask)} 默认衍生:</strong> 文件为 <code>${escapeHtmlFront(d.umask_effect.file_mode_octal)}</code> (${escapeHtmlFront(d.umask_effect.file_mode_symbolic)})，目录为 <code>${escapeHtmlFront(d.umask_effect.dir_mode_octal)}</code> (${escapeHtmlFront(d.umask_effect.dir_mode_symbolic)})
+            </div>
+          ` : ''}
+
+          ${notesHtml ? `
+            <div style="border-top:1px solid rgba(255,255,255,0.08); padding-top:8px;">
+              ${notesHtml}
+            </div>
+          ` : ''}
         </div>
       `;
     };
