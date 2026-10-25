@@ -57,6 +57,7 @@ const dockerRunToComposeWasmPath = path.resolve(__dirname, "../public/wasm/docke
 const emailNormalizerWasmPath = path.resolve(__dirname, "../public/wasm/email-normalizer.wasm");
 const gitMemoWasmPath = path.resolve(__dirname, "../public/wasm/git-memo.wasm");
 const randomPortWasmPath = path.resolve(__dirname, "../public/wasm/random-port.wasm");
+const textDiffWasmPath = path.resolve(__dirname, "../public/wasm/text-diff.wasm");
 
 let rsEngine = null;
 let tsEngine = null;
@@ -105,6 +106,7 @@ let dockerRunToComposeEngine = null;
 let emailNormalizerEngine = null;
 let gitMemoEngine = null;
 let randomPortEngine = null;
+let textDiffEngine = null;
 
 async function initEngines() {
   try {
@@ -435,6 +437,13 @@ async function initEngines() {
       console.log("✅ [Backend Infra] 纯单一文件 random-port.wasm 加载成功");
     } else {
       console.warn("⚠️ random-port.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    if (fs.existsSync(textDiffWasmPath)) {
+      textDiffEngine = await loadWasmFromDisk(textDiffWasmPath);
+      console.log("✅ [Backend Infra] 纯单一文件 text-diff.wasm 加载成功");
+    } else {
+      console.warn("⚠️ text-diff.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
     }
   } catch (err) {
     console.error("❌ 后端 WASM 基础设施初始化失败:", err);
@@ -5516,6 +5525,134 @@ app.get("/api/backend/port/samples", async (c) => {
   }
 });
 
+// API: 文本差异对比 (Text Diff)
+app.post("/api/backend/diff/compare", async (c) => {
+  try {
+    const contentType = c.req.header("Content-Type") || "";
+    let oldText = "";
+    let newText = "";
+    let mode = "lines";
+
+    if (contentType.includes("application/json")) {
+      const json = await c.req.json().catch(() => ({}));
+      oldText = (json.oldText || "").toString();
+      newText = (json.newText || "").toString();
+      if (json.mode) mode = json.mode.toString();
+    } else {
+      const body = await c.req.parseBody().catch(() => ({}));
+      oldText = (body.oldText || "").toString();
+      newText = (body.newText || "").toString();
+      if (body.mode) mode = body.mode.toString();
+    }
+
+    if (!textDiffEngine) {
+      throw new Error("text-diff WASM 引擎未就绪");
+    }
+
+    const t0 = performance.now();
+    const response = textDiffEngine.dispatch({
+      action: "diff/compare",
+      requestId: `srv-${Date.now()}`,
+      params: { oldText, newText, mode }
+    });
+    const duration = (performance.now() - t0).toFixed(4);
+
+    if (contentType.includes("application/json") && !c.req.header("HX-Request")) {
+      return c.json(response);
+    }
+
+    if (response.code !== 0) {
+      return c.html(`
+        <div class="result-box error">
+          <strong>Diff 失败:</strong> ${escapeHtml(response.msg)}
+        </div>
+      `, 400);
+    }
+
+    const d = response.data;
+    const similarityPct = (d.similarity * 100).toFixed(1);
+
+    const diffRows = d.changes.map(ch => {
+      let bg = "transparent";
+      let color = "#e2e8f0";
+      let sign = " ";
+      let signColor = "var(--text-muted)";
+
+      if (ch.tag === "insert") {
+        bg = "rgba(34, 197, 94, 0.12)";
+        color = "#86efac";
+        sign = "+";
+        signColor = "#22c55e";
+      } else if (ch.tag === "delete") {
+        bg = "rgba(239, 68, 68, 0.12)";
+        color = "#fca5a5";
+        sign = "-";
+        signColor = "#ef4444";
+      }
+
+      const oNum = ch.oldLine !== null && ch.oldLine !== undefined ? ch.oldLine : "";
+      const nNum = ch.newLine !== null && ch.newLine !== undefined ? ch.newLine : "";
+
+      return `
+        <tr style="background:${bg}; font-family:var(--font-mono); font-size:12px; line-height:1.5;">
+          <td style="width:36px; user-select:none; text-align:right; padding:1px 6px; color:var(--text-muted); opacity:0.6; border-right:1px solid rgba(255,255,255,0.06);">${oNum}</td>
+          <td style="width:36px; user-select:none; text-align:right; padding:1px 6px; color:var(--text-muted); opacity:0.6; border-right:1px solid rgba(255,255,255,0.06);">${nNum}</td>
+          <td style="width:20px; user-select:none; text-align:center; font-weight:700; color:${signColor};">${sign}</td>
+          <td style="padding:1px 8px; color:${color}; white-space:pre-wrap; word-break:break-all;">${escapeHtml(ch.value)}</td>
+        </tr>
+      `;
+    }).join("");
+
+    return c.html(`
+      <div class="result-box">
+        <div class="result-header">
+          <span class="tag tag-rust">🦀 Rust WASM: Myers 极速文本比对</span>
+          <span class="badge-time">⚡ ${duration} ms (Hono 后端原生)</span>
+        </div>
+        <div style="display:flex; flex-wrap:wrap; gap:16px; margin-bottom:12px; font-size:12px; align-items:center;">
+          <span style="color:#22c55e; font-weight:600;">+${d.additions} 新增</span>
+          <span style="color:#ef4444; font-weight:600;">-${d.deletions} 删除</span>
+          <span style="color:var(--text-muted);">= ${d.unchanged} 未变</span>
+          <span style="color:#38bdf8;">相似度: <strong>${similarityPct}%</strong></span>
+          <span style="color:var(--text-muted);">比对模式: <code>${escapeHtml(d.mode)}</code></span>
+        </div>
+        <div style="max-height:300px; overflow-y:auto; background:rgba(0,0,0,0.35); border-radius:6px; border:1px solid rgba(255,255,255,0.08);">
+          <table style="width:100%; border-collapse:collapse;">
+            <tbody>${diffRows}</tbody>
+          </table>
+        </div>
+        <details style="margin-top:10px;">
+          <summary style="font-size:11px; color:var(--text-muted); cursor:pointer;">查看标准 Unified Diff Patch 补丁</summary>
+          <pre style="margin-top:6px; max-height:160px; overflow-y:auto; background:rgba(0,0,0,0.5); padding:8px 12px; border-radius:4px; font-family:var(--font-mono); font-size:11px; color:#a5f3fc;">${escapeHtml(d.unifiedPatch || "无差异")}</pre>
+        </details>
+      </div>
+    `);
+  } catch (err) {
+    return c.html(`
+      <div class="result-box error">
+        <strong>执行失败:</strong> ${escapeHtml(err.message)}
+      </div>
+    `, 500);
+  }
+});
+
+// API: 获取 Diff 示例样本
+app.get("/api/backend/diff/samples", async (c) => {
+  try {
+    if (!textDiffEngine) {
+      throw new Error("text-diff WASM 引擎未就绪");
+    }
+    const response = textDiffEngine.dispatch({
+      action: "diff/samples",
+      requestId: `srv-${Date.now()}`,
+      params: {}
+    });
+    return c.json(response);
+  } catch (err) {
+    return c.json({ code: 500, msg: err.message, data: null }, 500);
+  }
+});
+
 // API: 获取 Markdown 示例
 app.get("/api/backend/markdown/sample", async (c) => {
   try {
@@ -5685,6 +5822,7 @@ app.get("/api/stats", (c) => {
   const emailNormalizerSize = fs.existsSync(emailNormalizerWasmPath) ? fs.statSync(emailNormalizerWasmPath).size : 0;
   const gitMemoSize = fs.existsSync(gitMemoWasmPath) ? fs.statSync(gitMemoWasmPath).size : 0;
   const randomPortSize = fs.existsSync(randomPortWasmPath) ? fs.statSync(randomPortWasmPath).size : 0;
+  const textDiffSize = fs.existsSync(textDiffWasmPath) ? fs.statSync(textDiffWasmPath).size : 0;
   return c.json({
     rust: {
       file: "rs.wasm",
@@ -5920,6 +6058,11 @@ app.get("/api/stats", (c) => {
       file: "random-port.wasm",
       sizeBytes: randomPortSize,
       sizeFormatted: `${(randomPortSize / 1024).toFixed(2)} KB`,
+    },
+    textDiff: {
+      file: "text-diff.wasm",
+      sizeBytes: textDiffSize,
+      sizeFormatted: `${(textDiffSize / 1024).toFixed(2)} KB`,
     },
   });
 });

@@ -1,0 +1,22 @@
+{
+  "name": "@wasmforge/text-diff",
+  "version": "0.1.0",
+  "description": "High performance text diff and Myers comparison engine in WebAssembly",
+  "main": "text-diff.wasm",
+  "types": "index.d.ts",
+  "scripts": {
+    "build": "cargo build --target wasm32-unknown-unknown --release",
+    "test": "cargo test"
+  },
+  "keywords": [
+    "wasm",
+    "diff",
+    "text",
+    "myers",
+    "patch",
+    "unified",
+    "wasmforge"
+  ],
+  "author": "BIGMAX-RKO007",
+  "license": "MIT"
+}
