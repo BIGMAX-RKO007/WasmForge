@@ -1,0 +1,13 @@
+{
+  "name": "@wasm-forge/list-converter",
+  "version": "0.1.0",
+  "description": "High-performance Multiline List Converter in pure WebAssembly",
+  "type": "module",
+  "scripts": {
+    "build": "cargo build --target wasm32-unknown-unknown --release",
+    "test": "cargo test"
+  },
+  "keywords": ["wasm", "converter", "list", "sort", "dedup", "lines"],
+  "author": "WasmForge",
+  "license": "MIT"
+}
