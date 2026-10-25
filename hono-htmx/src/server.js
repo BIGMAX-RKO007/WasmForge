@@ -43,6 +43,7 @@ const textToBinaryWasmPath = path.resolve(__dirname, "../public/wasm/text-to-bin
 const textToUnicodeWasmPath = path.resolve(__dirname, "../public/wasm/text-to-unicode.wasm");
 const markdownToHtmlWasmPath = path.resolve(__dirname, "../public/wasm/markdown-to-html.wasm");
 const listConverterWasmPath = path.resolve(__dirname, "../public/wasm/list-converter.wasm");
+const textToNatoWasmPath = path.resolve(__dirname, "../public/wasm/text-to-nato.wasm");
 
 let rsEngine = null;
 let tsEngine = null;
@@ -77,6 +78,7 @@ let textToBinaryEngine = null;
 let textToUnicodeEngine = null;
 let markdownToHtmlEngine = null;
 let listConverterEngine = null;
+let textToNatoEngine = null;
 
 async function initEngines() {
   try {
@@ -309,6 +311,13 @@ async function initEngines() {
       console.log("✅ [Backend Infra] 纯单一文件 list-converter.wasm 加载成功");
     } else {
       console.warn("⚠️ list-converter.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    if (fs.existsSync(textToNatoWasmPath)) {
+      textToNatoEngine = await loadWasmFromDisk(textToNatoWasmPath);
+      console.log("✅ [Backend Infra] 纯单一文件 text-to-nato.wasm 加载成功");
+    } else {
+      console.warn("⚠️ text-to-nato.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
     }
   } catch (err) {
     console.error("❌ 后端 WASM 基础设施初始化失败:", err);
@@ -3361,6 +3370,138 @@ app.get("/api/backend/list/sample", async (c) => {
   }
 });
 
+// API: HTMX 提交北约音标拼读转换
+app.post("/api/backend/nato/convert", async (c) => {
+  try {
+    let mode = "encode";
+    let text = "";
+    let delimiter = " ";
+
+    const contentType = c.req.header("content-type") || "";
+    if (contentType.includes("application/json")) {
+      const json = await c.req.json().catch(() => ({}));
+      if (json.mode) mode = json.mode;
+      text = (json.text || json.input || "").toString();
+      if (json.delimiter !== undefined) delimiter = json.delimiter;
+    } else {
+      const body = await c.req.parseBody().catch(() => ({}));
+      if (body.mode) mode = body.mode;
+      text = (body.text || body.input || "").toString();
+      if (body.delimiter !== undefined) delimiter = body.delimiter;
+    }
+
+    if (!text) {
+      if (contentType.includes("application/json") && !c.req.header("HX-Request")) {
+        return c.json({ code: 400, msg: "输入内容不能为空", data: null }, 400);
+      }
+      return c.html(`
+        <div class="result-box error">
+          <strong>转换失败:</strong> 输入内容不能为空
+        </div>
+      `, 400);
+    }
+
+    if (!textToNatoEngine) {
+      throw new Error("text-to-nato WASM 引擎未就绪");
+    }
+
+    const t0 = performance.now();
+    const action = mode === "decode" ? "nato/decode" : "nato/encode";
+    const params = mode === "decode" ? { text } : { text, delimiter };
+
+    const response = textToNatoEngine.dispatch({
+      action,
+      requestId: `srv-${Date.now()}`,
+      params
+    });
+    const duration = (performance.now() - t0).toFixed(4);
+
+    if (contentType.includes("application/json") && !c.req.header("HX-Request")) {
+      return c.json(response);
+    }
+
+    if (response.code !== 0) {
+      return c.html(`
+        <div class="result-box error">
+          <strong>北约字母转换失败:</strong> ${response.msg}
+        </div>
+      `, 400);
+    }
+
+    const d = response.data;
+    if (mode === "decode") {
+      return c.html(`
+        <div class="result-box">
+          <div class="result-header">
+            <span class="tag tag-rust">🦀 Rust WASM: 北约音标逆向还原成功</span>
+            <span class="badge-time">⚡ ${duration} ms (Hono 后端原生)</span>
+          </div>
+
+          <div style="font-size:12px; color:var(--text-muted); margin-bottom:8px;">
+            识别有效词数: <strong>${d.stats.recognized}</strong> / ${d.stats.totalTokens}
+          </div>
+
+          <div>
+            <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px;">文本还原输出:</div>
+            <div style="background:rgba(255,255,255,0.03); padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,0.08); font-family:var(--font-mono); font-size:14px; font-weight:bold; color:#38bdf8; word-break:break-all;">
+              ${d.decoded}
+            </div>
+          </div>
+        </div>
+      `);
+    }
+
+    return c.html(`
+      <div class="result-box">
+        <div class="result-header">
+          <span class="tag tag-rust">🦀 Rust WASM: 北约字母拼读音标转换成功</span>
+          <span class="badge-time">⚡ ${duration} ms (Hono 后端原生)</span>
+        </div>
+
+        <div style="display:flex; flex-wrap:wrap; gap:16px; margin-bottom:12px; font-size:12px; color:var(--text-muted);">
+          <span>总字符: <strong>${d.stats.totalChars}</strong></span>
+          <span>字母: <strong style="color:#38bdf8;">${d.stats.letters}</strong></span>
+          <span>数字: <strong style="color:#a78bfa;">${d.stats.digits}</strong></span>
+          <span>空格: <strong>${d.stats.spaces}</strong></span>
+        </div>
+
+        <div>
+          <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px;">音标拼读串 (NATO Phonetic):</div>
+          <div style="background:rgba(255,255,255,0.03); padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,0.08); font-family:var(--font-mono); font-size:13px; color:#34d399; word-break:break-all; line-height:1.5;">
+            ${d.encoded}
+          </div>
+        </div>
+      </div>
+    `);
+  } catch (err) {
+    return c.html(`
+      <div class="result-box error">
+        <strong>转换失败:</strong> ${err.message}
+      </div>
+    `, 400);
+  }
+});
+
+// API: 获取 NATO 示例
+app.get("/api/backend/nato/sample", async (c) => {
+  try {
+    if (!textToNatoEngine) {
+      throw new Error("text-to-nato WASM 引擎未就绪");
+    }
+    const response = textToNatoEngine.dispatch({
+      action: "nato/sample",
+      requestId: `srv-${Date.now()}`,
+      params: {}
+    });
+    if (response.code !== 0) {
+      throw new Error(response.msg || "获取示例失败");
+    }
+    return c.json(response.data);
+  } catch (err) {
+    return c.json({ sampleText: "SOS 2026", sampleNato: "Sierra Oscar Sierra [Space] Two Zero Two Six" }, 500);
+  }
+});
+
 // API: 获取 Markdown 示例
 app.get("/api/backend/markdown/sample", async (c) => {
   try {
@@ -3516,6 +3657,7 @@ app.get("/api/stats", (c) => {
   const textToUnicodeSize = fs.existsSync(textToUnicodeWasmPath) ? fs.statSync(textToUnicodeWasmPath).size : 0;
   const markdownToHtmlSize = fs.existsSync(markdownToHtmlWasmPath) ? fs.statSync(markdownToHtmlWasmPath).size : 0;
   const listConverterSize = fs.existsSync(listConverterWasmPath) ? fs.statSync(listConverterWasmPath).size : 0;
+  const textToNatoSize = fs.existsSync(textToNatoWasmPath) ? fs.statSync(textToNatoWasmPath).size : 0;
   return c.json({
     rust: {
       file: "rs.wasm",
@@ -3681,6 +3823,11 @@ app.get("/api/stats", (c) => {
       file: "list-converter.wasm",
       sizeBytes: listConverterSize,
       sizeFormatted: `${(listConverterSize / 1024).toFixed(2)} KB`,
+    },
+    textToNato: {
+      file: "text-to-nato.wasm",
+      sizeBytes: textToNatoSize,
+      sizeFormatted: `${(textToNatoSize / 1024).toFixed(2)} KB`,
     },
   });
 });

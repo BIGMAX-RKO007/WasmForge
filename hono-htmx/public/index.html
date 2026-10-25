@@ -2511,6 +2511,70 @@ Banana</textarea>
       </div>
     </div>
 
+    <!-- ================= 卡片 2.21: 北约音标拼读字母表转换 (Text to NATO) ================= -->
+    <div class="card" style="margin-bottom: 24px;">
+      <div class="card-header">
+        <div>
+          <h3>卡片 2.21: 北约音标拼读字母表转换 (Text to NATO)</h3>
+          <p style="margin:0; font-size:12px; color:var(--text-muted);">
+            标准 ICAO / NATO / 无线电军事与民航拼读字母表（Alfa..Zulu, Zero..Nine）。支持双向极速编解码与字符流拆解。
+          </p>
+        </div>
+        <span class="tag tag-rust">Tool #32: text-to-nato</span>
+      </div>
+
+      <div style="margin-top:16px;">
+        <form hx-post="/api/backend/nato/convert" hx-target="#backend-nato-result" hx-swap="innerHTML">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <div style="display:flex; gap:16px; align-items:center;">
+              <label style="font-size:12px; font-weight:600; color:var(--text-muted);">输入待转换内容:</label>
+              <div style="display:flex; gap:10px; font-size:12px;">
+                <label style="cursor:pointer; display:flex; align-items:center; gap:4px;">
+                  <input type="radio" name="mode" value="encode" checked id="nato-mode-enc" onchange="toggleNatoPlaceholder()" /> 文本 ➔ 北约音标 (Encode)
+                </label>
+                <label style="cursor:pointer; display:flex; align-items:center; gap:4px;">
+                  <input type="radio" name="mode" value="decode" id="nato-mode-dec" onchange="toggleNatoPlaceholder()" /> 北约音标 ➔ 文本 (Decode)
+                </label>
+              </div>
+            </div>
+            <div style="display:flex; gap:8px;">
+              <button type="button" onclick="loadNatoSample()" style="padding:2px 8px; font-size:11px; background:rgba(56,189,248,0.15); color:#38bdf8; border:1px solid rgba(56,189,248,0.3); border-radius:4px; cursor:pointer;">
+                载入样例
+              </button>
+            </div>
+          </div>
+          <textarea id="nato-input" name="text" rows="3" placeholder="例如: SOS 2026 或 Sierra Oscar Sierra" style="width:100%; padding:10px 12px; background:#1e293b; border:1px solid rgba(255,255,255,0.1); color:#fff; border-radius:6px; font-family:var(--font-mono); font-size:13px; box-sizing:border-box;">SOS 2026</textarea>
+
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px;">
+            <div style="display:flex; gap:10px; align-items:center; font-size:12px; color:var(--text-muted);">
+              <span>分隔符:</span>
+              <input type="text" id="nato-delimiter" name="delimiter" value=" " style="width:60px; background:#1e293b; color:#fff; border:1px solid rgba(255,255,255,0.2); padding:4px 6px; border-radius:4px; font-size:12px;" />
+            </div>
+
+            <div style="display:flex; gap:10px;">
+              <button type="submit" style="padding:6px 12px; background:linear-gradient(135deg, #0284c7, #0369a1); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:12px;">
+                🖥️ 后端音标转换
+              </button>
+              <button type="button" onclick="runFrontendNatoConvert()" style="padding:6px 12px; background:linear-gradient(135deg, #0ea5e9, #0284c7); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:12px;">
+                🌐 前端本地转换
+              </button>
+            </div>
+          </div>
+        </form>
+
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:16px; margin-top:16px;">
+          <div>
+            <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px;">后端投影输出:</div>
+            <div id="backend-nato-result" class="result-container"><div class="result-box" style="opacity:0.5; font-size:12px;">等待转换...</div></div>
+          </div>
+          <div>
+            <div style="font-size:11px; color:var(--text-muted); margin-top:0px; margin-bottom:4px;">前端投影输出:</div>
+            <div id="frontend-nato-result" class="result-container"><div class="result-box" style="opacity:0.5; font-size:12px;">等待转换...</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- ================= 区域 3: 4 象限综合矩阵基准测试 ================= -->
     <div class="matrix-card">
       <h2>📊 4 维度跨场景一致性与性能矩阵</h2>
@@ -2607,6 +2671,8 @@ Banana</textarea>
       markdownToHtmlReady: false,
       listConverter: null,
       listConverterReady: false,
+      textToNato: null,
+      textToNatoReady: false,
       activeFrontendEngine: "rust",
       activeBackendEngine: "rust"
     };
@@ -2646,6 +2712,7 @@ Banana</textarea>
         const textToUnicodeEngine = await loadWasmFromUrl("./wasm/text-to-unicode.wasm");
         const markdownToHtmlEngine = await loadWasmFromUrl("./wasm/markdown-to-html.wasm");
         const listConverterEngine = await loadWasmFromUrl("./wasm/list-converter.wasm");
+        const textToNatoEngine = await loadWasmFromUrl("./wasm/text-to-nato.wasm");
 
         window.wasmContext.rust = rsEngine;
         window.wasmContext.ts = tsEngine;
@@ -2680,6 +2747,7 @@ Banana</textarea>
         window.wasmContext.textToUnicode = textToUnicodeEngine;
         window.wasmContext.markdownToHtml = markdownToHtmlEngine;
         window.wasmContext.listConverter = listConverterEngine;
+        window.wasmContext.textToNato = textToNatoEngine;
         window.wasmContext.rustReady = true;
         window.wasmContext.tsReady = true;
         window.wasmContext.tokenReady = true;
@@ -2713,9 +2781,10 @@ Banana</textarea>
         window.wasmContext.textToUnicodeReady = true;
         window.wasmContext.markdownToHtmlReady = true;
         window.wasmContext.listConverterReady = true;
+        window.wasmContext.textToNatoReady = true;
 
         const statusEl = document.getElementById("frontend-status");
-        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载 33 大模块: rs, ts, token-gen, hash-text, bcrypt, uuid-gen, ulid-gen, encryption, bip39, hmac, rsa, password-strength, pdf-sig, yaml-to-json, yaml-to-toml, json-to-yaml, json-to-toml, toml-to-json, toml-to-yaml, xml-to-json, json-to-xml, json-to-csv, base64-string, base64-file, color-converter, case-converter, date-time-converter, integer-base-converter, roman-numeral-converter, text-to-binary, text-to-unicode, markdown-to-html & list-converter)`;
+        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载 34 大模块: rs, ts, token-gen, hash-text, bcrypt, uuid-gen, ulid-gen, encryption, bip39, hmac, rsa, password-strength, pdf-sig, yaml-to-json, yaml-to-toml, json-to-yaml, json-to-toml, toml-to-json, toml-to-yaml, xml-to-json, json-to-xml, json-to-csv, base64-string, base64-file, color-converter, case-converter, date-time-converter, integer-base-converter, roman-numeral-converter, text-to-binary, text-to-unicode, markdown-to-html, list-converter & text-to-nato [Domain 2 100% 达成!])`;
 
         // 初始自动运行一次前端计算
         window.runFrontendCalc();
@@ -5438,6 +5507,127 @@ Banana</textarea>
             <div style="font-size:10px; color:var(--text-muted); margin-bottom:2px;">输出内容 (${d.lines.length} 行):</div>
             <div style="background:rgba(255,255,255,0.03); padding:6px 8px; border-radius:4px; border:1px solid rgba(255,255,255,0.06); font-family:var(--font-mono); font-size:12px; color:#38bdf8; word-break:break-all; max-height:140px; overflow-y:auto; white-space:pre-wrap;">
               ${d.output}
+            </div>
+          </div>
+        </div>
+      `;
+    };
+
+    // 切换 NATO 模式占位符
+    window.toggleNatoPlaceholder = function() {
+      const isDecode = document.getElementById("nato-mode-dec").checked;
+      const input = document.getElementById("nato-input");
+      if (isDecode) {
+        input.placeholder = "例如: Sierra Oscar Sierra [Space] Two Zero Two Six";
+      } else {
+        input.placeholder = "例如: SOS 2026 或 Hello World";
+      }
+    };
+
+    // 载入 NATO 示例
+    window.loadNatoSample = async function() {
+      const input = document.getElementById("nato-input");
+      const isDecode = document.getElementById("nato-mode-dec").checked;
+      if (window.wasmContext.textToNato) {
+        const resp = window.wasmContext.textToNato.dispatch({
+          action: "nato/sample",
+          requestId: `sample-${Date.now()}`,
+          params: {}
+        });
+        if (resp.code === 0 && resp.data) {
+          input.value = isDecode ? resp.data.sampleNato : resp.data.sampleText;
+          window.runFrontendNatoConvert();
+          return;
+        }
+      }
+      try {
+        const res = await fetch("/api/backend/nato/sample");
+        const data = await res.json();
+        input.value = isDecode ? (data.sampleNato || "Sierra Oscar Sierra") : (data.sampleText || "SOS 2026");
+        window.runFrontendNatoConvert();
+      } catch (e) {
+        console.error("加载 NATO 示例失败:", e);
+      }
+    };
+
+    // 前端执行 NATO 转换
+    window.runFrontendNatoConvert = function() {
+      const engine = window.wasmContext.textToNato;
+      if (!engine) {
+        document.getElementById("frontend-nato-result").innerHTML = `
+          <div class="result-box error">text-to-nato.wasm 尚未加载完毕</div>
+        `;
+        return;
+      }
+
+      const isDecode = document.getElementById("nato-mode-dec").checked;
+      const text = (document.getElementById("nato-input").value || "").trim();
+      const delimiter = document.getElementById("nato-delimiter").value || " ";
+
+      if (!text) {
+        document.getElementById("frontend-nato-result").innerHTML = `
+          <div class="result-box error"><strong>转换失败:</strong> 输入内容不能为空</div>
+        `;
+        return;
+      }
+
+      const t0 = performance.now();
+      const action = isDecode ? "nato/decode" : "nato/encode";
+      const params = isDecode ? { text } : { text, delimiter };
+
+      const response = engine.dispatch({
+        action,
+        requestId: `req-front-${Date.now()}`,
+        params
+      });
+      const duration = (performance.now() - t0).toFixed(4);
+
+      if (response.code !== 0) {
+        document.getElementById("frontend-nato-result").innerHTML = `
+          <div class="result-box error"><strong>转换失败:</strong> ${response.msg}</div>
+        `;
+        return;
+      }
+
+      const d = response.data;
+      if (isDecode) {
+        document.getElementById("frontend-nato-result").innerHTML = `
+          <div class="result-box">
+            <div class="result-header">
+              <span class="tag tag-rust">🦀 Browser WASM: 北约音标逆向还原成功</span>
+              <span class="badge-time">⚡ ${duration} ms (纯前端内存)</span>
+            </div>
+
+            <div style="font-size:11px; color:var(--text-muted); margin-bottom:6px;">
+              识别有效词数: <strong>${d.stats.recognized}</strong> / ${d.stats.totalTokens}
+            </div>
+
+            <div>
+              <div style="font-size:10px; color:var(--text-muted); margin-bottom:2px;">还原文本:</div>
+              <div style="background:rgba(255,255,255,0.03); padding:8px; border-radius:4px; border:1px solid rgba(255,255,255,0.06); font-family:var(--font-mono); font-size:14px; font-weight:bold; color:#38bdf8; word-break:break-all;">
+                ${d.decoded}
+              </div>
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      document.getElementById("frontend-nato-result").innerHTML = `
+        <div class="result-box">
+          <div class="result-header">
+            <span class="tag tag-rust">🦀 Browser WASM: 北约拼读音标转换成功</span>
+            <span class="badge-time">⚡ ${duration} ms (纯前端内存)</span>
+          </div>
+
+          <div style="font-size:11px; color:var(--text-muted); margin-bottom:6px;">
+            总字符: <strong>${d.stats.totalChars}</strong> | 字母: <strong style="color:#38bdf8;">${d.stats.letters}</strong> | 数字: <strong style="color:#a78bfa;">${d.stats.digits}</strong> | 空格: <strong>${d.stats.spaces}</strong>
+          </div>
+
+          <div>
+            <div style="font-size:10px; color:var(--text-muted); margin-bottom:2px;">拼读串 (NATO Phonetic):</div>
+            <div style="background:rgba(255,255,255,0.03); padding:8px; border-radius:4px; border:1px solid rgba(255,255,255,0.06); font-family:var(--font-mono); font-size:13px; color:#34d399; word-break:break-all; line-height:1.5;">
+              ${d.encoded}
             </div>
           </div>
         </div>

@@ -1,0 +1,20 @@
+{
+  "name": "@wasmforge/text-to-nato",
+  "version": "0.1.0",
+  "description": "Pure Standalone WebAssembly NATO Phonetic Alphabet Converter for WasmForge",
+  "main": "text_to_nato.wasm",
+  "scripts": {
+    "build": "cargo build --target wasm32-unknown-unknown --release",
+    "test": "cargo test"
+  },
+  "keywords": [
+    "wasm",
+    "webassembly",
+    "nato",
+    "phonetic-alphabet",
+    "icao",
+    "wasmforge"
+  ],
+  "author": "WasmForge",
+  "license": "MIT"
+}
