@@ -72,6 +72,7 @@ const deviceInformationWasmPath = path.resolve(__dirname, "../public/wasm/device
 const jsonDiffWasmPath = path.resolve(__dirname, "../public/wasm/json-diff.wasm");
 const htmlEntitiesWasmPath = path.resolve(__dirname, "../public/wasm/html-entities.wasm");
 const basicAuthGeneratorWasmPath = path.resolve(__dirname, "../public/wasm/basic-auth-generator.wasm");
+const openGraphGeneratorWasmPath = path.resolve(__dirname, "../public/wasm/open-graph-generator.wasm");
 
 let rsEngine = null;
 let tsEngine = null;
@@ -135,6 +136,7 @@ let deviceInformationEngine = null;
 let jsonDiffEngine = null;
 let htmlEntitiesEngine = null;
 let basicAuthGeneratorEngine = null;
+let openGraphGeneratorEngine = null;
 
 async function initEngines() {
   try {
@@ -570,6 +572,13 @@ async function initEngines() {
       console.log("✅ [Backend Infra] 纯单一文件 basic-auth-generator.wasm 加载成功");
     } else {
       console.warn("⚠️ basic-auth-generator.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    if (fs.existsSync(openGraphGeneratorWasmPath)) {
+      openGraphGeneratorEngine = await loadWasmFromDisk(openGraphGeneratorWasmPath);
+      console.log("✅ [Backend Infra] 纯单一文件 open-graph-generator.wasm 加载成功");
+    } else {
+      console.warn("⚠️ open-graph-generator.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
     }
   } catch (err) {
     console.error("❌ 后端 WASM 基础设施初始化失败:", err);
@@ -7455,6 +7464,117 @@ app.get("/api/backend/basic-auth/presets", async (c) => {
   }
 });
 
+// API: Open Graph 元数据与卡片生成 (Open Graph Generator)
+app.post("/api/backend/open-graph/generate", async (c) => {
+  try {
+    const contentType = c.req.header("Content-Type") || "";
+    let params = {};
+
+    if (contentType.includes("application/json")) {
+      params = await c.req.json().catch(() => ({}));
+    } else {
+      const body = await c.req.parseBody().catch(() => ({}));
+      params = {
+        title: body.title || "",
+        description: body.description || "",
+        url: body.url || "",
+        image: body.image || "",
+        imageAlt: body.imageAlt || "",
+        siteName: body.siteName || "",
+        ogType: body.ogType || "website",
+        twitterCard: body.twitterCard || "summary_large_image",
+        twitterSite: body.twitterSite || "",
+        twitterCreator: body.twitterCreator || "",
+        locale: body.locale || "zh_CN"
+      };
+    }
+
+    if (!openGraphGeneratorEngine) {
+      throw new Error("open-graph-generator WASM 引擎未就绪");
+    }
+
+    const t0 = performance.now();
+    const response = openGraphGeneratorEngine.dispatch({
+      action: "open-graph/generate",
+      requestId: `srv-${Date.now()}`,
+      params
+    });
+    const duration = (performance.now() - t0).toFixed(4);
+
+    if (contentType.includes("application/json") && !c.req.header("HX-Request")) {
+      return c.json(response);
+    }
+
+    if (response.code !== 0) {
+      return c.html(`
+        <div class="result-box error">
+          <strong>Open Graph 生成失败:</strong> ${escapeHtml(response.msg)}
+        </div>
+      `, 400);
+    }
+
+    const d = response.data;
+    const p = d.preview;
+
+    return c.html(`
+      <div class="result-box">
+        <div class="result-header">
+          <span class="tag tag-rust">🦀 Rust WASM: Open Graph & Twitter Cards 生成 (${d.tagsCount} 项标签)</span>
+          <span class="badge-time">⚡ ${duration} ms (Hono 后端原生)</span>
+        </div>
+
+        <div style="margin-bottom:14px;">
+          <div style="font-size:11px; color:var(--text-muted); margin-bottom:6px; font-weight:600;">社交平台分享卡片实时模拟效果 (Live Card Preview):</div>
+          <div style="border:1px solid rgba(255,255,255,0.15); border-radius:10px; overflow:hidden; background:#0f172a; max-width:540px;">
+            ${p.image ? `<div style="width:100%; height:160px; background:#1e293b; display:flex; align-items:center; justify-content:center; overflow:hidden; border-bottom:1px solid rgba(255,255,255,0.1);"><img src="${escapeHtml(p.image)}" alt="${escapeHtml(p.image_alt || p.title)}" style="width:100%; height:100%; object-fit:cover;" onerror="this.style.display='none'; this.parentNode.innerHTML='<div style=\\'color:#64748b; font-size:12px;\\'>🖼️ 图片预览不可用: ${escapeHtml(p.image)}</div>'"></div>` : ''}
+            <div style="padding:12px 14px;">
+              <div style="font-size:11px; color:#94a3b8; text-transform:uppercase; font-weight:600; margin-bottom:4px;">${escapeHtml(p.domain || 'EXAMPLE.COM')} ${p.site_name ? `• ${escapeHtml(p.site_name)}` : ''}</div>
+              <div style="font-size:14px; font-weight:700; color:#f8fafc; margin-bottom:4px; line-height:1.3;">${escapeHtml(p.title || '无标题')}</div>
+              <div style="font-size:12px; color:#94a3b8; line-height:1.4; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;">${escapeHtml(p.description || '无描述')}</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-bottom:12px;">
+          <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px; font-weight:600;">标准 HTML &lt;head&gt; Meta 标签集:</div>
+          <div style="position:relative;">
+            <pre style="padding:10px 12px; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1); border-radius:6px; font-family:var(--font-mono); font-size:11px; color:#38bdf8; overflow-x:auto; white-space:pre-wrap;">${escapeHtml(d.metaTagsHtml)}</pre>
+            <button type="button" onclick="navigator.clipboard.writeText(decodeURIComponent('${encodeURIComponent(d.metaTagsHtml)}'))" style="position:absolute; top:8px; right:8px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); border-radius:4px; padding:3px 8px; color:#f8fafc; font-size:11px; cursor:pointer;">复制 Meta 标签</button>
+          </div>
+        </div>
+
+        <div>
+          <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px; font-weight:600;">Schema.org 结构化数据 (JSON-LD):</div>
+          <pre style="padding:10px 12px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.08); border-radius:6px; font-family:var(--font-mono); font-size:11px; color:#34d399; overflow-x:auto;">${escapeHtml(d.jsonLdHtml)}</pre>
+        </div>
+      </div>
+    `);
+  } catch (err) {
+    return c.html(`
+      <div class="result-box error">
+        <strong>执行失败:</strong> ${escapeHtml(err.message)}
+      </div>
+    `, 500);
+  }
+});
+
+// API: 获取 Open Graph 预设
+app.get("/api/backend/open-graph/presets", async (c) => {
+  try {
+    if (!openGraphGeneratorEngine) {
+      throw new Error("open-graph-generator WASM 引擎未就绪");
+    }
+    const response = openGraphGeneratorEngine.dispatch({
+      action: "open-graph/presets",
+      requestId: `srv-${Date.now()}`,
+      params: {}
+    });
+    return c.json(response);
+  } catch (err) {
+    return c.json({ code: 500, msg: err.message, data: null }, 500);
+  }
+});
+
 // API: 获取 Markdown 示例
 app.get("/api/backend/markdown/sample", async (c) => {
   try {
@@ -7639,6 +7759,7 @@ app.get("/api/stats", (c) => {
   const jsonDiffSize = fs.existsSync(jsonDiffWasmPath) ? fs.statSync(jsonDiffWasmPath).size : 0;
   const htmlEntitiesSize = fs.existsSync(htmlEntitiesWasmPath) ? fs.statSync(htmlEntitiesWasmPath).size : 0;
   const basicAuthGeneratorSize = fs.existsSync(basicAuthGeneratorWasmPath) ? fs.statSync(basicAuthGeneratorWasmPath).size : 0;
+  const openGraphGeneratorSize = fs.existsSync(openGraphGeneratorWasmPath) ? fs.statSync(openGraphGeneratorWasmPath).size : 0;
   return c.json({
     rust: {
       file: "rs.wasm",
@@ -7949,6 +8070,11 @@ app.get("/api/stats", (c) => {
       file: "basic-auth-generator.wasm",
       sizeBytes: basicAuthGeneratorSize,
       sizeFormatted: `${(basicAuthGeneratorSize / 1024).toFixed(2)} KB`,
+    },
+    openGraphGenerator: {
+      file: "open-graph-generator.wasm",
+      sizeBytes: openGraphGeneratorSize,
+      sizeFormatted: `${(openGraphGeneratorSize / 1024).toFixed(2)} KB`,
     },
   });
 });

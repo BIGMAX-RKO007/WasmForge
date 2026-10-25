@@ -1,0 +1,26 @@
+{
+  "name": "@wasm-forge/open-graph-generator",
+  "version": "0.1.0",
+  "description": "Pure Standalone WebAssembly Open Graph Protocol & Twitter Card Meta Tags and JSON-LD Generator",
+  "type": "module",
+  "main": "pkg/open_graph_generator.wasm",
+  "files": [
+    "pkg/open_graph_generator.wasm",
+    "README.md"
+  ],
+  "scripts": {
+    "build:wasm": "cargo build --target wasm32-unknown-unknown --release",
+    "test": "cargo test"
+  },
+  "keywords": [
+    "wasm",
+    "webassembly",
+    "opengraph",
+    "ogp",
+    "twitter-card",
+    "seo",
+    "json-ld"
+  ],
+  "author": "WasmForge",
+  "license": "MIT"
+}
