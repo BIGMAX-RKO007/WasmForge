@@ -1,0 +1,21 @@
+{
+  "name": "@wasmforge/text-statistics",
+  "version": "0.1.0",
+  "description": "Text statistics, character counts, CJK word estimation, and reading metrics in WebAssembly",
+  "main": "text-statistics.wasm",
+  "types": "index.d.ts",
+  "scripts": {
+    "build": "cargo build --target wasm32-unknown-unknown --release",
+    "test": "cargo test"
+  },
+  "keywords": [
+    "wasm",
+    "text",
+    "statistics",
+    "word-count",
+    "reading-time",
+    "wasmforge"
+  ],
+  "author": "BIGMAX-RKO007",
+  "license": "MIT"
+}

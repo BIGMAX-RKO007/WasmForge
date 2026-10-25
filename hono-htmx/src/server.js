@@ -58,6 +58,7 @@ const emailNormalizerWasmPath = path.resolve(__dirname, "../public/wasm/email-no
 const gitMemoWasmPath = path.resolve(__dirname, "../public/wasm/git-memo.wasm");
 const randomPortWasmPath = path.resolve(__dirname, "../public/wasm/random-port.wasm");
 const textDiffWasmPath = path.resolve(__dirname, "../public/wasm/text-diff.wasm");
+const textStatisticsWasmPath = path.resolve(__dirname, "../public/wasm/text-statistics.wasm");
 
 let rsEngine = null;
 let tsEngine = null;
@@ -107,6 +108,7 @@ let emailNormalizerEngine = null;
 let gitMemoEngine = null;
 let randomPortEngine = null;
 let textDiffEngine = null;
+let textStatisticsEngine = null;
 
 async function initEngines() {
   try {
@@ -444,6 +446,13 @@ async function initEngines() {
       console.log("✅ [Backend Infra] 纯单一文件 text-diff.wasm 加载成功");
     } else {
       console.warn("⚠️ text-diff.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    if (fs.existsSync(textStatisticsWasmPath)) {
+      textStatisticsEngine = await loadWasmFromDisk(textStatisticsWasmPath);
+      console.log("✅ [Backend Infra] 纯单一文件 text-statistics.wasm 加载成功");
+    } else {
+      console.warn("⚠️ text-statistics.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
     }
   } catch (err) {
     console.error("❌ 后端 WASM 基础设施初始化失败:", err);
@@ -5653,6 +5662,138 @@ app.get("/api/backend/diff/samples", async (c) => {
   }
 });
 
+// API: 文本指标与词频统计分析 (Text Statistics)
+app.post("/api/backend/text/stats", async (c) => {
+  try {
+    const contentType = c.req.header("Content-Type") || "";
+    let text = "";
+
+    if (contentType.includes("application/json")) {
+      const json = await c.req.json().catch(() => ({}));
+      text = (json.text || "").toString();
+    } else {
+      const body = await c.req.parseBody().catch(() => ({}));
+      text = (body.text || "").toString();
+    }
+
+    if (!textStatisticsEngine) {
+      throw new Error("text-statistics WASM 引擎未就绪");
+    }
+
+    const t0 = performance.now();
+    const response = textStatisticsEngine.dispatch({
+      action: "text/stats",
+      requestId: `srv-${Date.now()}`,
+      params: { text }
+    });
+    const duration = (performance.now() - t0).toFixed(4);
+
+    if (contentType.includes("application/json") && !c.req.header("HX-Request")) {
+      return c.json(response);
+    }
+
+    if (response.code !== 0) {
+      return c.html(`
+        <div class="result-box error">
+          <strong>分析失败:</strong> ${escapeHtml(response.msg)}
+        </div>
+      `, 400);
+    }
+
+    const d = response.data;
+    const topWordBadges = d.topWords.map(tw => `
+      <div style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:6px; padding:6px 10px; display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+        <span style="font-family:var(--font-mono); font-size:12px; color:#38bdf8; font-weight:600;">${escapeHtml(tw.word)}</span>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span style="font-size:11px; color:#34d399;">${tw.count} 次</span>
+          <span style="font-size:11px; color:var(--text-muted);">(${tw.percentage.toFixed(1)}%)</span>
+        </div>
+      </div>
+    `).join("");
+
+    return c.html(`
+      <div class="result-box">
+        <div class="result-header">
+          <span class="tag tag-rust">🦀 Rust WASM: 文本全维统计分析</span>
+          <span class="badge-time">⚡ ${duration} ms (Hono 后端原生)</span>
+        </div>
+
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap:8px; margin-bottom:14px;">
+          <div style="background:rgba(56,189,248,0.08); border:1px solid rgba(56,189,248,0.2); border-radius:6px; padding:8px 10px;">
+            <div style="font-size:11px; color:var(--text-muted);">总字符数</div>
+            <div style="font-size:18px; font-weight:700; color:#38bdf8; font-family:var(--font-mono);">${d.totalCharacters}</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:6px; padding:8px 10px;">
+            <div style="font-size:11px; color:var(--text-muted);">不计空格字符</div>
+            <div style="font-size:18px; font-weight:700; color:#f1f5f9; font-family:var(--font-mono);">${d.charactersNoSpaces}</div>
+          </div>
+          <div style="background:rgba(52,211,153,0.08); border:1px solid rgba(52,211,153,0.2); border-radius:6px; padding:8px 10px;">
+            <div style="font-size:11px; color:var(--text-muted);">词数 (总计)</div>
+            <div style="font-size:18px; font-weight:700; color:#34d399; font-family:var(--font-mono);">${d.totalWords}</div>
+          </div>
+          <div style="background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.2); border-radius:6px; padding:8px 10px;">
+            <div style="font-size:11px; color:var(--text-muted);">中日韩字数 (CJK)</div>
+            <div style="font-size:18px; font-weight:700; color:#f59e0b; font-family:var(--font-mono);">${d.cjkCharacters}</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:6px; padding:8px 10px;">
+            <div style="font-size:11px; color:var(--text-muted);">行数 / 段落</div>
+            <div style="font-size:18px; font-weight:700; color:#f1f5f9; font-family:var(--font-mono);">${d.totalLines} / ${d.paragraphsCount}</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:6px; padding:8px 10px;">
+            <div style="font-size:11px; color:var(--text-muted);">句子总数</div>
+            <div style="font-size:18px; font-weight:700; color:#f1f5f9; font-family:var(--font-mono);">${d.sentencesCount}</div>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:16px; flex-wrap:wrap; margin-bottom:14px; font-size:12px;">
+          <div style="background:rgba(14,165,233,0.1); border:1px solid rgba(14,165,233,0.3); border-radius:6px; padding:6px 12px; display:flex; align-items:center; gap:6px;">
+            <span style="color:#38bdf8;">📖 预估阅读用时:</span>
+            <strong style="color:#f8fafc;">${escapeHtml(d.readingTimeFormatted)}</strong>
+            <span style="font-size:11px; color:var(--text-muted);">(~225 wpm)</span>
+          </div>
+          <div style="background:rgba(168,85,247,0.1); border:1px solid rgba(168,85,247,0.3); border-radius:6px; padding:6px 12px; display:flex; align-items:center; gap:6px;">
+            <span style="color:#c084fc;">🎙️ 预估演讲朗读用时:</span>
+            <strong style="color:#f8fafc;">${escapeHtml(d.speakingTimeFormatted)}</strong>
+            <span style="font-size:11px; color:var(--text-muted);">(~140 wpm)</span>
+          </div>
+        </div>
+
+        ${d.topWords.length > 0 ? `
+          <div>
+            <div style="font-size:12px; color:var(--text-muted); margin-bottom:8px; font-weight:600;">高频词分布 (Top Words):</div>
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:8px;">
+              ${topWordBadges}
+            </div>
+          </div>
+        ` : ''}
+      </div>
+    `);
+  } catch (err) {
+    return c.html(`
+      <div class="result-box error">
+        <strong>执行失败:</strong> ${escapeHtml(err.message)}
+      </div>
+    `, 500);
+  }
+});
+
+// API: 获取文本统计样本
+app.get("/api/backend/text/samples", async (c) => {
+  try {
+    if (!textStatisticsEngine) {
+      throw new Error("text-statistics WASM 引擎未就绪");
+    }
+    const response = textStatisticsEngine.dispatch({
+      action: "text/samples",
+      requestId: `srv-${Date.now()}`,
+      params: {}
+    });
+    return c.json(response);
+  } catch (err) {
+    return c.json({ code: 500, msg: err.message, data: null }, 500);
+  }
+});
+
 // API: 获取 Markdown 示例
 app.get("/api/backend/markdown/sample", async (c) => {
   try {
@@ -5823,6 +5964,7 @@ app.get("/api/stats", (c) => {
   const gitMemoSize = fs.existsSync(gitMemoWasmPath) ? fs.statSync(gitMemoWasmPath).size : 0;
   const randomPortSize = fs.existsSync(randomPortWasmPath) ? fs.statSync(randomPortWasmPath).size : 0;
   const textDiffSize = fs.existsSync(textDiffWasmPath) ? fs.statSync(textDiffWasmPath).size : 0;
+  const textStatisticsSize = fs.existsSync(textStatisticsWasmPath) ? fs.statSync(textStatisticsWasmPath).size : 0;
   return c.json({
     rust: {
       file: "rs.wasm",
@@ -6063,6 +6205,11 @@ app.get("/api/stats", (c) => {
       file: "text-diff.wasm",
       sizeBytes: textDiffSize,
       sizeFormatted: `${(textDiffSize / 1024).toFixed(2)} KB`,
+    },
+    textStatistics: {
+      file: "text-statistics.wasm",
+      sizeBytes: textStatisticsSize,
+      sizeFormatted: `${(textStatisticsSize / 1024).toFixed(2)} KB`,
     },
   });
 });
