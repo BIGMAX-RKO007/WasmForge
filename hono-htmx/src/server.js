@@ -39,6 +39,7 @@ const caseConverterWasmPath = path.resolve(__dirname, "../public/wasm/case-conve
 const dateTimeConverterWasmPath = path.resolve(__dirname, "../public/wasm/date-time-converter.wasm");
 const integerBaseConverterWasmPath = path.resolve(__dirname, "../public/wasm/integer-base-converter.wasm");
 const romanNumeralConverterWasmPath = path.resolve(__dirname, "../public/wasm/roman-numeral-converter.wasm");
+const textToBinaryWasmPath = path.resolve(__dirname, "../public/wasm/text-to-binary.wasm");
 
 let rsEngine = null;
 let tsEngine = null;
@@ -69,6 +70,7 @@ let caseConverterEngine = null;
 let dateTimeConverterEngine = null;
 let integerBaseConverterEngine = null;
 let romanNumeralConverterEngine = null;
+let textToBinaryEngine = null;
 
 async function initEngines() {
   try {
@@ -273,6 +275,13 @@ async function initEngines() {
       console.log("✅ [Backend Infra] 纯单一文件 roman-numeral-converter.wasm 加载成功");
     } else {
       console.warn("⚠️ roman-numeral-converter.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    if (fs.existsSync(textToBinaryWasmPath)) {
+      textToBinaryEngine = await loadWasmFromDisk(textToBinaryWasmPath);
+      console.log("✅ [Backend Infra] 纯单一文件 text-to-binary.wasm 加载成功");
+    } else {
+      console.warn("⚠️ text-to-binary.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
     }
   } catch (err) {
     console.error("❌ 后端 WASM 基础设施初始化失败:", err);
@@ -2888,6 +2897,119 @@ app.post("/api/backend/roman/convert", async (c) => {
   }
 });
 
+// API: HTMX 提交文本与二进制互转
+app.post("/api/backend/text-binary/convert", async (c) => {
+  try {
+    let input = "";
+    let mode = "auto";
+    let delimiter = "space";
+    const contentType = c.req.header("content-type") || "";
+    if (contentType.includes("application/json")) {
+      const json = await c.req.json().catch(() => ({}));
+      input = (json.input || json.text || json.binary || "").toString();
+      if (json.mode) mode = json.mode;
+      if (json.delimiter) delimiter = json.delimiter;
+    } else {
+      const body = await c.req.parseBody().catch(() => ({}));
+      input = (body.input || body.text || body.binary || "").toString();
+      if (body.mode) mode = body.mode;
+      if (body.delimiter) delimiter = body.delimiter;
+    }
+
+    if (!input) {
+      if (contentType.includes("application/json") && !c.req.header("HX-Request")) {
+        return c.json({ code: 400, msg: "输入内容不能为空", data: null }, 400);
+      }
+      return c.html(`
+        <div class="result-box error">
+          <strong>转换失败:</strong> 输入内容不能为空
+        </div>
+      `, 400);
+    }
+
+    if (!textToBinaryEngine) {
+      throw new Error("text-to-binary WASM 引擎未就绪");
+    }
+
+    const t0 = performance.now();
+    const response = textToBinaryEngine.dispatch({
+      action: "binary/convert",
+      requestId: `srv-${Date.now()}`,
+      params: { input, mode, delimiter }
+    });
+    const duration = (performance.now() - t0).toFixed(4);
+
+    if (contentType.includes("application/json") && !c.req.header("HX-Request")) {
+      return c.json(response);
+    }
+
+    if (response.code !== 0) {
+      return c.html(`
+        <div class="result-box error">
+          <strong>二进制转换失败:</strong> ${response.msg}
+        </div>
+      `, 400);
+    }
+
+    const d = response.data;
+    return c.html(`
+      <div class="result-box">
+        <div class="result-header">
+          <span class="tag tag-rust">🦀 Rust WASM: 文本与 8位二进制流转换成功</span>
+          <span class="badge-time">⚡ ${duration} ms (Hono 后端原生)</span>
+        </div>
+
+        <div style="display:flex; flex-wrap:wrap; gap:16px; margin-bottom:12px; font-size:12px; color:var(--text-muted);">
+          <span>转换模式: <strong style="color:#38bdf8;">${d.mode === "encode" ? "文本 ➔ 二进制 (Encode)" : "二进制 ➔ 文本 (Decode)"}</strong></span>
+          <span>字符数: <strong>${d.totalChars}</strong></span>
+          <span>字节数: <strong>${d.totalBytes} B</strong></span>
+          <span>0 比特: <strong>${d.totalZeros}</strong> | 1 比特: <strong>${d.totalOnes}</strong> (密度: <strong style="color:#34d399;">${d.oneDensityPct}%</strong>)</span>
+        </div>
+
+        <div style="margin-bottom:10px;">
+          <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px;">解码文本 (UTF-8 Plain Text):</div>
+          <div style="background:rgba(255,255,255,0.03); padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,0.08); font-family:var(--font-mono); font-size:13px; color:#38bdf8; word-break:break-all;">
+            ${d.text}
+          </div>
+        </div>
+
+        <div>
+          <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px;">二进制数据流 (${d.delimiter} 分隔):</div>
+          <div style="background:rgba(255,255,255,0.03); padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,0.08); font-family:var(--font-mono); font-size:12px; color:#34d399; word-break:break-all; max-height:160px; overflow-y:auto;">
+            ${d.binary}
+          </div>
+        </div>
+      </div>
+    `);
+  } catch (err) {
+    return c.html(`
+      <div class="result-box error">
+        <strong>转换失败:</strong> ${err.message}
+      </div>
+    `, 400);
+  }
+});
+
+// API: 获取 Binary 示例
+app.get("/api/backend/text-binary/sample", async (c) => {
+  try {
+    if (!textToBinaryEngine) {
+      throw new Error("text-to-binary WASM 引擎未就绪");
+    }
+    const response = textToBinaryEngine.dispatch({
+      action: "binary/sample",
+      requestId: `srv-${Date.now()}`,
+      params: {}
+    });
+    if (response.code !== 0) {
+      throw new Error(response.msg || "获取示例失败");
+    }
+    return c.json(response.data);
+  } catch (err) {
+    return c.json({ sampleText: "WasmForge 2026", sampleBinary: "01010111 01100001" }, 500);
+  }
+});
+
 // API: 获取 Roman 示例
 app.get("/api/backend/roman/sample", async (c) => {
   try {
@@ -2979,6 +3101,7 @@ app.get("/api/stats", (c) => {
   const dateTimeConverterSize = fs.existsSync(dateTimeConverterWasmPath) ? fs.statSync(dateTimeConverterWasmPath).size : 0;
   const integerBaseConverterSize = fs.existsSync(integerBaseConverterWasmPath) ? fs.statSync(integerBaseConverterWasmPath).size : 0;
   const romanNumeralConverterSize = fs.existsSync(romanNumeralConverterWasmPath) ? fs.statSync(romanNumeralConverterWasmPath).size : 0;
+  const textToBinarySize = fs.existsSync(textToBinaryWasmPath) ? fs.statSync(textToBinaryWasmPath).size : 0;
   return c.json({
     rust: {
       file: "rs.wasm",
@@ -3124,6 +3247,11 @@ app.get("/api/stats", (c) => {
       file: "roman-numeral-converter.wasm",
       sizeBytes: romanNumeralConverterSize,
       sizeFormatted: `${(romanNumeralConverterSize / 1024).toFixed(2)} KB`,
+    },
+    textToBinary: {
+      file: "text-to-binary.wasm",
+      sizeBytes: textToBinarySize,
+      sizeFormatted: `${(textToBinarySize / 1024).toFixed(2)} KB`,
     },
   });
 });

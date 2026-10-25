@@ -1,0 +1,13 @@
+{
+  "name": "@wasm-forge/text-to-binary",
+  "version": "0.1.0",
+  "description": "High-performance Text to Binary Stream Converter in pure WebAssembly",
+  "type": "module",
+  "scripts": {
+    "build": "cargo build --target wasm32-unknown-unknown --release",
+    "test": "cargo test"
+  },
+  "keywords": ["wasm", "converter", "text", "binary", "bits", "utf8"],
+  "author": "WasmForge",
+  "license": "MIT"
+}
