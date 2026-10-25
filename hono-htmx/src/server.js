@@ -66,6 +66,7 @@ const numeronymGeneratorWasmPath = path.resolve(__dirname, "../public/wasm/numer
 const emojiPickerWasmPath = path.resolve(__dirname, "../public/wasm/emoji-picker.wasm");
 const jwtParserWasmPath = path.resolve(__dirname, "../public/wasm/jwt-parser.wasm");
 const otpGeneratorWasmPath = path.resolve(__dirname, "../public/wasm/otp-generator.wasm");
+const urlEncoderDecoderWasmPath = path.resolve(__dirname, "../public/wasm/url-encoder-decoder.wasm");
 
 let rsEngine = null;
 let tsEngine = null;
@@ -123,6 +124,7 @@ let numeronymGeneratorEngine = null;
 let emojiPickerEngine = null;
 let jwtParserEngine = null;
 let otpGeneratorEngine = null;
+let urlEncoderDecoderEngine = null;
 
 async function initEngines() {
   try {
@@ -516,6 +518,13 @@ async function initEngines() {
       console.log("✅ [Backend Infra] 纯单一文件 otp-generator.wasm 加载成功");
     } else {
       console.warn("⚠️ otp-generator.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    if (fs.existsSync(urlEncoderDecoderWasmPath)) {
+      urlEncoderDecoderEngine = await loadWasmFromDisk(urlEncoderDecoderWasmPath);
+      console.log("✅ [Backend Infra] 纯单一文件 url-encoder-decoder.wasm 加载成功");
+    } else {
+      console.warn("⚠️ url-encoder-decoder.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
     }
   } catch (err) {
     console.error("❌ 后端 WASM 基础设施初始化失败:", err);
@@ -6714,6 +6723,105 @@ app.get("/api/backend/otp/presets", async (c) => {
   }
 });
 
+// API: URL 编码与解码 (URL Encoder/Decoder)
+app.post("/api/backend/url/process", async (c) => {
+  try {
+    const contentType = c.req.header("Content-Type") || "";
+    let text = "";
+    let mode = "encode";
+    let standard = "rfc3986";
+    let plusAsSpace = true;
+
+    if (contentType.includes("application/json")) {
+      const json = await c.req.json().catch(() => ({}));
+      text = (json.text || "").toString();
+      if (json.mode) mode = json.mode.toString();
+      if (json.standard) standard = json.standard.toString();
+      if (json.plusAsSpace !== undefined) plusAsSpace = !!json.plusAsSpace;
+    } else {
+      const body = await c.req.parseBody().catch(() => ({}));
+      text = (body.text || "").toString();
+      if (body.mode) mode = body.mode.toString();
+      if (body.standard) standard = body.standard.toString();
+      if (body.plusAsSpace !== undefined) plusAsSpace = body.plusAsSpace === "true" || body.plusAsSpace === "1" || body.plusAsSpace === "on";
+    }
+
+    if (!urlEncoderDecoderEngine) {
+      throw new Error("url-encoder-decoder WASM 引擎未就绪");
+    }
+
+    const t0 = performance.now();
+    const response = urlEncoderDecoderEngine.dispatch({
+      action: "url/process",
+      requestId: `srv-${Date.now()}`,
+      params: {
+        text,
+        mode,
+        standard,
+        plusAsSpace,
+      }
+    });
+    const duration = (performance.now() - t0).toFixed(4);
+
+    if (contentType.includes("application/json") && !c.req.header("HX-Request")) {
+      return c.json(response);
+    }
+
+    if (response.code !== 0) {
+      return c.html(`
+        <div class="result-box error">
+          <strong>URL 处理失败:</strong> ${escapeHtml(response.msg)}
+        </div>
+      `, 400);
+    }
+
+    const d = response.data;
+    const modeBadge = d.mode === "encode" ? "编码 (Encode)" : "解码 (Decode)";
+
+    return c.html(`
+      <div class="result-box">
+        <div class="result-header">
+          <span class="tag tag-rust">🦀 Rust WASM: URL ${modeBadge} 成功 (${escapeHtml(d.standard.toUpperCase())})</span>
+          <span class="badge-time">⚡ ${duration} ms (Hono 后端原生)</span>
+        </div>
+        <div style="display:flex; flex-wrap:wrap; gap:16px; margin-bottom:12px; font-size:12px; color:var(--text-muted);">
+          <span>输入大小: <strong>${d.inputBytes} 字节</strong></span>
+          <span>输出大小: <strong>${d.outputBytes} 字节</strong></span>
+          <span>转换字符数: <strong style="color:#38bdf8;">${d.changedCount}</strong></span>
+          <span>长度变化倍率: <strong style="color:#34d399;">${d.ratio}x</strong></span>
+        </div>
+        <div style="position:relative;">
+          <pre style="padding:12px; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1); border-radius:6px; font-family:var(--font-mono); font-size:12px; color:#38bdf8; overflow-x:auto; white-space:pre-wrap; word-break:break-all;">${escapeHtml(d.result)}</pre>
+          <button type="button" onclick="navigator.clipboard.writeText(decodeURIComponent('${encodeURIComponent(d.result)}'))" style="position:absolute; top:8px; right:8px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); border-radius:4px; padding:4px 8px; color:#f8fafc; font-size:11px; cursor:pointer;">复制结果</button>
+        </div>
+      </div>
+    `);
+  } catch (err) {
+    return c.html(`
+      <div class="result-box error">
+        <strong>执行失败:</strong> ${escapeHtml(err.message)}
+      </div>
+    `, 500);
+  }
+});
+
+// API: 获取 URL 预设
+app.get("/api/backend/url/presets", async (c) => {
+  try {
+    if (!urlEncoderDecoderEngine) {
+      throw new Error("url-encoder-decoder WASM 引擎未就绪");
+    }
+    const response = urlEncoderDecoderEngine.dispatch({
+      action: "url/presets",
+      requestId: `srv-${Date.now()}`,
+      params: {}
+    });
+    return c.json(response);
+  } catch (err) {
+    return c.json({ code: 500, msg: err.message, data: null }, 500);
+  }
+});
+
 // API: 获取 Markdown 示例
 app.get("/api/backend/markdown/sample", async (c) => {
   try {
@@ -6892,6 +7000,7 @@ app.get("/api/stats", (c) => {
   const emojiPickerSize = fs.existsSync(emojiPickerWasmPath) ? fs.statSync(emojiPickerWasmPath).size : 0;
   const jwtParserSize = fs.existsSync(jwtParserWasmPath) ? fs.statSync(jwtParserWasmPath).size : 0;
   const otpGeneratorSize = fs.existsSync(otpGeneratorWasmPath) ? fs.statSync(otpGeneratorWasmPath).size : 0;
+  const urlEncoderDecoderSize = fs.existsSync(urlEncoderDecoderWasmPath) ? fs.statSync(urlEncoderDecoderWasmPath).size : 0;
   return c.json({
     rust: {
       file: "rs.wasm",
@@ -7172,6 +7281,11 @@ app.get("/api/stats", (c) => {
       file: "otp-generator.wasm",
       sizeBytes: otpGeneratorSize,
       sizeFormatted: `${(otpGeneratorSize / 1024).toFixed(2)} KB`,
+    },
+    urlEncoderDecoder: {
+      file: "url-encoder-decoder.wasm",
+      sizeBytes: urlEncoderDecoderSize,
+      sizeFormatted: `${(urlEncoderDecoderSize / 1024).toFixed(2)} KB`,
     },
   });
 });

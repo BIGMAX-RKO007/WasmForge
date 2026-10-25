@@ -1,0 +1,27 @@
+{
+  "name": "@wasm-forge/url-encoder-decoder",
+  "version": "0.1.0",
+  "description": "Pure Standalone WebAssembly RFC 3986 URL Percent-Encoding and Decoding Engine",
+  "type": "module",
+  "main": "pkg/url_encoder_decoder.wasm",
+  "files": [
+    "pkg/url_encoder_decoder.wasm",
+    "README.md"
+  ],
+  "scripts": {
+    "build:wasm": "cargo build --target wasm32-unknown-unknown --release",
+    "test": "cargo test"
+  },
+  "keywords": [
+    "wasm",
+    "webassembly",
+    "url",
+    "percent-encoding",
+    "url-encode",
+    "url-decode",
+    "rfc3986",
+    "uri"
+  ],
+  "author": "WasmForge",
+  "license": "MIT"
+}
