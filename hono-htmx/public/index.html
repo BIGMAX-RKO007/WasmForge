@@ -3964,6 +3964,71 @@ spec:
           </div>
         </div>
       </div>
+
+      <!-- Card 4.7: 表情符号检索与选择器 (Emoji Picker) -->
+      <div class="card" id="card-emoji-picker">
+        <div class="card-header">
+          <div>
+            <div class="card-title">😃 表情符号检索与选择器 (Emoji Picker)</div>
+            <div class="card-desc">纯单一文件 Rust WASM 驱动的静态 Emoji 索引数据库，支持模糊关键词、Git 提交语义、短代码与分类实时检索</div>
+          </div>
+          <span class="tag tag-rust">Tool #52: emoji-picker</span>
+        </div>
+
+        <form id="form-emoji-picker" hx-post="/api/backend/emoji/search" hx-target="#backend-emoji-result" hx-swap="innerHTML">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+            <div style="display:flex; gap:16px; flex-wrap:wrap; align-items:center;">
+              <div style="display:flex; align-items:center; gap:6px;">
+                <span style="font-size:12px; color:var(--text-muted); font-weight:600;">分类过滤:</span>
+                <select name="category" id="emoji-cat" onchange="runFrontendEmojiSearch()" style="background:#0f172a; color:#f8fafc; border:1px solid rgba(255,255,255,0.15); border-radius:4px; padding:4px 8px; font-size:12px;">
+                  <option value="all">全部分类 (All)</option>
+                  <option value="Dev & Tech">💻 Dev & Tech</option>
+                  <option value="Git & Workflow">✨ Git & Workflow</option>
+                  <option value="Smileys & Emotion">😀 Smileys & Emotion</option>
+                  <option value="Objects & Symbols">✅ Objects & Symbols</option>
+                  <option value="Animals & Nature">🦀 Animals & Nature</option>
+                  <option value="Food & Drink">☕ Food & Drink</option>
+                  <option value="Travel & Places">🚀 Travel & Places</option>
+                </select>
+              </div>
+
+              <div style="display:flex; align-items:center; gap:6px;">
+                <span style="font-size:12px; color:var(--text-muted); font-weight:600;">最多展示:</span>
+                <input type="number" name="limit" id="emoji-limit" value="50" min="5" max="200" oninput="runFrontendEmojiSearch()" style="width:50px; background:#0f172a; color:#f8fafc; border:1px solid rgba(255,255,255,0.15); border-radius:4px; padding:4px; font-size:12px;" />
+              </div>
+            </div>
+
+            <div style="display:flex; gap:6px; font-size:11px;">
+              <span style="color:var(--text-muted); padding:3px 0;">快捷合集:</span>
+              <button type="button" onclick="loadEmojiPreset('git-commits')" style="background:rgba(255,255,255,0.06); color:#38bdf8; border:1px solid rgba(56,189,248,0.3); border-radius:4px; padding:3px 8px; cursor:pointer;">✨ Git 规范</button>
+              <button type="button" onclick="loadEmojiPreset('dev-stacks')" style="background:rgba(255,255,255,0.06); color:#34d399; border:1px solid rgba(52,211,153,0.3); border-radius:4px; padding:3px 8px; cursor:pointer;">💻 技术栈</button>
+              <button type="button" onclick="loadEmojiPreset('status-feedback')" style="background:rgba(255,255,255,0.06); color:#f59e0b; border:1px solid rgba(245,158,11,0.3); border-radius:4px; padding:3px 8px; cursor:pointer;">✅ 评审反馈</button>
+            </div>
+          </div>
+
+          <input type="text" name="query" id="emoji-query" placeholder="输入搜索词（如 rust, git, happy, lock, rocket, crab）..." style="width:100%; box-sizing:border-box; background:#0f172a; color:#f8fafc; border:1px solid rgba(255,255,255,0.15); border-radius:6px; padding:8px 12px; font-size:13px; font-family:var(--font-mono); margin-bottom:12px;" oninput="runFrontendEmojiSearch()" />
+
+          <div style="display:flex; gap:8px;">
+            <button type="submit" style="padding:8px 16px; background:linear-gradient(135deg, #3b82f6, #1d4ed8); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:12px;">
+              🖥️ 后端检索 (HTMX)
+            </button>
+            <button type="button" onclick="runFrontendEmojiSearch()" style="padding:8px 16px; background:linear-gradient(135deg, #ec4899, #db2777); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:12px;">
+              🌐 前端极速检索
+            </button>
+          </div>
+        </form>
+
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:16px; margin-top:16px;">
+          <div>
+            <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px;">后端投影输出:</div>
+            <div id="backend-emoji-result" class="result-container"><div class="result-box" style="opacity:0.5; font-size:12px;">等待检索...</div></div>
+          </div>
+          <div>
+            <div style="font-size:11px; color:var(--text-muted); margin-top:0px; margin-bottom:4px;">前端投影输出:</div>
+            <div id="frontend-emoji-result" class="result-container"><div class="result-box" style="opacity:0.5; font-size:12px;">等待检索...</div></div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- ================= 区域 3: 4 象限综合矩阵基准测试 ================= -->
@@ -4145,6 +4210,7 @@ spec:
         const loremIpsumEngine = await loadWasmFromUrl("./wasm/lorem-ipsum.wasm");
         const asciiTextDrawerEngine = await loadWasmFromUrl("./wasm/ascii-text-drawer.wasm");
         const numeronymGeneratorEngine = await loadWasmFromUrl("./wasm/numeronym-generator.wasm");
+        const emojiPickerEngine = await loadWasmFromUrl("./wasm/emoji-picker.wasm");
 
         window.wasmContext.rust = rsEngine;
         window.wasmContext.ts = tsEngine;
@@ -4199,6 +4265,7 @@ spec:
         window.wasmContext.loremIpsum = loremIpsumEngine;
         window.wasmContext.asciiTextDrawer = asciiTextDrawerEngine;
         window.wasmContext.numeronymGenerator = numeronymGeneratorEngine;
+        window.wasmContext.emojiPicker = emojiPickerEngine;
         window.wasmContext.rustReady = true;
         window.wasmContext.tsReady = true;
         window.wasmContext.tokenReady = true;
@@ -4252,9 +4319,10 @@ spec:
         window.wasmContext.loremIpsumReady = true;
         window.wasmContext.asciiTextDrawerReady = true;
         window.wasmContext.numeronymGeneratorReady = true;
+        window.wasmContext.emojiPickerReady = true;
 
         const statusEl = document.getElementById("frontend-status");
-        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载 53 大模块: rs, ts, token-gen, hash-text, bcrypt, uuid-gen, ulid-gen, encryption, bip39, hmac, rsa, password-strength, pdf-sig, yaml-to-json, yaml-to-toml, json-to-yaml, json-to-toml, toml-to-json, toml-to-yaml, xml-to-json, json-to-xml, json-to-csv, base64-string, base64-file, color-converter, case-converter, date-time-converter, integer-base-converter, roman-numeral-converter, text-to-binary, text-to-unicode, markdown-to-html, list-converter, text-to-nato, sql-prettify, xml-formatter, json-minify, json-viewer, yaml-viewer, regex-tester, regex-memo, crontab-generator, chmod-calculator, docker-run-to-compose, email-normalizer, git-memo, random-port, text-diff, text-statistics, string-obfuscator, lorem-ipsum, ascii-text-drawer & numeronym-generator)`;
+        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载 54 大模块: rs, ts, token-gen, hash-text, bcrypt, uuid-gen, ulid-gen, encryption, bip39, hmac, rsa, password-strength, pdf-sig, yaml-to-json, yaml-to-toml, json-to-yaml, json-to-toml, toml-to-json, toml-to-yaml, xml-to-json, json-to-xml, json-to-csv, base64-string, base64-file, color-converter, case-converter, date-time-converter, integer-base-converter, roman-numeral-converter, text-to-binary, text-to-unicode, markdown-to-html, list-converter, text-to-nato, sql-prettify, xml-formatter, json-minify, json-viewer, yaml-viewer, regex-tester, regex-memo, crontab-generator, chmod-calculator, docker-run-to-compose, email-normalizer, git-memo, random-port, text-diff, text-statistics, string-obfuscator, lorem-ipsum, ascii-text-drawer, numeronym-generator & emoji-picker)`;
 
         // 初始自动运行一次前端计算
         window.runFrontendCalc();
@@ -9333,6 +9401,81 @@ spec:
               </table>
             </div>
           ` : ''}
+        </div>
+      `;
+    };
+
+    // Emoji Picker 前端极速检索
+    const emojiPresets = {
+      "git-commits": { query: "", cat: "Git & Workflow" },
+      "dev-stacks": { query: "", cat: "Dev & Tech" },
+      "status-feedback": { query: "", cat: "Objects & Symbols" }
+    };
+
+    window.loadEmojiPreset = function(presetId) {
+      const p = emojiPresets[presetId];
+      if (p) {
+        document.getElementById("emoji-query").value = p.query;
+        document.getElementById("emoji-cat").value = p.cat;
+        window.runFrontendEmojiSearch();
+      }
+    };
+
+    window.runFrontendEmojiSearch = function() {
+      if (!window.wasmContext.emojiPickerReady || !window.wasmContext.emojiPicker) {
+        document.getElementById("frontend-emoji-result").innerHTML = `
+          <div class="result-box error">emoji-picker.wasm 尚未加载完毕</div>
+        `;
+        return;
+      }
+
+      const query = (document.getElementById("emoji-query").value || "").trim();
+      const catVal = document.getElementById("emoji-cat").value;
+      const category = catVal !== "all" ? catVal : null;
+      const limit = parseInt(document.getElementById("emoji-limit").value || "50", 10) || 50;
+
+      const t0 = performance.now();
+      const response = window.wasmContext.emojiPicker.dispatch({
+        action: "emoji/search",
+        requestId: `front-${Date.now()}`,
+        params: {
+          query,
+          category,
+          limit
+        }
+      });
+      const duration = (performance.now() - t0).toFixed(4);
+
+      if (response.code !== 0) {
+        document.getElementById("frontend-emoji-result").innerHTML = `
+          <div class="result-box error">检索失败: ${escapeHtmlFront(response.msg)}</div>
+        `;
+        return;
+      }
+
+      const d = response.data;
+      const cards = d.emojis.map(e => `
+        <div style="background:#0f172a; border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:10px; display:flex; flex-direction:column; align-items:center; text-align:center; transition:all 0.2s;" title="${escapeHtmlFront(e.name)} (${e.unicode})">
+          <span style="font-size:32px; line-height:1; margin-bottom:6px; cursor:pointer;" onclick="navigator.clipboard.writeText('${e.emoji}')">${e.emoji}</span>
+          <span style="font-size:11px; font-weight:600; color:#f8fafc; max-width:90px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtmlFront(e.name)}</span>
+          <span style="font-size:10px; color:#38bdf8; font-family:var(--font-mono); margin-top:2px;">${escapeHtmlFront(e.shortcode)}</span>
+        </div>
+      `).join("");
+
+      document.getElementById("frontend-emoji-result").innerHTML = `
+        <div class="result-box">
+          <div class="result-header">
+            <span class="tag tag-rust">🦀 Browser WASM: 表情检索成功 (${d.total} 项匹配)</span>
+            <span class="badge-time">⚡ ${duration} ms (纯前端内存)</span>
+          </div>
+          <div style="display:flex; flex-wrap:wrap; gap:16px; margin-bottom:12px; font-size:12px; color:var(--text-muted);">
+            <span>搜索词: <strong style="color:#f8fafc;">${escapeHtmlFront(d.query || "全部")}</strong></span>
+            <span>分类过滤: <strong style="color:#34d399;">${escapeHtmlFront(d.category || "全部")}</strong></span>
+            <span>点击表情即可复制到剪贴板</span>
+          </div>
+          <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap:10px; max-height:280px; overflow-y:auto; padding:4px;">
+            ${cards}
+          </div>
         </div>
       `;
     };

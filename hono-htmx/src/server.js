@@ -63,6 +63,7 @@ const stringObfuscatorWasmPath = path.resolve(__dirname, "../public/wasm/string-
 const loremIpsumWasmPath = path.resolve(__dirname, "../public/wasm/lorem-ipsum.wasm");
 const asciiTextDrawerWasmPath = path.resolve(__dirname, "../public/wasm/ascii-text-drawer.wasm");
 const numeronymGeneratorWasmPath = path.resolve(__dirname, "../public/wasm/numeronym-generator.wasm");
+const emojiPickerWasmPath = path.resolve(__dirname, "../public/wasm/emoji-picker.wasm");
 
 let rsEngine = null;
 let tsEngine = null;
@@ -117,6 +118,7 @@ let stringObfuscatorEngine = null;
 let loremIpsumEngine = null;
 let asciiTextDrawerEngine = null;
 let numeronymGeneratorEngine = null;
+let emojiPickerEngine = null;
 
 async function initEngines() {
   try {
@@ -489,6 +491,13 @@ async function initEngines() {
       console.log("✅ [Backend Infra] 纯单一文件 numeronym-generator.wasm 加载成功");
     } else {
       console.warn("⚠️ numeronym-generator.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    if (fs.existsSync(emojiPickerWasmPath)) {
+      emojiPickerEngine = await loadWasmFromDisk(emojiPickerWasmPath);
+      console.log("✅ [Backend Infra] 纯单一文件 emoji-picker.wasm 加载成功");
+    } else {
+      console.warn("⚠️ emoji-picker.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
     }
   } catch (err) {
     console.error("❌ 后端 WASM 基础设施初始化失败:", err);
@@ -6306,6 +6315,122 @@ app.get("/api/backend/numeronym/lookup", async (c) => {
   }
 });
 
+// API: 表情符号选择与检索器 (Emoji Picker)
+app.post("/api/backend/emoji/search", async (c) => {
+  try {
+    const contentType = c.req.header("Content-Type") || "";
+    let query = "";
+    let category = null;
+    let limit = 50;
+
+    if (contentType.includes("application/json")) {
+      const json = await c.req.json().catch(() => ({}));
+      query = (json.query || "").toString();
+      category = json.category ? json.category.toString() : null;
+      limit = typeof json.limit === "number" ? json.limit : 50;
+    } else {
+      const body = await c.req.parseBody().catch(() => ({}));
+      query = (body.query || "").toString();
+      category = body.category && body.category !== "all" ? body.category.toString() : null;
+      limit = parseInt(body.limit || "50", 10) || 50;
+    }
+
+    if (!emojiPickerEngine) {
+      throw new Error("emoji-picker WASM 引擎未就绪");
+    }
+
+    const t0 = performance.now();
+    const response = emojiPickerEngine.dispatch({
+      action: "emoji/search",
+      requestId: `srv-${Date.now()}`,
+      params: {
+        query,
+        category,
+        limit,
+      }
+    });
+    const duration = (performance.now() - t0).toFixed(4);
+
+    if (contentType.includes("application/json") && !c.req.header("HX-Request")) {
+      return c.json(response);
+    }
+
+    if (response.code !== 0) {
+      return c.html(`
+        <div class="result-box error">
+          <strong>表情检索失败:</strong> ${escapeHtml(response.msg)}
+        </div>
+      `, 400);
+    }
+
+    const d = response.data;
+    const cards = d.emojis.map(e => `
+      <div style="background:#0f172a; border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:10px; display:flex; flex-direction:column; align-items:center; text-align:center; transition:all 0.2s;" title="${escapeHtml(e.name)} (${e.unicode})">
+        <span style="font-size:32px; line-height:1; margin-bottom:6px; cursor:pointer;" onclick="navigator.clipboard.writeText('${e.emoji}')">${e.emoji}</span>
+        <span style="font-size:11px; font-weight:600; color:#f8fafc; max-width:90px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(e.name)}</span>
+        <span style="font-size:10px; color:#38bdf8; font-family:var(--font-mono); margin-top:2px;">${escapeHtml(e.shortcode)}</span>
+      </div>
+    `).join("");
+
+    return c.html(`
+      <div class="result-box">
+        <div class="result-header">
+          <span class="tag tag-rust">🦀 Rust WASM: 表情检索成功 (${d.total} 项匹配)</span>
+          <span class="badge-time">⚡ ${duration} ms (Hono 后端原生)</span>
+        </div>
+        <div style="display:flex; flex-wrap:wrap; gap:16px; margin-bottom:12px; font-size:12px; color:var(--text-muted);">
+          <span>搜索词: <strong style="color:#f8fafc;">${escapeHtml(d.query || "全部")}</strong></span>
+          <span>分类过滤: <strong style="color:#34d399;">${escapeHtml(d.category || "全部")}</strong></span>
+          <span>点击表情即可复制到剪贴板</span>
+        </div>
+        <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap:10px; max-height:280px; overflow-y:auto; padding:4px;">
+          ${cards}
+        </div>
+      </div>
+    `);
+  } catch (err) {
+    return c.html(`
+      <div class="result-box error">
+        <strong>执行失败:</strong> ${escapeHtml(err.message)}
+      </div>
+    `, 500);
+  }
+});
+
+// API: 获取 Emoji 类别清单
+app.get("/api/backend/emoji/categories", async (c) => {
+  try {
+    if (!emojiPickerEngine) {
+      throw new Error("emoji-picker WASM 引擎未就绪");
+    }
+    const response = emojiPickerEngine.dispatch({
+      action: "emoji/categories",
+      requestId: `srv-${Date.now()}`,
+      params: {}
+    });
+    return c.json(response);
+  } catch (err) {
+    return c.json({ code: 500, msg: err.message, data: null }, 500);
+  }
+});
+
+// API: 获取 Emoji 精选合集
+app.get("/api/backend/emoji/presets", async (c) => {
+  try {
+    if (!emojiPickerEngine) {
+      throw new Error("emoji-picker WASM 引擎未就绪");
+    }
+    const response = emojiPickerEngine.dispatch({
+      action: "emoji/presets",
+      requestId: `srv-${Date.now()}`,
+      params: {}
+    });
+    return c.json(response);
+  } catch (err) {
+    return c.json({ code: 500, msg: err.message, data: null }, 500);
+  }
+});
+
 // API: 获取 Markdown 示例
 app.get("/api/backend/markdown/sample", async (c) => {
   try {
@@ -6481,6 +6606,7 @@ app.get("/api/stats", (c) => {
   const loremIpsumSize = fs.existsSync(loremIpsumWasmPath) ? fs.statSync(loremIpsumWasmPath).size : 0;
   const asciiTextDrawerSize = fs.existsSync(asciiTextDrawerWasmPath) ? fs.statSync(asciiTextDrawerWasmPath).size : 0;
   const numeronymGeneratorSize = fs.existsSync(numeronymGeneratorWasmPath) ? fs.statSync(numeronymGeneratorWasmPath).size : 0;
+  const emojiPickerSize = fs.existsSync(emojiPickerWasmPath) ? fs.statSync(emojiPickerWasmPath).size : 0;
   return c.json({
     rust: {
       file: "rs.wasm",
@@ -6746,6 +6872,11 @@ app.get("/api/stats", (c) => {
       file: "numeronym-generator.wasm",
       sizeBytes: numeronymGeneratorSize,
       sizeFormatted: `${(numeronymGeneratorSize / 1024).toFixed(2)} KB`,
+    },
+    emojiPicker: {
+      file: "emoji-picker.wasm",
+      sizeBytes: emojiPickerSize,
+      sizeFormatted: `${(emojiPickerSize / 1024).toFixed(2)} KB`,
     },
   });
 });

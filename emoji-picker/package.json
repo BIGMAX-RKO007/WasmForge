@@ -1,0 +1,26 @@
+{
+  "name": "@wasm-forge/emoji-picker",
+  "version": "0.1.0",
+  "description": "Pure Standalone WebAssembly Emoji Search, Category Indexing, and Shortcode Engine",
+  "type": "module",
+  "main": "pkg/emoji_picker.wasm",
+  "files": [
+    "pkg/emoji_picker.wasm",
+    "README.md"
+  ],
+  "scripts": {
+    "build:wasm": "cargo build --target wasm32-unknown-unknown --release",
+    "test": "cargo test"
+  },
+  "keywords": [
+    "wasm",
+    "webassembly",
+    "emoji",
+    "picker",
+    "shortcode",
+    "unicode",
+    "search"
+  ],
+  "author": "WasmForge",
+  "license": "MIT"
+}

@@ -1,0 +1,19 @@
+[package]
+name = "emoji-picker"
+version = "0.1.0"
+edition = "2021"
+description = "Pure Standalone WebAssembly Emoji Search, Category Indexing, and Shortcode Engine"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+serde = { version = "1.0", default-features = false, features = ["alloc", "derive"] }
+serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
