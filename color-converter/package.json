@@ -1,0 +1,23 @@
+{
+  "name": "@wasmforge/color-converter",
+  "version": "0.1.0",
+  "description": "Pure standalone WebAssembly module for color conversions (HEX, RGB, HSL, HSV, CMYK, WCAG)",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "scripts": {
+    "build:wasm": "cargo build --target wasm32-unknown-unknown --release",
+    "test": "cargo test"
+  },
+  "keywords": [
+    "wasm",
+    "webassembly",
+    "color",
+    "hex",
+    "rgb",
+    "hsl",
+    "cmyk",
+    "wasmforge"
+  ],
+  "author": "WasmForge",
+  "license": "MIT"
+}

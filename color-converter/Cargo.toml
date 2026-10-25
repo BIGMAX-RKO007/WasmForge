@@ -1,0 +1,20 @@
+[package]
+name = "color-converter"
+version = "0.1.0"
+edition = "2021"
+description = "Pure standalone WASM module for Color Space Conversions (HEX, RGB, HSL, HSV, CMYK, WCAG) following WasmForge C-ABI"
+license = "MIT"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

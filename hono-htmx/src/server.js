@@ -34,6 +34,7 @@ const jsonToXmlWasmPath = path.resolve(__dirname, "../public/wasm/json-to-xml.wa
 const jsonToCsvWasmPath = path.resolve(__dirname, "../public/wasm/json-to-csv.wasm");
 const base64StringWasmPath = path.resolve(__dirname, "../public/wasm/base64-string.wasm");
 const base64FileWasmPath = path.resolve(__dirname, "../public/wasm/base64-file.wasm");
+const colorConverterWasmPath = path.resolve(__dirname, "../public/wasm/color-converter.wasm");
 
 let rsEngine = null;
 let tsEngine = null;
@@ -59,6 +60,7 @@ let jsonToXmlEngine = null;
 let jsonToCsvEngine = null;
 let base64StringEngine = null;
 let base64FileEngine = null;
+let colorConverterEngine = null;
 
 async function initEngines() {
   try {
@@ -228,6 +230,13 @@ async function initEngines() {
       console.log("✅ [Backend Infra] 纯单一文件 base64-file.wasm 加载成功");
     } else {
       console.warn("⚠️ base64-file.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    if (fs.existsSync(colorConverterWasmPath)) {
+      colorConverterEngine = await loadWasmFromDisk(colorConverterWasmPath);
+      console.log("✅ [Backend Infra] 纯单一文件 color-converter.wasm 加载成功");
+    } else {
+      console.warn("⚠️ color-converter.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
     }
   } catch (err) {
     console.error("❌ 后端 WASM 基础设施初始化失败:", err);
@@ -2305,6 +2314,122 @@ app.get("/api/backend/base64-file/sample", async (c) => {
   }
 });
 
+// API: HTMX 提交颜色转换
+app.post("/api/backend/color/convert", async (c) => {
+  try {
+    const body = await c.req.parseBody();
+    const input = (body.color || body.input || "").toString().trim();
+
+    if (!input) {
+      return c.html(`
+        <div class="result-box error">
+          <strong>转换失败:</strong> 输入的颜色值不能为空
+        </div>
+      `, 400);
+    }
+
+    if (!colorConverterEngine) {
+      throw new Error("color-converter WASM 引擎未就绪");
+    }
+
+    const t0 = performance.now();
+    const response = colorConverterEngine.dispatch({
+      action: "color/convert",
+      requestId: `srv-${Date.now()}`,
+      params: { input }
+    });
+    const duration = (performance.now() - t0).toFixed(4);
+
+    if (response.code !== 0) {
+      return c.html(`
+        <div class="result-box error">
+          <strong>颜色转换失败:</strong> ${response.msg}
+        </div>
+      `, 400);
+    }
+
+    const d = response.data;
+    const textColor = d.is_light ? "#0f172a" : "#ffffff";
+    const aaWhite = d.contrast_white >= 4.5 ? "✅ AA" : "❌";
+    const aaBlack = d.contrast_black >= 4.5 ? "✅ AA" : "❌";
+
+    return c.html(`
+      <div class="result-box">
+        <div class="result-header">
+          <span class="tag tag-rust">🦀 Rust WASM: 全色彩空间转换与可访问性分析</span>
+          <span class="badge-time">⚡ ${duration} ms (Hono 后端原生)</span>
+        </div>
+
+        <!-- 视觉展示色块 -->
+        <div style="display:flex; gap:16px; align-items:center; margin-bottom:12px; background:rgba(0,0,0,0.3); padding:12px; border-radius:8px; border:1px solid rgba(255,255,255,0.06);">
+          <div style="width:72px; height:72px; border-radius:8px; background-color:${d.hex}; box-shadow:0 4px 12px rgba(0,0,0,0.4); border:2px solid rgba(255,255,255,0.2); display:flex; align-items:center; justify-content:center; color:${textColor}; font-weight:bold; font-size:12px;">
+            ${d.hex}
+          </div>
+          <div style="flex:1; font-size:12px; color:var(--text-muted); display:flex; flex-direction:column; gap:4px;">
+            <div><strong>相对亮度 (Luminance):</strong> <span style="color:#38bdf8;">${d.luminance}</span> (${d.is_light ? "亮色基底" : "暗色基底"})</div>
+            <div><strong>对白色对比度:</strong> <strong>${d.contrast_white}:1</strong> (${aaWhite})</div>
+            <div><strong>对黑色对比度:</strong> <strong>${d.contrast_black}:1</strong> (${aaBlack})</div>
+          </div>
+        </div>
+
+        <!-- 各格式芯片网格 -->
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:10px; font-family:var(--font-mono); font-size:12px;">
+          <div style="background:rgba(255,255,255,0.03); padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,0.08);">
+            <div style="font-size:10px; color:var(--text-muted); margin-bottom:2px;">HEX</div>
+            <strong style="color:#38bdf8;">${d.hex}</strong>
+          </div>
+          <div style="background:rgba(255,255,255,0.03); padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,0.08);">
+            <div style="font-size:10px; color:var(--text-muted); margin-bottom:2px;">HEX8 (含 Alpha)</div>
+            <strong style="color:#38bdf8;">${d.hex8}</strong>
+          </div>
+          <div style="background:rgba(255,255,255,0.03); padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,0.08);">
+            <div style="font-size:10px; color:var(--text-muted); margin-bottom:2px;">RGB</div>
+            <strong style="color:#34d399;">${d.rgb}</strong>
+          </div>
+          <div style="background:rgba(255,255,255,0.03); padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,0.08);">
+            <div style="font-size:10px; color:var(--text-muted); margin-bottom:2px;">HSL</div>
+            <strong style="color:#a78bfa;">${d.hsl}</strong>
+          </div>
+          <div style="background:rgba(255,255,255,0.03); padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,0.08);">
+            <div style="font-size:10px; color:var(--text-muted); margin-bottom:2px;">HSV</div>
+            <strong style="color:#fbbf24;">${d.hsv}</strong>
+          </div>
+          <div style="background:rgba(255,255,255,0.03); padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,0.08);">
+            <div style="font-size:10px; color:var(--text-muted); margin-bottom:2px;">CMYK</div>
+            <strong style="color:#f43f5e;">${d.cmyk}</strong>
+          </div>
+        </div>
+      </div>
+    `);
+  } catch (err) {
+    return c.html(`
+      <div class="result-box error">
+        <strong>颜色转换失败:</strong> ${err.message}
+      </div>
+    `, 400);
+  }
+});
+
+// API: 获取 Color 示例调色板
+app.get("/api/backend/color/sample", async (c) => {
+  try {
+    if (!colorConverterEngine) {
+      throw new Error("color-converter WASM 引擎未就绪");
+    }
+    const response = colorConverterEngine.dispatch({
+      action: "color/sample",
+      requestId: `srv-${Date.now()}`,
+      params: {}
+    });
+    if (response.code !== 0) {
+      throw new Error(response.msg || "获取示例失败");
+    }
+    return c.json(response.data);
+  } catch (err) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
 // API: 模块统计信息
 app.get("/api/stats", (c) => {
   const rsSize = fs.existsSync(rsWasmPath) ? fs.statSync(rsWasmPath).size : 0;
@@ -2331,6 +2456,7 @@ app.get("/api/stats", (c) => {
   const jsonToCsvSize = fs.existsSync(jsonToCsvWasmPath) ? fs.statSync(jsonToCsvWasmPath).size : 0;
   const base64StringSize = fs.existsSync(base64StringWasmPath) ? fs.statSync(base64StringWasmPath).size : 0;
   const base64FileSize = fs.existsSync(base64FileWasmPath) ? fs.statSync(base64FileWasmPath).size : 0;
+  const colorConverterSize = fs.existsSync(colorConverterWasmPath) ? fs.statSync(colorConverterWasmPath).size : 0;
   return c.json({
     rust: {
       file: "rs.wasm",
@@ -2451,6 +2577,11 @@ app.get("/api/stats", (c) => {
       file: "base64-file.wasm",
       sizeBytes: base64FileSize,
       sizeFormatted: `${(base64FileSize / 1024).toFixed(2)} KB`,
+    },
+    colorConverter: {
+      file: "color-converter.wasm",
+      sizeBytes: colorConverterSize,
+      sizeFormatted: `${(colorConverterSize / 1024).toFixed(2)} KB`,
     },
   });
 });
