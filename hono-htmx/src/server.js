@@ -18,6 +18,7 @@ const bcryptWasmPath = path.resolve(__dirname, "../public/wasm/bcrypt.wasm");
 const uuidWasmPath = path.resolve(__dirname, "../public/wasm/uuid-generator.wasm");
 const ulidWasmPath = path.resolve(__dirname, "../public/wasm/ulid-generator.wasm");
 const encryptionWasmPath = path.resolve(__dirname, "../public/wasm/encryption.wasm");
+const bip39WasmPath = path.resolve(__dirname, "../public/wasm/bip39-generator.wasm");
 
 let rsEngine = null;
 let tsEngine = null;
@@ -27,6 +28,7 @@ let bcryptEngine = null;
 let uuidEngine = null;
 let ulidEngine = null;
 let encryptionEngine = null;
+let bip39Engine = null;
 
 async function initEngines() {
   try {
@@ -84,6 +86,13 @@ async function initEngines() {
       console.log("✅ [Backend Infra] 纯单一文件 encryption.wasm 加载成功");
     } else {
       console.warn("⚠️ encryption.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    if (fs.existsSync(bip39WasmPath)) {
+      bip39Engine = await loadWasmFromDisk(bip39WasmPath);
+      console.log("✅ [Backend Infra] 纯单一文件 bip39-generator.wasm 加载成功");
+    } else {
+      console.warn("⚠️ bip39-generator.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
     }
   } catch (err) {
     console.error("❌ 后端 WASM 基础设施初始化失败:", err);
@@ -731,6 +740,125 @@ app.post("/api/backend/aes/decrypt", async (c) => {
   }
 });
 
+// API: 后端 BIP-39 助记词生成 (由 HTMX 调用)
+app.post("/api/backend/bip39/generate", async (c) => {
+  try {
+    if (!bip39Engine) {
+      throw new Error("bip39-generator.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    const body = await c.req.parseBody();
+    const wordCount = parseInt(body.wordCount || "12", 10);
+    const passphrase = (body.passphrase || "").toString();
+
+    const t0 = performance.now();
+    const response = bip39Engine.dispatch({
+      action: "bip39/generate",
+      requestId: `srv-${Date.now()}`,
+      params: {
+        wordCount,
+        passphrase,
+        seed: Math.floor(Math.random() * 0xFFFFFFFF)
+      }
+    });
+    const duration = (performance.now() - t0).toFixed(4);
+
+    if (response.code !== 0) {
+      throw new Error(response.msg);
+    }
+
+    const { mnemonic, words, entropyHex, seedHex } = response.data;
+
+    return c.html(`
+      <div class="result-box">
+        <div class="result-header">
+          <span class="tag tag-rust">🦀 Rust WASM: BIP-39 (${wordCount} 单词)</span>
+          <span class="badge-time">⚡ ${duration} ms (PBKDF2 2048轮原生秒出)</span>
+        </div>
+        <div style="margin:8px 0;">
+          <div style="font-size:12px; color:var(--text-muted); margin-bottom:4px;">英文标准助记词 (Mnemonic Phrase):</div>
+          <div style="display:flex; flex-wrap:wrap; gap:6px; background:rgba(0,0,0,0.3); padding:10px 14px; border-radius:8px;">
+            ${words.map((w, idx) => `
+              <span style="background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1); padding:4px 8px; border-radius:4px; font-family:var(--font-mono); font-size:13px; color:#38bdf8;">
+                <span style="color:var(--text-muted); font-size:10px; margin-right:4px;">${idx + 1}</span>${w}
+              </span>
+            `).join("")}
+          </div>
+          <div style="display:flex; justify-content:flex-end; margin-top:6px;">
+            <button type="button" class="btn-copy" style="padding:4px 10px; border-radius:4px; background:#1e293b; color:#fff; border:1px solid #38bdf8; cursor:pointer; font-size:12px;" onclick="navigator.clipboard.writeText('${mnemonic}'); this.innerText='已复制!'; setTimeout(()=>this.innerText='复制完整助记词', 1500)">复制完整助记词</button>
+          </div>
+        </div>
+        <div style="margin-top:8px;">
+          <div style="font-size:12px; color:var(--text-muted); margin-bottom:4px;">512-bit 主种子 (Seed Hex):</div>
+          <div class="result-value" style="font-size:11px; color:#34d399; background:rgba(0,0,0,0.2); padding:6px 10px; border-radius:4px; word-break:break-all;">${seedHex}</div>
+        </div>
+        <div class="token-meta" style="display:flex; gap:16px; font-size:12px; color:var(--text-muted); margin-top:8px;">
+          <span>熵值: <strong style="color:#fff;">${entropyHex.length * 4} bits</strong></span>
+          <span>字典: <strong style="color:#34d399;">English (2048 words)</strong></span>
+          <span>盐口令: <strong style="color:#38bdf8;">${passphrase ? '已启用' : '无'}</strong></span>
+        </div>
+      </div>
+    `);
+  } catch (err) {
+    return c.html(`
+      <div class="result-box error">
+        <strong>生成失败:</strong> ${err.message}
+      </div>
+    `, 400);
+  }
+});
+
+// API: 后端 BIP-39 助记词校验 (由 HTMX 调用)
+app.post("/api/backend/bip39/validate", async (c) => {
+  try {
+    if (!bip39Engine) {
+      throw new Error("bip39-generator.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    const body = await c.req.parseBody();
+    const mnemonic = (body.mnemonic || "").toString().trim();
+    const passphrase = (body.passphrase || "").toString();
+
+    const t0 = performance.now();
+    const response = bip39Engine.dispatch({
+      action: "bip39/validate",
+      requestId: `srv-${Date.now()}`,
+      params: { mnemonic, passphrase }
+    });
+    const duration = (performance.now() - t0).toFixed(4);
+
+    if (response.code !== 0) {
+      throw new Error(response.msg);
+    }
+
+    const { isValid, wordCount, seedHex } = response.data;
+    const badgeColor = isValid ? "#34d399" : "#ef4444";
+    const statusText = isValid ? `✅ 助记词格式与 SHA-256 校验和完全合法 (${wordCount} 词)` : `❌ 校验失败：单词非法或校验和不匹配 (${wordCount} 词)`;
+
+    return c.html(`
+      <div class="result-box" style="border-color:${badgeColor};">
+        <div class="result-header">
+          <span class="tag tag-rust">🦀 Rust WASM: BIP-39 校验核验</span>
+          <span class="badge-time">⚡ ${duration} ms</span>
+        </div>
+        <div style="font-size:14px; font-weight:bold; color:${badgeColor}; margin:6px 0;">
+          ${statusText}
+        </div>
+        ${isValid && seedHex ? `
+          <div style="font-size:12px; color:var(--text-muted); margin-top:6px;">派生种子 (512-bit Seed):</div>
+          <div class="result-value" style="font-size:11px; color:#38bdf8; word-break:break-all;">${seedHex}</div>
+        ` : ''}
+      </div>
+    `);
+  } catch (err) {
+    return c.html(`
+      <div class="result-box error">
+        <strong>校验失败:</strong> ${err.message}
+      </div>
+    `, 400);
+  }
+});
+
 // API: 模块统计信息
 app.get("/api/stats", (c) => {
   const rsSize = fs.existsSync(rsWasmPath) ? fs.statSync(rsWasmPath).size : 0;
@@ -741,6 +869,7 @@ app.get("/api/stats", (c) => {
   const uuidSize = fs.existsSync(uuidWasmPath) ? fs.statSync(uuidWasmPath).size : 0;
   const ulidSize = fs.existsSync(ulidWasmPath) ? fs.statSync(ulidWasmPath).size : 0;
   const encryptionSize = fs.existsSync(encryptionWasmPath) ? fs.statSync(encryptionWasmPath).size : 0;
+  const bip39Size = fs.existsSync(bip39WasmPath) ? fs.statSync(bip39WasmPath).size : 0;
   return c.json({
     rust: {
       file: "rs.wasm",
@@ -781,6 +910,11 @@ app.get("/api/stats", (c) => {
       file: "encryption.wasm",
       sizeBytes: encryptionSize,
       sizeFormatted: `${(encryptionSize / 1024).toFixed(2)} KB`,
+    },
+    bip39: {
+      file: "bip39-generator.wasm",
+      sizeBytes: bip39Size,
+      sizeFormatted: `${(bip39Size / 1024).toFixed(2)} KB`,
     },
   });
 });

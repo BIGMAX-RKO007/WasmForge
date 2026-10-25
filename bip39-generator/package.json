@@ -1,0 +1,14 @@
+{
+  "name": "@wasmforge/bip39-generator",
+  "version": "1.0.0",
+  "description": "Pure WebAssembly BIP-39 Blockchain Mnemonic phrase generator, validator, and seed deriver conforming to WasmForge Envelope Protocol",
+  "main": "dist/bip39-generator.wasm",
+  "scripts": {
+    "test": "cargo test",
+    "build": "cargo build --target wasm32-unknown-unknown --release",
+    "export": "copy target\\wasm32-unknown-unknown\\release\\bip39_generator.wasm ..\\hono-htmx\\public\\wasm\\bip39-generator.wasm"
+  },
+  "keywords": ["wasm", "webassembly", "bip39", "mnemonic", "blockchain", "seed"],
+  "author": "WasmForge Team",
+  "license": "MIT"
+}

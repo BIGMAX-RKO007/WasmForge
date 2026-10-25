@@ -908,6 +908,111 @@
       </div>
     </div>
 
+    <!-- ================= 核心工具 1.7: BIP-39 Mnemonic Generator & Validator ================= -->
+    <div class="card" style="margin-bottom: 32px; border: 1px solid rgba(234, 179, 8, 0.3); background: rgba(15, 23, 42, 0.85);">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px;">
+        <div>
+          <h2 style="margin:0 0 4px; display:flex; align-items:center; gap:10px;">
+            <span>🪙 1.7 BIP-39 区块链助记词生成与校验 (Mnemonic & 512-bit Seed)</span>
+            <span class="tag tag-rust" style="background:rgba(234,179,8,0.2); color:#facc15; border-color:rgba(234,179,8,0.4);">bip39-generator.wasm (~345 KB)</span>
+          </h2>
+          <p style="color:var(--text-muted); font-size:13px; margin:0;">
+            严格遵循比特币 BIP-39 工业标准：内置 2048 个英文词表，支持 12/15/18/21/24 词助记词生成、SHA-256 校验和检验与 PBKDF2 512 位主种子派生。
+          </p>
+        </div>
+        <div style="font-size:12px; font-family:var(--font-mono); color:#facc15; background:rgba(234, 179, 8, 0.1); padding:4px 10px; border-radius:6px; border:1px solid rgba(234, 179, 8, 0.2);">
+          C-ABI: alloc / dealloc / dispatch
+        </div>
+      </div>
+
+      <!-- BIP-39 生成表单 -->
+      <form id="bip39-gen-form" hx-post="/api/backend/bip39/generate" hx-target="#backend-bip39-gen-result" hx-swap="innerHTML" style="margin-top:20px;">
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:16px;">
+          <div>
+            <label style="display:block; font-size:13px; margin-bottom:6px; color:var(--text-muted);">助记词长度 (Word Count):</label>
+            <select id="bip39-word-count" name="wordCount" style="width:100%; padding:8px 12px; background:#1e293b; border:1px solid rgba(255,255,255,0.1); color:#fff; border-radius:6px;">
+              <option value="12" selected>12 个单词 (128 位初始熵)</option>
+              <option value="15">15 个单词 (160 位初始熵)</option>
+              <option value="18">18 个单词 (192 位初始熵)</option>
+              <option value="21">21 个单词 (224 位初始熵)</option>
+              <option value="24">24 个单词 (256 位最高安全熵)</option>
+            </select>
+          </div>
+          <div>
+            <label style="display:block; font-size:13px; margin-bottom:6px; color:var(--text-muted);">自定义盐口令 (可选 Passphrase):</label>
+            <input type="text" id="bip39-passphrase" name="passphrase" placeholder="可选自定义密码盐" style="width:100%; padding:8px 12px; background:#1e293b; border:1px solid rgba(255,255,255,0.1); color:#fff; border-radius:6px; box-sizing:border-box;">
+          </div>
+        </div>
+
+        <div style="display:flex; gap:12px; margin-top:16px; flex-wrap:wrap;">
+          <button type="submit" style="padding:8px 16px; background:linear-gradient(135deg, #f97316, #ea580c); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600; display:flex; align-items:center; gap:6px;">
+            <span>🖥️ HTMX 提交后端生成</span>
+            <span class="htmx-indicator">⏳</span>
+          </button>
+          <button type="button" onclick="runFrontendBip39Gen()" style="padding:8px 16px; background:linear-gradient(135deg, #ca8a04, #a16207); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600;">
+            🌐 浏览器前端本地生成
+          </button>
+        </div>
+      </form>
+
+      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:16px; margin-top:16px;">
+        <div>
+          <div style="font-size:12px; color:var(--text-muted); margin-bottom:4px;">后端生成结果 (Hono HTMX):</div>
+          <div id="backend-bip39-gen-result" class="result-container">
+            <div class="result-box" style="opacity:0.5;">点击上方橙色按钮生成</div>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:12px; color:var(--text-muted); margin-bottom:4px;">前端生成结果 (Browser WASM):</div>
+          <div id="frontend-bip39-gen-result" class="result-container">
+            <div class="result-box" style="opacity:0.5;">点击上方金色按钮生成</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- BIP-39 校验表单 -->
+      <hr style="border:0; border-top:1px solid rgba(255,255,255,0.1); margin:24px 0 16px;">
+      <div>
+        <h3 style="margin:0 0 10px; font-size:15px; color:#facc15;">🔍 助记词合法性校验与主种子派生 (Validation & Seed)</h3>
+        <form id="bip39-val-form" hx-post="/api/backend/bip39/validate" hx-target="#backend-bip39-val-result" hx-swap="innerHTML">
+          <div style="display:grid; grid-template-columns: 1fr auto; gap:12px; flex-wrap:wrap;">
+            <div>
+              <label style="display:block; font-size:12px; margin-bottom:4px; color:var(--text-muted);">助记词短语 (空格分隔):</label>
+              <input type="text" id="bip39-val-input" name="mnemonic" placeholder="输入 12 到 24 个英文助记词" style="width:100%; padding:8px 12px; background:#1e293b; border:1px solid rgba(255,255,255,0.1); color:#fff; border-radius:6px; font-family:var(--font-mono); font-size:13px; box-sizing:border-box;">
+            </div>
+            <div>
+              <label style="display:block; font-size:12px; margin-bottom:4px; color:var(--text-muted);">安全盐口令 (可选):</label>
+              <input type="text" id="bip39-val-pass" name="passphrase" placeholder="选填 Passphrase" style="padding:8px 12px; background:#1e293b; border:1px solid rgba(255,255,255,0.1); color:#fff; border-radius:6px; font-size:13px; width:150px; box-sizing:border-box;">
+            </div>
+          </div>
+
+          <div style="display:flex; gap:12px; margin-top:14px; flex-wrap:wrap;">
+            <button type="submit" style="padding:8px 16px; background:linear-gradient(135deg, #f97316, #ea580c); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600;">
+              🖥️ 后端校验
+            </button>
+            <button type="button" onclick="runFrontendBip39Validate()" style="padding:8px 16px; background:linear-gradient(135deg, #ca8a04, #a16207); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600;">
+              🌐 前端校验
+            </button>
+          </div>
+        </form>
+
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:16px; margin-top:14px;">
+          <div>
+            <div style="font-size:12px; color:var(--text-muted); margin-bottom:4px;">后端校验输出 (Hono HTMX):</div>
+            <div id="backend-bip39-val-result" class="result-container">
+              <div class="result-box" style="opacity:0.5;">输入助记词并点击校验</div>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:12px; color:var(--text-muted); margin-bottom:4px;">前端校验输出 (Browser WASM):</div>
+            <div id="frontend-bip39-val-result" class="result-container">
+              <div class="result-box" style="opacity:0.5;">输入助记词并点击校验</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- ================= 区域 3: 4 象限综合矩阵基准测试 ================= -->
     <div class="matrix-card">
       <h2>📊 4 维度跨场景一致性与性能矩阵</h2>
@@ -946,6 +1051,7 @@
       uuidReady: false,
       ulidReady: false,
       encryptionReady: false,
+      bip39Ready: false,
       rust: null,
       ts: null,
       tokenGenerator: null,
@@ -954,6 +1060,7 @@
       uuidGenerator: null,
       ulidGenerator: null,
       encryption: null,
+      bip39: null,
       activeFrontendEngine: "rust",
       activeBackendEngine: "rust"
     };
@@ -968,6 +1075,7 @@
         const uuidEngine = await loadWasmFromUrl("./wasm/uuid-generator.wasm");
         const ulidEngine = await loadWasmFromUrl("./wasm/ulid-generator.wasm");
         const encEngine = await loadWasmFromUrl("./wasm/encryption.wasm");
+        const bipEngine = await loadWasmFromUrl("./wasm/bip39-generator.wasm");
 
         window.wasmContext.rust = rsEngine;
         window.wasmContext.ts = tsEngine;
@@ -977,6 +1085,7 @@
         window.wasmContext.uuidGenerator = uuidEngine;
         window.wasmContext.ulidGenerator = ulidEngine;
         window.wasmContext.encryption = encEngine;
+        window.wasmContext.bip39 = bipEngine;
         window.wasmContext.rustReady = true;
         window.wasmContext.tsReady = true;
         window.wasmContext.tokenReady = true;
@@ -985,11 +1094,12 @@
         window.wasmContext.uuidReady = true;
         window.wasmContext.ulidReady = true;
         window.wasmContext.encryptionReady = true;
+        window.wasmContext.bip39Ready = true;
 
         const statusEl = document.getElementById("frontend-status");
-        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载 8 大模块: rs, ts, token-gen, hash-text, bcrypt, uuid-gen, ulid-gen & encryption)`;
+        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载 9 大模块: rs, ts, token-gen, hash-text, bcrypt, uuid-gen, ulid-gen, encryption & bip39)`;
 
-        // 初始自动运行一次前端计算、Token、Hash、Bcrypt、UUID、ULID、AES
+        // 初始自动运行一次前端计算、Token、Hash、Bcrypt、UUID、ULID、AES、BIP-39
         window.runFrontendCalc();
         window.runFrontendGreet();
         window.runFrontendTokenGen();
@@ -998,6 +1108,7 @@
         window.runFrontendUuidGen();
         window.runFrontendUlidGen();
         window.runFrontendAesEncrypt();
+        window.runFrontendBip39Gen();
       } catch (err) {
         console.error("加载浏览器端 WASM 失败:", err);
         const statusEl = document.getElementById("frontend-status");
@@ -1609,6 +1720,125 @@
           <div class="token-meta" style="display:flex; gap:16px; font-size:12px; color:var(--text-muted);">
             <span>🔒 认证标签验证: <strong style="color:#34d399;">✅ 完整且未被篡改</strong></span>
           </div>
+        </div>
+      `;
+    };
+
+    // 前端 BIP-39 助记词生成 (bip39/generate)
+    window.runFrontendBip39Gen = function() {
+      const engine = window.wasmContext.bip39;
+      if (!engine) {
+        document.getElementById("frontend-bip39-gen-result").innerHTML = `
+          <div class="result-box error">bip39-generator.wasm 尚未加载完毕</div>
+        `;
+        return;
+      }
+
+      const wordCount = parseInt(document.getElementById("bip39-word-count").value) || 12;
+      const passphrase = (document.getElementById("bip39-passphrase").value || "").trim();
+
+      const t0 = performance.now();
+      const response = engine.dispatch({
+        action: "bip39/generate",
+        requestId: `req-front-${Date.now()}`,
+        params: {
+          wordCount,
+          passphrase,
+          seed: Math.floor(Math.random() * 0xFFFFFFFF)
+        }
+      });
+      const duration = (performance.now() - t0).toFixed(4);
+
+      if (response.code !== 0) {
+        document.getElementById("frontend-bip39-gen-result").innerHTML = `
+          <div class="result-box error"><strong>生成失败:</strong> ${response.msg}</div>
+        `;
+        return;
+      }
+
+      const { mnemonic, words, entropyHex, seedHex } = response.data;
+
+      // 自动填充校验输入框
+      document.getElementById("bip39-val-input").value = mnemonic;
+      document.getElementById("bip39-val-pass").value = passphrase;
+
+      document.getElementById("frontend-bip39-gen-result").innerHTML = `
+        <div class="result-box">
+          <div class="result-header">
+            <span class="tag tag-rust">🦀 Browser WASM: BIP-39 (${wordCount} 词)</span>
+            <span class="badge-time">⚡ ${duration} ms (纯前端内存秒级派生)</span>
+          </div>
+          <div style="margin:8px 0;">
+            <div style="font-size:12px; color:var(--text-muted); margin-bottom:4px;">英文标准助记词 (Mnemonic Phrase):</div>
+            <div style="display:flex; flex-wrap:wrap; gap:6px; background:rgba(0,0,0,0.3); padding:10px 14px; border-radius:8px;">
+              ${words.map((w, idx) => `
+                <span style="background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1); padding:4px 8px; border-radius:4px; font-family:var(--font-mono); font-size:13px; color:#facc15;">
+                  <span style="color:var(--text-muted); font-size:10px; margin-right:4px;">${idx + 1}</span>${w}
+                </span>
+              `).join("")}
+            </div>
+            <div style="display:flex; justify-content:flex-end; margin-top:6px;">
+              <button type="button" class="btn-copy" style="padding:4px 10px; border-radius:4px; background:#1e293b; color:#fff; border:1px solid #facc15; cursor:pointer; font-size:12px;" onclick="navigator.clipboard.writeText('${mnemonic}'); this.innerText='已复制!'; setTimeout(()=>this.innerText='复制完整助记词', 1500)">复制完整助记词</button>
+            </div>
+          </div>
+          <div style="margin-top:8px;">
+            <div style="font-size:12px; color:var(--text-muted); margin-bottom:4px;">512-bit 主种子 (Seed Hex):</div>
+            <div class="result-value" style="font-size:11px; color:#34d399; background:rgba(0,0,0,0.2); padding:6px 10px; border-radius:4px; word-break:break-all;">${seedHex}</div>
+          </div>
+          <div class="token-meta" style="display:flex; gap:16px; font-size:12px; color:var(--text-muted); margin-top:8px;">
+            <span>熵值: <strong style="color:#fff;">${entropyHex.length * 4} bits</strong></span>
+            <span>字典: <strong style="color:#34d399;">English (2048 words)</strong></span>
+            <span>盐口令: <strong style="color:#38bdf8;">${passphrase ? '已启用' : '无'}</strong></span>
+          </div>
+        </div>
+      `;
+    };
+
+    // 前端 BIP-39 助记词校验 (bip39/validate)
+    window.runFrontendBip39Validate = function() {
+      const engine = window.wasmContext.bip39;
+      if (!engine) {
+        document.getElementById("frontend-bip39-val-result").innerHTML = `
+          <div class="result-box error">bip39-generator.wasm 尚未加载完毕</div>
+        `;
+        return;
+      }
+
+      const mnemonic = (document.getElementById("bip39-val-input").value || "").trim();
+      const passphrase = (document.getElementById("bip39-val-pass").value || "").trim();
+
+      const t0 = performance.now();
+      const response = engine.dispatch({
+        action: "bip39/validate",
+        requestId: `req-front-${Date.now()}`,
+        params: { mnemonic, passphrase }
+      });
+      const duration = (performance.now() - t0).toFixed(4);
+
+      if (response.code !== 0) {
+        document.getElementById("frontend-bip39-val-result").innerHTML = `
+          <div class="result-box error"><strong>校验异常:</strong> ${response.msg}</div>
+        `;
+        return;
+      }
+
+      const { isValid, wordCount, seedHex } = response.data;
+      const badgeColor = isValid ? "#34d399" : "#ef4444";
+      const statusText = isValid ? `✅ 助记词格式与 SHA-256 校验和完全合法 (${wordCount} 词)` : `❌ 校验失败：单词非法或校验和不匹配 (${wordCount} 词)`;
+
+      document.getElementById("frontend-bip39-val-result").innerHTML = `
+        <div class="result-box" style="border-color:${badgeColor};">
+          <div class="result-header">
+            <span class="tag tag-rust">🦀 Browser WASM: 纯前端校验</span>
+            <span class="badge-time">⚡ ${duration} ms</span>
+          </div>
+          <div style="font-size:14px; font-weight:bold; color:${badgeColor}; margin:6px 0;">
+            ${statusText}
+          </div>
+          ${isValid && seedHex ? `
+            <div style="font-size:12px; color:var(--text-muted); margin-top:6px;">派生种子 (512-bit Seed):</div>
+            <div class="result-value" style="font-size:11px; color:#38bdf8; word-break:break-all;">${seedHex}</div>
+          ` : ''}
         </div>
       `;
     };
