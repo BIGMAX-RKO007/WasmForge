@@ -1,0 +1,13 @@
+{
+  "name": "@wasm-forge/roman-numeral-converter",
+  "version": "0.1.0",
+  "description": "High-performance Roman Numeral Converter in pure WebAssembly",
+  "type": "module",
+  "scripts": {
+    "build": "cargo build --target wasm32-unknown-unknown --release",
+    "test": "cargo test"
+  },
+  "keywords": ["wasm", "converter", "roman", "arabic", "numerals"],
+  "author": "WasmForge",
+  "license": "MIT"
+}

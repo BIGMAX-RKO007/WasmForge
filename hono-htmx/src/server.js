@@ -38,6 +38,7 @@ const colorConverterWasmPath = path.resolve(__dirname, "../public/wasm/color-con
 const caseConverterWasmPath = path.resolve(__dirname, "../public/wasm/case-converter.wasm");
 const dateTimeConverterWasmPath = path.resolve(__dirname, "../public/wasm/date-time-converter.wasm");
 const integerBaseConverterWasmPath = path.resolve(__dirname, "../public/wasm/integer-base-converter.wasm");
+const romanNumeralConverterWasmPath = path.resolve(__dirname, "../public/wasm/roman-numeral-converter.wasm");
 
 let rsEngine = null;
 let tsEngine = null;
@@ -67,6 +68,7 @@ let colorConverterEngine = null;
 let caseConverterEngine = null;
 let dateTimeConverterEngine = null;
 let integerBaseConverterEngine = null;
+let romanNumeralConverterEngine = null;
 
 async function initEngines() {
   try {
@@ -264,6 +266,13 @@ async function initEngines() {
       console.log("✅ [Backend Infra] 纯单一文件 integer-base-converter.wasm 加载成功");
     } else {
       console.warn("⚠️ integer-base-converter.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    if (fs.existsSync(romanNumeralConverterWasmPath)) {
+      romanNumeralConverterEngine = await loadWasmFromDisk(romanNumeralConverterWasmPath);
+      console.log("✅ [Backend Infra] 纯单一文件 roman-numeral-converter.wasm 加载成功");
+    } else {
+      console.warn("⚠️ roman-numeral-converter.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
     }
   } catch (err) {
     console.error("❌ 后端 WASM 基础设施初始化失败:", err);
@@ -2783,6 +2792,122 @@ app.post("/api/backend/base/convert", async (c) => {
   }
 });
 
+// API: HTMX 提交罗马数字转换
+app.post("/api/backend/roman/convert", async (c) => {
+  try {
+    let input = "";
+    let mode = "auto";
+    const contentType = c.req.header("content-type") || "";
+    if (contentType.includes("application/json")) {
+      const json = await c.req.json().catch(() => ({}));
+      input = (json.input || json.val || json.text || "").toString().trim();
+      if (json.mode) mode = json.mode;
+    } else {
+      const body = await c.req.parseBody().catch(() => ({}));
+      input = (body.input || body.val || body.text || "").toString().trim();
+      if (body.mode) mode = body.mode;
+    }
+
+    if (!input) {
+      if (contentType.includes("application/json") && !c.req.header("HX-Request")) {
+        return c.json({ code: 400, msg: "输入不能为空", data: null }, 400);
+      }
+      return c.html(`
+        <div class="result-box error">
+          <strong>转换失败:</strong> 输入不能为空
+        </div>
+      `, 400);
+    }
+
+    if (!romanNumeralConverterEngine) {
+      throw new Error("roman-numeral-converter WASM 引擎未就绪");
+    }
+
+    const t0 = performance.now();
+    const response = romanNumeralConverterEngine.dispatch({
+      action: "roman/convert",
+      requestId: `srv-${Date.now()}`,
+      params: { input, mode }
+    });
+    const duration = (performance.now() - t0).toFixed(4);
+
+    if (contentType.includes("application/json") && !c.req.header("HX-Request")) {
+      return c.json(response);
+    }
+
+    if (response.code !== 0) {
+      return c.html(`
+        <div class="result-box error">
+          <strong>罗马数字转换失败:</strong> ${response.msg}
+        </div>
+      `, 400);
+    }
+
+    const d = response.data;
+    return c.html(`
+      <div class="result-box">
+        <div class="result-header">
+          <span class="tag tag-rust">🦀 Rust WASM: 罗马数字与阿拉伯数字双向互转成功</span>
+          <span class="badge-time">⚡ ${duration} ms (Hono 后端原生)</span>
+        </div>
+
+        <div style="display:flex; flex-wrap:wrap; gap:16px; margin-bottom:12px; font-size:12px; color:var(--text-muted);">
+          <span>识别转换模式: <strong style="color:#38bdf8;">${d.mode === "toRoman" ? "阿拉伯数字 ➔ 罗马数字" : "罗马数字 ➔ 阿拉伯数字"}</strong></span>
+          <span>原输入: <strong>${d.input}</strong></span>
+        </div>
+
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:10px; font-family:var(--font-mono); font-size:12px;">
+          <div style="background:rgba(255,255,255,0.03); padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,0.08);">
+            <div style="font-size:10px; color:var(--text-muted); margin-bottom:2px;">阿拉伯数字 (Arabic)</div>
+            <strong style="color:#38bdf8; font-size:15px;">${d.arabic}</strong>
+          </div>
+          <div style="background:rgba(255,255,255,0.03); padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,0.08);">
+            <div style="font-size:10px; color:var(--text-muted); margin-bottom:2px;">罗马数字 (Roman)</div>
+            <strong style="color:#34d399; font-size:15px; letter-spacing:1px;">${d.roman}</strong>
+          </div>
+        </div>
+
+        <div style="margin-top:10px; padding:8px 10px; background:rgba(255,255,255,0.02); border-radius:6px; border:1px dashed rgba(255,255,255,0.1); font-size:11px; font-family:var(--font-mono);">
+          <div style="color:var(--text-muted); margin-bottom:4px;">符号分解公式: <span style="color:#fbbf24;">${d.formula}</span></div>
+          <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:6px;">
+            ${d.breakdown.map(item => `
+              <span style="background:rgba(255,255,255,0.05); padding:2px 6px; border-radius:4px; border:1px solid rgba(255,255,255,0.08);">
+                <strong>${item.symbol}</strong> = ${item.desc}
+              </span>
+            `).join("")}
+          </div>
+        </div>
+      </div>
+    `);
+  } catch (err) {
+    return c.html(`
+      <div class="result-box error">
+        <strong>罗马数字转换失败:</strong> ${err.message}
+      </div>
+    `, 400);
+  }
+});
+
+// API: 获取 Roman 示例
+app.get("/api/backend/roman/sample", async (c) => {
+  try {
+    if (!romanNumeralConverterEngine) {
+      throw new Error("roman-numeral-converter WASM 引擎未就绪");
+    }
+    const response = romanNumeralConverterEngine.dispatch({
+      action: "roman/sample",
+      requestId: `srv-${Date.now()}`,
+      params: {}
+    });
+    if (response.code !== 0) {
+      throw new Error(response.msg || "获取示例失败");
+    }
+    return c.json(response.data);
+  } catch (err) {
+    return c.json({ sampleArabic: 2026, sampleRoman: "MMXXVI" }, 500);
+  }
+});
+
 // API: 获取 Base 示例
 app.get("/api/backend/base/sample", async (c) => {
   try {
@@ -2853,6 +2978,7 @@ app.get("/api/stats", (c) => {
   const caseConverterSize = fs.existsSync(caseConverterWasmPath) ? fs.statSync(caseConverterWasmPath).size : 0;
   const dateTimeConverterSize = fs.existsSync(dateTimeConverterWasmPath) ? fs.statSync(dateTimeConverterWasmPath).size : 0;
   const integerBaseConverterSize = fs.existsSync(integerBaseConverterWasmPath) ? fs.statSync(integerBaseConverterWasmPath).size : 0;
+  const romanNumeralConverterSize = fs.existsSync(romanNumeralConverterWasmPath) ? fs.statSync(romanNumeralConverterWasmPath).size : 0;
   return c.json({
     rust: {
       file: "rs.wasm",
@@ -2993,6 +3119,11 @@ app.get("/api/stats", (c) => {
       file: "integer-base-converter.wasm",
       sizeBytes: integerBaseConverterSize,
       sizeFormatted: `${(integerBaseConverterSize / 1024).toFixed(2)} KB`,
+    },
+    romanNumeralConverter: {
+      file: "roman-numeral-converter.wasm",
+      sizeBytes: romanNumeralConverterSize,
+      sizeFormatted: `${(romanNumeralConverterSize / 1024).toFixed(2)} KB`,
     },
   });
 });

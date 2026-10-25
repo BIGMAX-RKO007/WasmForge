@@ -2181,6 +2181,59 @@
       </div>
     </div>
 
+    <!-- ================= 卡片 2.16: 罗马数字与阿拉伯数字互转 (Roman Numeral Converter) ================= -->
+    <div class="card" style="margin-bottom: 24px;">
+      <div class="card-header">
+        <div>
+          <h3>卡片 2.16: 罗马数字与阿拉伯数字互转 (Roman Numeral Converter)</h3>
+          <p style="margin:0; font-size:12px; color:var(--text-muted);">
+            支持标准罗马数字 (1 ~ 3999) 与阿拉伯数字双向无损互转，内置严格标准语法校验（杜绝 IIII 等非法重复与逆序组合）与符号分解明细推导。
+          </p>
+        </div>
+        <span class="tag tag-rust">Tool #27: roman-numeral-converter</span>
+      </div>
+
+      <div style="margin-top:16px;">
+        <form hx-post="/api/backend/roman/convert" hx-target="#backend-roman-result" hx-swap="innerHTML">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <label style="font-size:12px; font-weight:600; color:var(--text-muted);">输入数字或罗马符号 (自动智能识别):</label>
+            <div style="display:flex; gap:8px;">
+              <button type="button" onclick="loadRomanSample('MMXXVI')" style="padding:2px 8px; font-size:11px; background:rgba(56,189,248,0.15); color:#38bdf8; border:1px solid rgba(56,189,248,0.3); border-radius:4px; cursor:pointer;">
+                MMXXVI (2026)
+              </button>
+              <button type="button" onclick="loadRomanSample('MCMXCIV')" style="padding:2px 8px; font-size:11px; background:rgba(52,211,153,0.15); color:#34d399; border:1px solid rgba(52,211,153,0.3); border-radius:4px; cursor:pointer;">
+                MCMXCIV (1994)
+              </button>
+              <button type="button" onclick="loadRomanSample('3999')" style="padding:2px 8px; font-size:11px; background:rgba(251,191,36,0.15); color:#fbbf24; border:1px solid rgba(251,191,36,0.3); border-radius:4px; cursor:pointer;">
+                3999 (MMMCMXCIX)
+              </button>
+            </div>
+          </div>
+          <input type="text" id="roman-input" name="input" value="MMXXVI" placeholder="例如: 2026, MMXXVI, 1994, IV" style="width:100%; padding:10px 12px; background:#1e293b; border:1px solid rgba(255,255,255,0.1); color:#fff; border-radius:6px; font-family:var(--font-mono); font-size:13px; box-sizing:border-box;" />
+
+          <div style="display:flex; gap:10px; margin-top:12px;">
+            <button type="submit" style="padding:6px 12px; background:linear-gradient(135deg, #0284c7, #0369a1); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:12px;">
+              🖥️ 后端罗马数字转换
+            </button>
+            <button type="button" onclick="runFrontendRomanConvert()" style="padding:6px 12px; background:linear-gradient(135deg, #0ea5e9, #0284c7); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:12px;">
+              🌐 前端本地转换
+            </button>
+          </div>
+        </form>
+
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:16px; margin-top:16px;">
+          <div>
+            <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px;">后端投影输出:</div>
+            <div id="backend-roman-result" class="result-container"><div class="result-box" style="opacity:0.5; font-size:12px;">等待转换...</div></div>
+          </div>
+          <div>
+            <div style="font-size:11px; color:var(--text-muted); margin-top:0px; margin-bottom:4px;">前端投影输出:</div>
+            <div id="frontend-roman-result" class="result-container"><div class="result-box" style="opacity:0.5; font-size:12px;">等待转换...</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- ================= 区域 3: 4 象限综合矩阵基准测试 ================= -->
     <div class="matrix-card">
       <h2>📊 4 维度跨场景一致性与性能矩阵</h2>
@@ -2267,6 +2320,8 @@
       dateTimeConverterReady: false,
       integerBaseConverter: null,
       integerBaseConverterReady: false,
+      romanNumeralConverter: null,
+      romanNumeralConverterReady: false,
       activeFrontendEngine: "rust",
       activeBackendEngine: "rust"
     };
@@ -2301,6 +2356,7 @@
         const caseConverterEngine = await loadWasmFromUrl("./wasm/case-converter.wasm");
         const dateTimeConverterEngine = await loadWasmFromUrl("./wasm/date-time-converter.wasm");
         const integerBaseConverterEngine = await loadWasmFromUrl("./wasm/integer-base-converter.wasm");
+        const romanNumeralConverterEngine = await loadWasmFromUrl("./wasm/roman-numeral-converter.wasm");
 
         window.wasmContext.rust = rsEngine;
         window.wasmContext.ts = tsEngine;
@@ -2330,6 +2386,7 @@
         window.wasmContext.caseConverter = caseConverterEngine;
         window.wasmContext.dateTimeConverter = dateTimeConverterEngine;
         window.wasmContext.integerBaseConverter = integerBaseConverterEngine;
+        window.wasmContext.romanNumeralConverter = romanNumeralConverterEngine;
         window.wasmContext.rustReady = true;
         window.wasmContext.tsReady = true;
         window.wasmContext.tokenReady = true;
@@ -2358,9 +2415,10 @@
         window.wasmContext.caseConverterReady = true;
         window.wasmContext.dateTimeConverterReady = true;
         window.wasmContext.integerBaseConverterReady = true;
+        window.wasmContext.romanNumeralConverterReady = true;
 
         const statusEl = document.getElementById("frontend-status");
-        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载 28 大模块: rs, ts, token-gen, hash-text, bcrypt, uuid-gen, ulid-gen, encryption, bip39, hmac, rsa, password-strength, pdf-sig, yaml-to-json, yaml-to-toml, json-to-yaml, json-to-toml, toml-to-json, toml-to-yaml, xml-to-json, json-to-xml, json-to-csv, base64-string, base64-file, color-converter, case-converter, date-time-converter & integer-base-converter)`;
+        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载 29 大模块: rs, ts, token-gen, hash-text, bcrypt, uuid-gen, ulid-gen, encryption, bip39, hmac, rsa, password-strength, pdf-sig, yaml-to-json, yaml-to-toml, json-to-yaml, json-to-toml, toml-to-json, toml-to-yaml, xml-to-json, json-to-xml, json-to-csv, base64-string, base64-file, color-converter, case-converter, date-time-converter, integer-base-converter & roman-numeral-converter)`;
 
         // 初始自动运行一次前端计算
         window.runFrontendCalc();
@@ -4630,6 +4688,94 @@
             <div style="background:rgba(255,255,255,0.03); padding:4px 6px; border-radius:4px; border:1px solid rgba(255,255,255,0.06);">
               <span style="color:var(--text-muted); font-size:10px;">大端字节序:</span> <strong style="color:#e2e8f0;">${d.beBytesHex}</strong>
             </div>
+          </div>
+        </div>
+      `;
+    };
+
+    // 载入 Roman 示例
+    window.loadRomanSample = async function(sampleVal) {
+      const input = document.getElementById("roman-input");
+      if (sampleVal) {
+        input.value = sampleVal;
+        window.runFrontendRomanConvert();
+        return;
+      }
+      if (window.wasmContext.romanNumeralConverter) {
+        const resp = window.wasmContext.romanNumeralConverter.dispatch({
+          action: "roman/sample",
+          requestId: `sample-${Date.now()}`,
+          params: {}
+        });
+        if (resp.code === 0 && resp.data?.sampleRoman) {
+          input.value = resp.data.sampleRoman;
+          window.runFrontendRomanConvert();
+          return;
+        }
+      }
+      try {
+        const res = await fetch("/api/backend/roman/sample");
+        const data = await res.json();
+        input.value = data.sampleRoman || "MMXXVI";
+        window.runFrontendRomanConvert();
+      } catch (e) {
+        console.error("加载 Roman 示例失败:", e);
+      }
+    };
+
+    // 前端执行罗马数字转换 (roman/convert)
+    window.runFrontendRomanConvert = function() {
+      const engine = window.wasmContext.romanNumeralConverter;
+      if (!engine) {
+        document.getElementById("frontend-roman-result").innerHTML = `
+          <div class="result-box error">roman-numeral-converter.wasm 尚未加载完毕</div>
+        `;
+        return;
+      }
+
+      const input = (document.getElementById("roman-input").value || "").trim();
+
+      const t0 = performance.now();
+      const response = engine.dispatch({
+        action: "roman/convert",
+        requestId: `req-front-${Date.now()}`,
+        params: { input, mode: "auto" }
+      });
+      const duration = (performance.now() - t0).toFixed(4);
+
+      if (response.code !== 0) {
+        document.getElementById("frontend-roman-result").innerHTML = `
+          <div class="result-box error"><strong>转换失败:</strong> ${response.msg}</div>
+        `;
+        return;
+      }
+
+      const d = response.data;
+      document.getElementById("frontend-roman-result").innerHTML = `
+        <div class="result-box">
+          <div class="result-header">
+            <span class="tag tag-rust">🦀 Browser WASM: 罗马数字与阿拉伯数字互转</span>
+            <span class="badge-time">⚡ ${duration} ms (纯前端内存)</span>
+          </div>
+
+          <div style="font-size:11px; color:var(--text-muted); margin-bottom:8px;">
+            模式: <strong style="color:#38bdf8;">${d.mode === "toRoman" ? "阿拉伯 ➔ 罗马" : "罗马 ➔ 阿拉伯"}</strong> |
+            输入: <strong>${d.input}</strong>
+          </div>
+
+          <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap:6px; font-family:var(--font-mono); font-size:11px;">
+            <div style="background:rgba(255,255,255,0.03); padding:6px 8px; border-radius:4px; border:1px solid rgba(255,255,255,0.06);">
+              <span style="color:var(--text-muted); font-size:10px;">阿拉伯数字:</span>
+              <div style="color:#38bdf8; font-size:14px; font-weight:bold; margin-top:2px;">${d.arabic}</div>
+            </div>
+            <div style="background:rgba(255,255,255,0.03); padding:6px 8px; border-radius:4px; border:1px solid rgba(255,255,255,0.06);">
+              <span style="color:var(--text-muted); font-size:10px;">罗马数字:</span>
+              <div style="color:#34d399; font-size:14px; font-weight:bold; margin-top:2px; letter-spacing:1px;">${d.roman}</div>
+            </div>
+          </div>
+
+          <div style="margin-top:6px; font-size:11px; color:var(--text-muted); font-family:var(--font-mono);">
+            分解: <span style="color:#fbbf24;">${d.formula}</span>
           </div>
         </div>
       `;
