@@ -1,0 +1,26 @@
+{
+  "name": "@wasm-forge/basic-auth-generator",
+  "version": "0.1.0",
+  "description": "Pure Standalone WebAssembly RFC 7617 HTTP Basic Authentication Header & Snippet Generator",
+  "type": "module",
+  "main": "pkg/basic_auth_generator.wasm",
+  "files": [
+    "pkg/basic_auth_generator.wasm",
+    "README.md"
+  ],
+  "scripts": {
+    "build:wasm": "cargo build --target wasm32-unknown-unknown --release",
+    "test": "cargo test"
+  },
+  "keywords": [
+    "wasm",
+    "webassembly",
+    "http",
+    "basic-auth",
+    "rfc7617",
+    "authorization",
+    "security"
+  ],
+  "author": "WasmForge",
+  "license": "MIT"
+}

@@ -71,6 +71,7 @@ const urlParserWasmPath = path.resolve(__dirname, "../public/wasm/url-parser.was
 const deviceInformationWasmPath = path.resolve(__dirname, "../public/wasm/device-information.wasm");
 const jsonDiffWasmPath = path.resolve(__dirname, "../public/wasm/json-diff.wasm");
 const htmlEntitiesWasmPath = path.resolve(__dirname, "../public/wasm/html-entities.wasm");
+const basicAuthGeneratorWasmPath = path.resolve(__dirname, "../public/wasm/basic-auth-generator.wasm");
 
 let rsEngine = null;
 let tsEngine = null;
@@ -133,6 +134,7 @@ let urlParserEngine = null;
 let deviceInformationEngine = null;
 let jsonDiffEngine = null;
 let htmlEntitiesEngine = null;
+let basicAuthGeneratorEngine = null;
 
 async function initEngines() {
   try {
@@ -561,6 +563,13 @@ async function initEngines() {
       console.log("✅ [Backend Infra] 纯单一文件 html-entities.wasm 加载成功");
     } else {
       console.warn("⚠️ html-entities.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    if (fs.existsSync(basicAuthGeneratorWasmPath)) {
+      basicAuthGeneratorEngine = await loadWasmFromDisk(basicAuthGeneratorWasmPath);
+      console.log("✅ [Backend Infra] 纯单一文件 basic-auth-generator.wasm 加载成功");
+    } else {
+      console.warn("⚠️ basic-auth-generator.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
     }
   } catch (err) {
     console.error("❌ 后端 WASM 基础设施初始化失败:", err);
@@ -7333,6 +7342,119 @@ app.get("/api/backend/html/entities/presets", async (c) => {
   }
 });
 
+// API: HTTP Basic Auth 凭证与 Header 生成 (Basic Auth Generator)
+app.post("/api/backend/basic-auth/generate", async (c) => {
+  try {
+    const contentType = c.req.header("Content-Type") || "";
+    let username = "";
+    let password = "";
+
+    if (contentType.includes("application/json")) {
+      const json = await c.req.json().catch(() => ({}));
+      username = (json.username || "").toString();
+      password = (json.password || "").toString();
+    } else {
+      const body = await c.req.parseBody().catch(() => ({}));
+      username = (body.username || "").toString();
+      password = (body.password || "").toString();
+    }
+
+    if (!basicAuthGeneratorEngine) {
+      throw new Error("basic-auth-generator WASM 引擎未就绪");
+    }
+
+    const t0 = performance.now();
+    const response = basicAuthGeneratorEngine.dispatch({
+      action: "basic-auth/generate",
+      requestId: `srv-${Date.now()}`,
+      params: {
+        username,
+        password
+      }
+    });
+    const duration = (performance.now() - t0).toFixed(4);
+
+    if (contentType.includes("application/json") && !c.req.header("HX-Request")) {
+      return c.json(response);
+    }
+
+    if (response.code !== 0) {
+      return c.html(`
+        <div class="result-box error">
+          <strong>Basic Auth 生成失败:</strong> ${escapeHtml(response.msg)}
+        </div>
+      `, 400);
+    }
+
+    const d = response.data;
+
+    return c.html(`
+      <div class="result-box">
+        <div class="result-header">
+          <span class="tag tag-rust">🦀 Rust WASM: RFC 7617 HTTP Basic Auth 生成</span>
+          <span class="badge-time">⚡ ${duration} ms (Hono 后端原生)</span>
+        </div>
+
+        <div style="margin-bottom:12px;">
+          <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px; font-weight:600;">标准 HTTP Authorization Header:</div>
+          <div style="position:relative;">
+            <pre style="padding:10px 12px; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1); border-radius:6px; font-family:var(--font-mono); font-size:12px; color:#38bdf8; overflow-x:auto;">${escapeHtml(d.authHeader)}</pre>
+            <button type="button" onclick="navigator.clipboard.writeText('${escapeHtml(d.authHeader)}')" style="position:absolute; top:8px; right:8px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); border-radius:4px; padding:3px 8px; color:#f8fafc; font-size:11px; cursor:pointer;">复制 Header</button>
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:12px; margin-bottom:12px;">
+          <div>
+            <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px; font-weight:600;">原始凭据字符串:</div>
+            <pre style="padding:8px 10px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.08); border-radius:4px; font-family:var(--font-mono); font-size:11px; color:#f8fafc;">${escapeHtml(d.credentials)}</pre>
+          </div>
+          <div>
+            <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px; font-weight:600;">Base64 Token:</div>
+            <pre style="padding:8px 10px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.08); border-radius:4px; font-family:var(--font-mono); font-size:11px; color:#34d399;">${escapeHtml(d.base64)}</pre>
+          </div>
+        </div>
+
+        <div>
+          <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px; font-weight:600;">多语言与客户端调用代码示例:</div>
+          <div style="display:flex; flex-direction:column; gap:8px;">
+            <div>
+              <div style="font-size:10px; color:#94a3b8; margin-bottom:2px;">cURL:</div>
+              <pre style="padding:8px 10px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.08); border-radius:4px; font-family:var(--font-mono); font-size:11px; color:#cbd5e1; overflow-x:auto;">${escapeHtml(d.curlSnippet)}</pre>
+            </div>
+            <div>
+              <div style="font-size:10px; color:#94a3b8; margin-bottom:2px;">JavaScript Fetch:</div>
+              <pre style="padding:8px 10px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.08); border-radius:4px; font-family:var(--font-mono); font-size:11px; color:#cbd5e1; overflow-x:auto;">${escapeHtml(d.fetchSnippet)}</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    `);
+  } catch (err) {
+    return c.html(`
+      <div class="result-box error">
+        <strong>执行失败:</strong> ${escapeHtml(err.message)}
+      </div>
+    `, 500);
+  }
+});
+
+// API: 获取 Basic Auth 预设
+app.get("/api/backend/basic-auth/presets", async (c) => {
+  try {
+    if (!basicAuthGeneratorEngine) {
+      throw new Error("basic-auth-generator WASM 引擎未就绪");
+    }
+    const response = basicAuthGeneratorEngine.dispatch({
+      action: "basic-auth/presets",
+      requestId: `srv-${Date.now()}`,
+      params: {}
+    });
+    return c.json(response);
+  } catch (err) {
+    return c.json({ code: 500, msg: err.message, data: null }, 500);
+  }
+});
+
 // API: 获取 Markdown 示例
 app.get("/api/backend/markdown/sample", async (c) => {
   try {
@@ -7516,6 +7638,7 @@ app.get("/api/stats", (c) => {
   const deviceInformationSize = fs.existsSync(deviceInformationWasmPath) ? fs.statSync(deviceInformationWasmPath).size : 0;
   const jsonDiffSize = fs.existsSync(jsonDiffWasmPath) ? fs.statSync(jsonDiffWasmPath).size : 0;
   const htmlEntitiesSize = fs.existsSync(htmlEntitiesWasmPath) ? fs.statSync(htmlEntitiesWasmPath).size : 0;
+  const basicAuthGeneratorSize = fs.existsSync(basicAuthGeneratorWasmPath) ? fs.statSync(basicAuthGeneratorWasmPath).size : 0;
   return c.json({
     rust: {
       file: "rs.wasm",
@@ -7821,6 +7944,11 @@ app.get("/api/stats", (c) => {
       file: "html-entities.wasm",
       sizeBytes: htmlEntitiesSize,
       sizeFormatted: `${(htmlEntitiesSize / 1024).toFixed(2)} KB`,
+    },
+    basicAuthGenerator: {
+      file: "basic-auth-generator.wasm",
+      sizeBytes: basicAuthGeneratorSize,
+      sizeFormatted: `${(basicAuthGeneratorSize / 1024).toFixed(2)} KB`,
     },
   });
 });

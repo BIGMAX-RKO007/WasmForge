@@ -4438,6 +4438,60 @@ spec:
           </div>
         </div>
       </div>
+
+      <!-- Card 5.8: HTTP 基础认证 Header 与客户端脚本生成 (Basic Auth Generator) -->
+      <div class="card" id="card-basic-auth">
+        <div class="card-header">
+          <div>
+            <div class="card-title">🔐 HTTP 基础认证 Header 与客户端脚本生成 (Basic Auth Generator)</div>
+            <div class="card-desc">纯单一文件 Rust WASM 驱动的 RFC 7617 HTTP Basic 认证凭据编码、安全 Header 构造与 cURL/Fetch/Python 代码生成引擎</div>
+          </div>
+          <span class="tag tag-rust">Tool #60: basic-auth-generator</span>
+        </div>
+
+        <form id="form-basic-auth" hx-post="/api/backend/basic-auth/generate" hx-target="#backend-basic-auth-result" hx-swap="innerHTML">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+            <span style="font-size:12px; color:var(--text-muted); font-weight:600;">输入用户名与密码凭据:</span>
+
+            <div style="display:flex; gap:6px; font-size:11px; align-items:center;">
+              <span style="color:var(--text-muted);">预设:</span>
+              <button type="button" onclick="loadBasicAuthPreset('admin-dev')" style="background:rgba(255,255,255,0.06); color:#38bdf8; border:1px solid rgba(56,189,248,0.3); border-radius:4px; padding:3px 8px; cursor:pointer;">👨‍💼 管理员</button>
+              <button type="button" onclick="loadBasicAuthPreset('api-service')" style="background:rgba(255,255,255,0.06); color:#34d399; border:1px solid rgba(52,211,153,0.3); border-radius:4px; padding:3px 8px; cursor:pointer;">🤖 API 服务</button>
+            </div>
+          </div>
+
+          <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:12px; margin-bottom:12px;">
+            <div>
+              <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px;">用户名 (Username):</div>
+              <input type="text" name="username" id="basic-auth-user" value="admin" style="width:100%; box-sizing:border-box; background:#0f172a; color:#f8fafc; border:1px solid rgba(255,255,255,0.15); border-radius:6px; padding:8px 12px; font-size:12px; font-family:var(--font-mono);" oninput="runFrontendBasicAuth()">
+            </div>
+            <div>
+              <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px;">密码 (Password):</div>
+              <input type="text" name="password" id="basic-auth-pass" value="super-secret-password-123" style="width:100%; box-sizing:border-box; background:#0f172a; color:#f8fafc; border:1px solid rgba(255,255,255,0.15); border-radius:6px; padding:8px 12px; font-size:12px; font-family:var(--font-mono);" oninput="runFrontendBasicAuth()">
+            </div>
+          </div>
+
+          <div style="display:flex; gap:8px;">
+            <button type="submit" style="padding:8px 16px; background:linear-gradient(135deg, #3b82f6, #1d4ed8); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:12px;">
+              🖥️ 后端生成 (HTMX)
+            </button>
+            <button type="button" onclick="runFrontendBasicAuth()" style="padding:8px 16px; background:linear-gradient(135deg, #10b981, #059669); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:12px;">
+              🌐 前端极速生成
+            </button>
+          </div>
+        </form>
+
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:16px; margin-top:16px;">
+          <div>
+            <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px;">后端投影输出:</div>
+            <div id="backend-basic-auth-result" class="result-container"><div class="result-box" style="opacity:0.5; font-size:12px;">等待生成...</div></div>
+          </div>
+          <div>
+            <div style="font-size:11px; color:var(--text-muted); margin-top:0px; margin-bottom:4px;">前端投影输出:</div>
+            <div id="frontend-basic-auth-result" class="result-container"><div class="result-box" style="opacity:0.5; font-size:12px;">等待生成...</div></div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- ================= 区域 3: 4 象限综合矩阵基准测试 ================= -->
@@ -4627,6 +4681,7 @@ spec:
         const deviceInformationEngine = await loadWasmFromUrl("./wasm/device-information.wasm");
         const jsonDiffEngine = await loadWasmFromUrl("./wasm/json-diff.wasm");
         const htmlEntitiesEngine = await loadWasmFromUrl("./wasm/html-entities.wasm");
+        const basicAuthGeneratorEngine = await loadWasmFromUrl("./wasm/basic-auth-generator.wasm");
 
         window.wasmContext.rust = rsEngine;
         window.wasmContext.ts = tsEngine;
@@ -4689,6 +4744,7 @@ spec:
         window.wasmContext.deviceInformation = deviceInformationEngine;
         window.wasmContext.jsonDiff = jsonDiffEngine;
         window.wasmContext.htmlEntities = htmlEntitiesEngine;
+        window.wasmContext.basicAuthGenerator = basicAuthGeneratorEngine;
         window.wasmContext.rustReady = true;
         window.wasmContext.tsReady = true;
         window.wasmContext.tokenReady = true;
@@ -4750,9 +4806,10 @@ spec:
         window.wasmContext.deviceInformationReady = true;
         window.wasmContext.jsonDiffReady = true;
         window.wasmContext.htmlEntitiesReady = true;
+        window.wasmContext.basicAuthGeneratorReady = true;
 
         const statusEl = document.getElementById("frontend-status");
-        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载 61 大模块: rs, ts, token-gen, hash-text, bcrypt, uuid-gen, ulid-gen, encryption, bip39, hmac, rsa, password-strength, pdf-sig, yaml-to-json, yaml-to-toml, json-to-yaml, json-to-toml, toml-to-json, toml-to-yaml, xml-to-json, json-to-xml, json-to-csv, base64-string, base64-file, color-converter, case-converter, date-time-converter, integer-base-converter, roman-numeral-converter, text-to-binary, text-to-unicode, markdown-to-html, list-converter, text-to-nato, sql-prettify, xml-formatter, json-minify, json-viewer, yaml-viewer, regex-tester, regex-memo, crontab-generator, chmod-calculator, docker-run-to-compose, email-normalizer, git-memo, random-port, text-diff, text-statistics, string-obfuscator, lorem-ipsum, ascii-text-drawer, numeronym-generator, emoji-picker, jwt-parser, otp-generator, url-encoder-decoder, url-parser, device-information, json-diff & html-entities)`;
+        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载 62 大模块: rs, ts, token-gen, hash-text, bcrypt, uuid-gen, ulid-gen, encryption, bip39, hmac, rsa, password-strength, pdf-sig, yaml-to-json, yaml-to-toml, json-to-yaml, json-to-toml, toml-to-json, toml-to-yaml, xml-to-json, json-to-xml, json-to-csv, base64-string, base64-file, color-converter, case-converter, date-time-converter, integer-base-converter, roman-numeral-converter, text-to-binary, text-to-unicode, markdown-to-html, list-converter, text-to-nato, sql-prettify, xml-formatter, json-minify, json-viewer, yaml-viewer, regex-tester, regex-memo, crontab-generator, chmod-calculator, docker-run-to-compose, email-normalizer, git-memo, random-port, text-diff, text-statistics, string-obfuscator, lorem-ipsum, ascii-text-drawer, numeronym-generator, emoji-picker, jwt-parser, otp-generator, url-encoder-decoder, url-parser, device-information, json-diff, html-entities & basic-auth-generator)`;
 
         // 初始自动运行一次前端计算
         window.runFrontendCalc();
@@ -10618,6 +10675,101 @@ spec:
           <div style="position:relative;">
             <pre style="padding:12px; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1); border-radius:6px; font-family:var(--font-mono); font-size:12px; color:#38bdf8; overflow-x:auto; white-space:pre-wrap; word-break:break-all;">${escapeHtmlFront(d.result)}</pre>
             <button type="button" onclick="copyHtmlEntitiesResult()" style="position:absolute; top:8px; right:8px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); border-radius:4px; padding:4px 8px; color:#f8fafc; font-size:11px; cursor:pointer;">复制结果</button>
+          </div>
+        </div>
+      `;
+    };
+
+    // Basic Auth Generator 前端极速生成
+    const basicAuthPresets = {
+      "admin-dev": {
+        user: "admin",
+        pass: "super-secret-password-123"
+      },
+      "api-service": {
+        user: "svc_worker_node",
+        pass: "tok_prod_49382109abcf"
+      }
+    };
+
+    window.loadBasicAuthPreset = function(presetId) {
+      const p = basicAuthPresets[presetId];
+      if (p) {
+        document.getElementById("basic-auth-user").value = p.user;
+        document.getElementById("basic-auth-pass").value = p.pass;
+        window.runFrontendBasicAuth();
+      }
+    };
+
+    window.runFrontendBasicAuth = function() {
+      if (!window.wasmContext.basicAuthGeneratorReady || !window.wasmContext.basicAuthGenerator) {
+        document.getElementById("frontend-basic-auth-result").innerHTML = `
+          <div class="result-box error">basic-auth-generator.wasm 尚未加载完毕</div>
+        `;
+        return;
+      }
+
+      const username = document.getElementById("basic-auth-user").value || "";
+      const password = document.getElementById("basic-auth-pass").value || "";
+
+      const t0 = performance.now();
+      const response = window.wasmContext.basicAuthGenerator.dispatch({
+        action: "basic-auth/generate",
+        requestId: `front-${Date.now()}`,
+        params: {
+          username,
+          password
+        }
+      });
+      const duration = (performance.now() - t0).toFixed(4);
+
+      if (response.code !== 0) {
+        document.getElementById("frontend-basic-auth-result").innerHTML = `
+          <div class="result-box error">生成失败: ${escapeHtmlFront(response.msg)}</div>
+        `;
+        return;
+      }
+
+      const d = response.data;
+
+      document.getElementById("frontend-basic-auth-result").innerHTML = `
+        <div class="result-box">
+          <div class="result-header">
+            <span class="tag tag-rust">🦀 Browser WASM: RFC 7617 HTTP Basic Auth 生成</span>
+            <span class="badge-time">⚡ ${duration} ms (纯前端内存)</span>
+          </div>
+
+          <div style="margin-bottom:12px;">
+            <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px; font-weight:600;">标准 HTTP Authorization Header:</div>
+            <div style="position:relative;">
+              <pre style="padding:10px 12px; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.1); border-radius:6px; font-family:var(--font-mono); font-size:12px; color:#38bdf8; overflow-x:auto;">${escapeHtmlFront(d.authHeader)}</pre>
+              <button type="button" onclick="navigator.clipboard.writeText('${escapeHtmlFront(d.authHeader)}')" style="position:absolute; top:8px; right:8px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); border-radius:4px; padding:3px 8px; color:#f8fafc; font-size:11px; cursor:pointer;">复制 Header</button>
+            </div>
+          </div>
+
+          <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:12px; margin-bottom:12px;">
+            <div>
+              <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px; font-weight:600;">原始凭据字符串:</div>
+              <pre style="padding:8px 10px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.08); border-radius:4px; font-family:var(--font-mono); font-size:11px; color:#f8fafc;">${escapeHtmlFront(d.credentials)}</pre>
+            </div>
+            <div>
+              <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px; font-weight:600;">Base64 Token:</div>
+              <pre style="padding:8px 10px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.08); border-radius:4px; font-family:var(--font-mono); font-size:11px; color:#34d399;">${escapeHtmlFront(d.base64)}</pre>
+            </div>
+          </div>
+
+          <div>
+            <div style="font-size:11px; color:var(--text-muted); margin-bottom:4px; font-weight:600;">多语言与客户端调用代码示例:</div>
+            <div style="display:flex; flex-direction:column; gap:8px;">
+              <div>
+                <div style="font-size:10px; color:#94a3b8; margin-bottom:2px;">cURL:</div>
+                <pre style="padding:8px 10px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.08); border-radius:4px; font-family:var(--font-mono); font-size:11px; color:#cbd5e1; overflow-x:auto;">${escapeHtmlFront(d.curlSnippet)}</pre>
+              </div>
+              <div>
+                <div style="font-size:10px; color:#94a3b8; margin-bottom:2px;">JavaScript Fetch:</div>
+                <pre style="padding:8px 10px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.08); border-radius:4px; font-family:var(--font-mono); font-size:11px; color:#cbd5e1; overflow-x:auto;">${escapeHtmlFront(d.fetchSnippet)}</pre>
+              </div>
+            </div>
           </div>
         </div>
       `;
