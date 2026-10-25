@@ -1,0 +1,13 @@
+{
+  "name": "@wasmforge/email-normalizer",
+  "version": "0.1.0",
+  "description": "Pure Standalone WebAssembly Email address canonicalizer and alias stripper",
+  "type": "module",
+  "main": "email-normalizer.wasm",
+  "scripts": {
+    "build": "cargo build --target wasm32-unknown-unknown --release",
+    "test": "cargo test"
+  },
+  "keywords": ["wasm", "email", "normalizer", "canonicalize", "gmail", "c-abi"],
+  "license": "MIT"
+}

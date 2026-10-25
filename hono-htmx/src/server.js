@@ -54,6 +54,7 @@ const regexMemoWasmPath = path.resolve(__dirname, "../public/wasm/regex-memo.was
 const crontabGeneratorWasmPath = path.resolve(__dirname, "../public/wasm/crontab-generator.wasm");
 const chmodCalculatorWasmPath = path.resolve(__dirname, "../public/wasm/chmod-calculator.wasm");
 const dockerRunToComposeWasmPath = path.resolve(__dirname, "../public/wasm/docker-run-to-compose.wasm");
+const emailNormalizerWasmPath = path.resolve(__dirname, "../public/wasm/email-normalizer.wasm");
 
 let rsEngine = null;
 let tsEngine = null;
@@ -99,6 +100,7 @@ let regexMemoEngine = null;
 let crontabGeneratorEngine = null;
 let chmodCalculatorEngine = null;
 let dockerRunToComposeEngine = null;
+let emailNormalizerEngine = null;
 
 async function initEngines() {
   try {
@@ -408,6 +410,13 @@ async function initEngines() {
       console.log("✅ [Backend Infra] 纯单一文件 docker-run-to-compose.wasm 加载成功");
     } else {
       console.warn("⚠️ docker-run-to-compose.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    if (fs.existsSync(emailNormalizerWasmPath)) {
+      emailNormalizerEngine = await loadWasmFromDisk(emailNormalizerWasmPath);
+      console.log("✅ [Backend Infra] 纯单一文件 email-normalizer.wasm 加载成功");
+    } else {
+      console.warn("⚠️ email-normalizer.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
     }
   } catch (err) {
     console.error("❌ 后端 WASM 基础设施初始化失败:", err);
@@ -5015,6 +5024,178 @@ app.get("/api/backend/docker/samples", async (c) => {
   }
 });
 
+// API: HTMX / JSON 提交 邮箱地址规范化与别名清洗
+app.post("/api/backend/email/normalize", async (c) => {
+  try {
+    let email = "";
+    let emails = [];
+    let stripTags = true;
+    let stripDots = true;
+    let deduplicate = true;
+
+    const contentType = c.req.header("content-type") || "";
+    if (contentType.includes("application/json")) {
+      const json = await c.req.json().catch(() => ({}));
+      email = (json.email || "").toString();
+      if (Array.isArray(json.emails)) emails = json.emails;
+      if (json.stripTags !== undefined) stripTags = Boolean(json.stripTags);
+      if (json.stripDots !== undefined) stripDots = Boolean(json.stripDots);
+      if (json.deduplicate !== undefined) deduplicate = Boolean(json.deduplicate);
+    } else {
+      const body = await c.req.parseBody().catch(() => ({}));
+      email = (body.email || "").toString();
+      if (body.stripTags !== undefined) stripTags = body.stripTags === "on" || body.stripTags === "true";
+      if (body.stripDots !== undefined) stripDots = body.stripDots === "on" || body.stripDots === "true";
+      if (body.deduplicate !== undefined) deduplicate = body.deduplicate === "on" || body.deduplicate === "true";
+    }
+
+    if (!email.trim() && emails.length === 0) {
+      if (contentType.includes("application/json") && !c.req.header("HX-Request")) {
+        return c.json({ code: 400, msg: "email 参数不能为空", data: null }, 400);
+      }
+      return c.html(`
+        <div class="result-box error">
+          <strong>清洗失败:</strong> 邮箱输入不能为空
+        </div>
+      `, 400);
+    }
+
+    if (!emailNormalizerEngine) {
+      throw new Error("email-normalizer WASM 引擎未就绪");
+    }
+
+    const t0 = performance.now();
+    let action = "email/normalize";
+    let params = { email, stripTags, stripDots };
+
+    // 如果包含多行换行，自动使用批量模式
+    if (email.includes("\n") || emails.length > 0) {
+      action = "email/batch";
+      params = { emails: emails.length > 0 ? emails : email, stripTags, stripDots, deduplicate };
+    }
+
+    const response = emailNormalizerEngine.dispatch({
+      action,
+      requestId: `srv-${Date.now()}`,
+      params
+    });
+    const duration = (performance.now() - t0).toFixed(4);
+
+    if (contentType.includes("application/json") && !c.req.header("HX-Request")) {
+      return c.json(response);
+    }
+
+    if (response.code !== 0) {
+      return c.html(`
+        <div class="result-box error">
+          <strong>处理失败:</strong> ${escapeHtml(response.msg)}
+        </div>
+      `, 400);
+    }
+
+    if (action === "email/batch") {
+      const b = response.data;
+      const rows = b.items.map((it, idx) => `
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 10px; border-bottom:1px solid rgba(255,255,255,0.05); font-family:var(--font-mono); font-size:12px;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span style="color:#f59e0b; font-weight:600;">#${idx + 1}</span>
+            <span style="color:#38bdf8; font-weight:600;">${escapeHtml(it.normalized)}</span>
+            <span style="color:var(--text-muted); font-size:11px;">(${escapeHtml(it.original)})</span>
+          </div>
+          <span style="color:#34d399; font-size:11px;">${escapeHtml(it.provider)}</span>
+        </div>
+      `).join("");
+
+      return c.html(`
+        <div class="result-box">
+          <div class="result-header">
+            <span class="tag tag-rust">🦀 Rust WASM: 批量邮箱清洗去重完成</span>
+            <span class="badge-time">⚡ ${duration} ms (Hono 后端原生)</span>
+          </div>
+          <div style="display:flex; gap:12px; margin-bottom:10px; font-size:12px; color:var(--text-muted);">
+            <span>原始条目: <strong style="color:#f1f5f9;">${b.total}</strong></span>
+            <span>去重后独立邮箱: <strong style="color:#38bdf8;">${b.unique}</strong></span>
+            <span>清洗重复数: <strong style="color:#34d399;">${b.duplicates_removed}</strong></span>
+          </div>
+          <div style="max-height:220px; overflow-y:auto; background:rgba(0,0,0,0.25); border-radius:6px; border:1px solid rgba(255,255,255,0.08);">
+            ${rows}
+          </div>
+        </div>
+      `);
+    }
+
+    const d = response.data;
+    return c.html(`
+      <div class="result-box">
+        <div class="result-header">
+          <span class="tag tag-rust">🦀 Rust WASM: 邮箱标准化完成</span>
+          <span class="badge-time">⚡ ${duration} ms (Hono 后端原生)</span>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(56,189,248,0.1); border:1px solid rgba(56,189,248,0.25); padding:10px 14px; border-radius:6px; margin-bottom:12px;">
+          <div>
+            <div style="font-size:11px; color:var(--text-muted);">规范化标准邮箱地址 (Canonical Email):</div>
+            <div style="font-size:18px; font-weight:700; color:#38bdf8; font-family:var(--font-mono);">${escapeHtml(d.normalized)}</div>
+          </div>
+          <button type="button" class="btn-copy" style="padding:4px 10px; font-size:11px; background:#1e293b; color:#fff; border:1px solid rgba(255,255,255,0.2); border-radius:4px; cursor:pointer;" onclick="navigator.clipboard.writeText('${escapeHtml(d.normalized)}'); this.innerText='已复制!'; setTimeout(()=>this.innerText='复制邮箱', 1500)">复制邮箱</button>
+        </div>
+
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:8px; font-size:12px; margin-bottom:10px;">
+          <div style="background:rgba(255,255,255,0.03); padding:8px 10px; border-radius:4px; border:1px solid rgba(255,255,255,0.06);">
+            <div style="color:var(--text-muted); font-size:11px;">基础用户名:</div>
+            <div style="color:#f1f5f9; font-weight:600; font-family:var(--font-mono);">${escapeHtml(d.username)}</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.03); padding:8px 10px; border-radius:4px; border:1px solid rgba(255,255,255,0.06);">
+            <div style="color:var(--text-muted); font-size:11px;">规范域名:</div>
+            <div style="color:#f1f5f9; font-weight:600; font-family:var(--font-mono);">${escapeHtml(d.domain)}</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.03); padding:8px 10px; border-radius:4px; border:1px solid rgba(255,255,255,0.06);">
+            <div style="color:var(--text-muted); font-size:11px;">服务托管商:</div>
+            <div style="color:#34d399; font-weight:600;">${escapeHtml(d.provider)}</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.03); padding:8px 10px; border-radius:4px; border:1px solid rgba(255,255,255,0.06);">
+            <div style="color:var(--text-muted); font-size:11px;">别名标签 (+tag):</div>
+            <div style="color:${d.tag ? '#f59e0b' : 'var(--text-muted)'}; font-weight:600; font-family:var(--font-mono);">${d.tag ? escapeHtml(d.tag) : '无别名'}</div>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:8px; flex-wrap:wrap; font-size:11px; color:var(--text-muted);">
+          <span>原输入: <code>${escapeHtml(d.original)}</code></span>
+          ${d.stripped_dots ? '<span style="color:#38bdf8;">• 已去除 Gmail 点号</span>' : ''}
+          ${d.domain_aliased ? '<span style="color:#38bdf8;">• googlemail 映射为 gmail</span>' : ''}
+          ${d.has_alias ? '<span style="color:#f59e0b;">• 已剥离别名标签</span>' : ''}
+        </div>
+      </div>
+    `);
+  } catch (err) {
+    return c.html(`
+      <div class="result-box error">
+        <strong>处理失败:</strong> ${err.message}
+      </div>
+    `, 400);
+  }
+});
+
+// API: 获取 Email 常用测试示例列表
+app.get("/api/backend/email/samples", async (c) => {
+  try {
+    if (!emailNormalizerEngine) {
+      throw new Error("email-normalizer WASM 引擎未就绪");
+    }
+    const response = emailNormalizerEngine.dispatch({
+      action: "email/samples",
+      requestId: `srv-${Date.now()}`,
+      params: {}
+    });
+    if (response.code !== 0) {
+      throw new Error(response.msg || "获取示例失败");
+    }
+    return c.json(response.data);
+  } catch (err) {
+    return c.json({ samples: [] }, 500);
+  }
+});
+
 // API: 获取 Markdown 示例
 app.get("/api/backend/markdown/sample", async (c) => {
   try {
@@ -5181,6 +5362,7 @@ app.get("/api/stats", (c) => {
   const crontabGeneratorSize = fs.existsSync(crontabGeneratorWasmPath) ? fs.statSync(crontabGeneratorWasmPath).size : 0;
   const chmodCalculatorSize = fs.existsSync(chmodCalculatorWasmPath) ? fs.statSync(chmodCalculatorWasmPath).size : 0;
   const dockerRunToComposeSize = fs.existsSync(dockerRunToComposeWasmPath) ? fs.statSync(dockerRunToComposeWasmPath).size : 0;
+  const emailNormalizerSize = fs.existsSync(emailNormalizerWasmPath) ? fs.statSync(emailNormalizerWasmPath).size : 0;
   return c.json({
     rust: {
       file: "rs.wasm",
@@ -5401,6 +5583,11 @@ app.get("/api/stats", (c) => {
       file: "docker-run-to-compose.wasm",
       sizeBytes: dockerRunToComposeSize,
       sizeFormatted: `${(dockerRunToComposeSize / 1024).toFixed(2)} KB`,
+    },
+    emailNormalizer: {
+      file: "email-normalizer.wasm",
+      sizeBytes: emailNormalizerSize,
+      sizeFormatted: `${(emailNormalizerSize / 1024).toFixed(2)} KB`,
     },
   });
 });
