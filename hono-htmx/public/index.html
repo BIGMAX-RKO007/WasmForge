@@ -1469,6 +1469,59 @@
       </div>
     </div>
 
+    <!-- 2.4 JSON ➜ TOML 转换器卡片 -->
+    <div class="tool-card">
+      <div class="tool-header">
+        <div>
+          <h2 style="margin:0 0 4px; font-size:18px; color:#f472b6;">2.4 JSON ➜ TOML 配置文件转换器 (JSON to TOML)</h2>
+          <p style="color:var(--text-muted); font-size:13px; margin:0;">
+            高容错、纯静态 WebAssembly TOML 序列化器，解析 JSON 树形结构并转换为合规 TOML 配置，支持顶层数组自适应包装。
+          </p>
+        </div>
+        <div style="font-size:12px; font-family:var(--font-mono); color:#f472b6; background:rgba(244, 114, 182, 0.1); padding:4px 10px; border-radius:6px; border:1px solid rgba(244, 114, 182, 0.2);">
+          json-to-toml.wasm (~216 KB)
+        </div>
+      </div>
+
+      <!-- 表单 -->
+      <form id="json-to-toml-form" hx-post="/api/backend/json/to-toml" hx-target="#backend-json-toml-result" hx-swap="innerHTML" style="margin-top:20px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <label style="font-size:13px; color:var(--text-muted);">输入 JSON 文本:</label>
+          <div style="display:flex; gap:10px; align-items:center;">
+            <button type="button" onclick="loadJsonTomlSample()" style="padding:4px 10px; font-size:12px; background:rgba(244,114,182,0.15); color:#f472b6; border:1px solid rgba(244,114,182,0.3); border-radius:4px; cursor:pointer;">
+              📂 载入示例 JSON
+            </button>
+          </div>
+        </div>
+        <textarea id="json-toml-input" name="json" rows="8" placeholder="在此粘贴或输入 JSON 格式内容..." style="width:100%; padding:10px; background:#1e293b; border:1px solid rgba(255,255,255,0.1); color:#fff; border-radius:6px; font-family:var(--font-mono); font-size:12px; box-sizing:border-box; resize:vertical;"></textarea>
+
+        <div style="display:flex; gap:12px; margin-top:16px; flex-wrap:wrap;">
+          <button type="submit" style="padding:8px 16px; background:linear-gradient(135deg, #db2777, #be185d); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600; display:flex; align-items:center; gap:6px;">
+            <span>🖥️ HTMX 提交后端转换</span>
+            <span class="htmx-indicator">⏳</span>
+          </button>
+          <button type="button" onclick="runFrontendJsonToToml()" style="padding:8px 16px; background:linear-gradient(135deg, #ec4899, #db2777); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600;">
+            🌐 浏览器前端本地直转
+          </button>
+        </div>
+      </form>
+
+      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:16px; margin-top:16px;">
+        <div>
+          <div style="font-size:12px; color:var(--text-muted); margin-bottom:4px;">后端转换输出 (Hono HTMX):</div>
+          <div id="backend-json-toml-result" class="result-container">
+            <div class="result-box" style="opacity:0.5;">输入 JSON 并点击转换</div>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:12px; color:var(--text-muted); margin-bottom:4px;">前端转换输出 (Browser WASM):</div>
+          <div id="frontend-json-toml-result" class="result-container">
+            <div class="result-box" style="opacity:0.5;">输入 JSON 并点击转换</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- ================= 区域 3: 4 象限综合矩阵基准测试 ================= -->
     <div class="matrix-card">
       <h2>📊 4 维度跨场景一致性与性能矩阵</h2>
@@ -1531,6 +1584,8 @@
       yamlToTomlReady: false,
       jsonToYaml: null,
       jsonToYamlReady: false,
+      jsonToToml: null,
+      jsonToTomlReady: false,
       activeFrontendEngine: "rust",
       activeBackendEngine: "rust"
     };
@@ -1553,6 +1608,7 @@
         const yamlEngine = await loadWasmFromUrl("./wasm/yaml-to-json.wasm");
         const tomlEngine = await loadWasmFromUrl("./wasm/yaml-to-toml.wasm");
         const jsonYamlEngine = await loadWasmFromUrl("./wasm/json-to-yaml.wasm");
+        const jsonTomlEngine = await loadWasmFromUrl("./wasm/json-to-toml.wasm");
 
         window.wasmContext.rust = rsEngine;
         window.wasmContext.ts = tsEngine;
@@ -1570,6 +1626,7 @@
         window.wasmContext.yamlToJson = yamlEngine;
         window.wasmContext.yamlToToml = tomlEngine;
         window.wasmContext.jsonToYaml = jsonYamlEngine;
+        window.wasmContext.jsonToToml = jsonTomlEngine;
         window.wasmContext.rustReady = true;
         window.wasmContext.tsReady = true;
         window.wasmContext.tokenReady = true;
@@ -1586,9 +1643,10 @@
         window.wasmContext.yamlToJsonReady = true;
         window.wasmContext.yamlToTomlReady = true;
         window.wasmContext.jsonToYamlReady = true;
+        window.wasmContext.jsonToTomlReady = true;
 
         const statusEl = document.getElementById("frontend-status");
-        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载 16 大模块: rs, ts, token-gen, hash-text, bcrypt, uuid-gen, ulid-gen, encryption, bip39, hmac, rsa, password-strength, pdf-sig, yaml-to-json, yaml-to-toml & json-to-yaml)`;
+        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载 17 大模块: rs, ts, token-gen, hash-text, bcrypt, uuid-gen, ulid-gen, encryption, bip39, hmac, rsa, password-strength, pdf-sig, yaml-to-json, yaml-to-toml, json-to-yaml & json-to-toml)`;
 
         // 初始自动运行一次前端计算
         window.runFrontendCalc();
@@ -1607,6 +1665,7 @@
         window.loadYamlSample();
         window.loadYamlTomlSample();
         window.loadJsonYamlSample();
+        window.loadJsonTomlSample();
       } catch (err) {
         console.error("加载浏览器端 WASM 失败:", err);
         const statusEl = document.getElementById("frontend-status");
@@ -2891,6 +2950,66 @@
             <span>转换 YAML 大小: <strong>${d.targetSizeBytes} 字节</strong></span>
           </div>
           <pre class="code-preview" style="max-height:280px; overflow-y:auto; background:rgba(0,0,0,0.4); padding:10px; border-radius:6px; font-size:12px; font-family:var(--font-mono); color:#fbbf24;"><code>${d.yaml.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</code></pre>
+        </div>
+      `;
+    };
+
+    // 载入 JSON ➜ TOML 示例
+    window.loadJsonTomlSample = async function() {
+      const engine = window.wasmContext.jsonToToml;
+      const inputEl = document.getElementById("json-toml-input");
+      if (engine && inputEl) {
+        const resp = engine.dispatch({
+          action: "json/sample",
+          requestId: `req-sample-${Date.now()}`,
+          params: {}
+        });
+        if (resp.code === 0 && resp.data?.json) {
+          inputEl.value = resp.data.json;
+          window.runFrontendJsonToToml();
+        }
+      }
+    };
+
+    // 前端执行 JSON 转 TOML (json/to-toml)
+    window.runFrontendJsonToToml = function() {
+      const engine = window.wasmContext.jsonToToml;
+      if (!engine) {
+        document.getElementById("frontend-json-toml-result").innerHTML = `
+          <div class="result-box error">json-to-toml.wasm 尚未加载完毕</div>
+        `;
+        return;
+      }
+
+      const json = (document.getElementById("json-toml-input").value || "").trim();
+
+      const t0 = performance.now();
+      const response = engine.dispatch({
+        action: "json/to-toml",
+        requestId: `req-front-${Date.now()}`,
+        params: { json, pretty: true }
+      });
+      const duration = (performance.now() - t0).toFixed(4);
+
+      if (response.code !== 0) {
+        document.getElementById("frontend-json-toml-result").innerHTML = `
+          <div class="result-box error"><strong>转换失败:</strong> ${response.msg}</div>
+        `;
+        return;
+      }
+
+      const d = response.data;
+      document.getElementById("frontend-json-toml-result").innerHTML = `
+        <div class="result-box">
+          <div class="result-header">
+            <span class="tag tag-rust">🦀 Browser WASM: JSON ➜ TOML (${d.lineCount} 行)</span>
+            <span class="badge-time">⚡ ${duration} ms (纯前端内存解析)</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; font-size:12px; color:var(--text-muted);">
+            <span>输入 JSON 大小: <strong>${d.sourceSizeBytes} 字节</strong></span>
+            <span>转换 TOML 大小: <strong>${d.targetSizeBytes} 字节</strong></span>
+          </div>
+          <pre class="code-preview" style="max-height:280px; overflow-y:auto; background:rgba(0,0,0,0.4); padding:10px; border-radius:6px; font-size:12px; font-family:var(--font-mono); color:#f472b6;"><code>${d.toml.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</code></pre>
         </div>
       `;
     };
