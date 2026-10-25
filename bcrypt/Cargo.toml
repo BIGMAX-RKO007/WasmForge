@@ -1,0 +1,21 @@
+[package]
+name = "bcrypt-tool"
+version = "0.1.0"
+edition = "2021"
+description = "Bcrypt Password Hashing & Verification WASM Module for WasmForge"
+
+[lib]
+name = "bcrypt_tool"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+serde = { version = "1.0", default-features = false, features = ["alloc", "derive"] }
+serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
+bcrypt = { version = "0.15", default-features = false, features = ["alloc"] }
+getrandom = { version = "0.2", features = ["custom"] }
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"

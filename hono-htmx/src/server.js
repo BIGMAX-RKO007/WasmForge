@@ -14,11 +14,13 @@ const rsWasmPath = path.resolve(__dirname, "../public/wasm/rs.wasm");
 const tsWasmPath = path.resolve(__dirname, "../public/wasm/ts.wasm");
 const tokenWasmPath = path.resolve(__dirname, "../public/wasm/token-generator.wasm");
 const hashWasmPath = path.resolve(__dirname, "../public/wasm/hash-text.wasm");
+const bcryptWasmPath = path.resolve(__dirname, "../public/wasm/bcrypt.wasm");
 
 let rsEngine = null;
 let tsEngine = null;
 let tokenEngine = null;
 let hashEngine = null;
+let bcryptEngine = null;
 
 async function initEngines() {
   try {
@@ -48,6 +50,13 @@ async function initEngines() {
       console.log("✅ [Backend Infra] 纯单一文件 hash-text.wasm 加载成功");
     } else {
       console.warn("⚠️ hash-text.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    if (fs.existsSync(bcryptWasmPath)) {
+      bcryptEngine = await loadWasmFromDisk(bcryptWasmPath);
+      console.log("✅ [Backend Infra] 纯单一文件 bcrypt.wasm 加载成功");
+    } else {
+      console.warn("⚠️ bcrypt.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
     }
   } catch (err) {
     console.error("❌ 后端 WASM 基础设施初始化失败:", err);
@@ -299,12 +308,109 @@ app.post("/api/backend/hash/all", async (c) => {
   }
 });
 
+// API: 后端执行 Bcrypt 计算
+app.post("/api/backend/bcrypt/hash", async (c) => {
+  try {
+    if (!bcryptEngine) {
+      throw new Error("bcrypt.wasm 模块尚未就绪，请先完成编译");
+    }
+
+    const body = await c.req.parseBody();
+    const password = (body.password || "").toString();
+    const cost = parseInt(body.cost || "10", 10);
+
+    const t0 = performance.now();
+    const response = bcryptEngine.dispatch({
+      action: "bcrypt/hash",
+      requestId: `req-${Date.now()}`,
+      params: { password, cost },
+    });
+    const duration = (performance.now() - t0).toFixed(4);
+
+    if (response.code !== 0) {
+      throw new Error(response.msg || "Bcrypt 哈希计算失败");
+    }
+
+    const { hash } = response.data;
+
+    return c.html(`
+      <div class="result-box">
+        <div class="result-header">
+          <span class="tag tag-rust">🦀 Rust WASM: bcrypt</span>
+          <span class="badge-time">⚡ ${duration} ms (Hono 后端高抗碰撞哈希计算)</span>
+        </div>
+        <div class="token-display-wrap" style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,0.3); padding:10px 14px; border-radius:8px; margin:8px 0;">
+          <div class="result-value" id="server-bcrypt-hash" style="font-size:14px; color:#38bdf8; word-break:break-all; flex:1;">${hash}</div>
+          <button type="button" class="btn-copy" style="margin-left:12px; padding:6px 12px; border-radius:6px; background:#1e293b; color:#fff; border:1px solid #38bdf8; cursor:pointer;" onclick="navigator.clipboard.writeText(document.getElementById('server-bcrypt-hash').innerText); this.innerText='已复制!'; setTimeout(()=>this.innerText='复制', 1500)">复制</button>
+        </div>
+        <div class="token-meta" style="display:flex; gap:16px; font-size:12px; color:var(--text-muted); margin-top:6px;">
+          <span>🎯 运算轮次 (Cost): <strong style="color:#fff;">${cost}</strong></span>
+          <span>🔒 密码学算法: <strong style="color:#34d399;">Blowfish-based Bcrypt</strong></span>
+        </div>
+      </div>
+    `);
+  } catch (err) {
+    return c.html(`
+      <div class="result-box error">
+        <strong>生成失败:</strong> ${err.message}
+      </div>
+    `, 400);
+  }
+});
+
+app.post("/api/backend/bcrypt/verify", async (c) => {
+  try {
+    if (!bcryptEngine) {
+      throw new Error("bcrypt.wasm 模块尚未就绪，请先完成编译");
+    }
+
+    const body = await c.req.parseBody();
+    const password = (body.password || "").toString();
+    const hash = (body.hash || "").toString().trim();
+
+    const t0 = performance.now();
+    const response = bcryptEngine.dispatch({
+      action: "bcrypt/verify",
+      requestId: `req-${Date.now()}`,
+      params: { password, hash },
+    });
+    const duration = (performance.now() - t0).toFixed(4);
+
+    if (response.code !== 0) {
+      throw new Error(response.msg || "比对失败");
+    }
+
+    const { valid } = response.data;
+    const badgeColor = valid ? "#34d399" : "#ef4444";
+    const statusText = valid ? "✅ 验证通过：密码与哈希完全匹配" : "❌ 验证失败：密码错误或哈希不匹配";
+
+    return c.html(`
+      <div class="result-box" style="border-color:${badgeColor};">
+        <div class="result-header">
+          <span class="tag tag-rust">🦀 Rust WASM: bcrypt 恒定时间校验</span>
+          <span class="badge-time">⚡ ${duration} ms</span>
+        </div>
+        <div style="font-size:15px; font-weight:bold; color:${badgeColor}; margin-top:4px;">
+          ${statusText}
+        </div>
+      </div>
+    `);
+  } catch (err) {
+    return c.html(`
+      <div class="result-box error">
+        <strong>比对异常:</strong> ${err.message}
+      </div>
+    `, 400);
+  }
+});
+
 // API: 模块统计信息
 app.get("/api/stats", (c) => {
   const rsSize = fs.existsSync(rsWasmPath) ? fs.statSync(rsWasmPath).size : 0;
   const tsSize = fs.existsSync(tsWasmPath) ? fs.statSync(tsWasmPath).size : 0;
   const tokenSize = fs.existsSync(tokenWasmPath) ? fs.statSync(tokenWasmPath).size : 0;
   const hashSize = fs.existsSync(hashWasmPath) ? fs.statSync(hashWasmPath).size : 0;
+  const bcryptSize = fs.existsSync(bcryptWasmPath) ? fs.statSync(bcryptWasmPath).size : 0;
   return c.json({
     rust: {
       file: "rs.wasm",
@@ -325,6 +431,11 @@ app.get("/api/stats", (c) => {
       file: "hash-text.wasm",
       sizeBytes: hashSize,
       sizeFormatted: `${(hashSize / 1024).toFixed(2)} KB`,
+    },
+    bcrypt: {
+      file: "bcrypt.wasm",
+      sizeBytes: bcryptSize,
+      sizeFormatted: `${(bcryptSize / 1024).toFixed(2)} KB`,
     },
   });
 });

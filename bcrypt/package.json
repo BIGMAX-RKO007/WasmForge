@@ -1,0 +1,15 @@
+{
+  "name": "bcrypt-tool",
+  "version": "1.0.0",
+  "description": "Bcrypt Password Hashing & Verification WASM Module for WasmForge",
+  "type": "module",
+  "scripts": {
+    "build:wasm": "cargo build --target wasm32-unknown-unknown --release",
+    "export": "powershell -Command \"Copy-Item target/wasm32-unknown-unknown/release/bcrypt_tool.wasm ../hono-htmx/public/wasm/bcrypt.wasm\"",
+    "deploy": "npm run build:wasm ; npm run export",
+    "test": "cargo test"
+  },
+  "keywords": ["wasm", "rust", "bcrypt", "password", "crypto"],
+  "author": "",
+  "license": "MIT"
+}

@@ -527,6 +527,110 @@
       </div>
     </div>
 
+    <!-- ================= 核心工具 1.3: Bcrypt (密码哈希生成与比对校验) ================= -->
+    <div class="card" style="margin-bottom: 32px; border: 1px solid rgba(168, 85, 247, 0.3); background: rgba(15, 23, 42, 0.85);">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px;">
+        <div>
+          <h2 style="margin:0 0 4px; display:flex; align-items:center; gap:10px;">
+            <span>🛡️ 1.3 Bcrypt 密码哈希生成与恒定时间校验</span>
+            <span class="tag tag-rust">bcrypt.wasm (~600 KB)</span>
+          </h2>
+          <p style="color:var(--text-muted); font-size:13px; margin:0;">
+            高安全防彩虹表碰撞的自适应密码哈希算法。在浏览器与后端实现微秒级 Blowfish 轮次运算，彻底根治纯 JS bcryptjs 阻塞主线程的顽疾。
+          </p>
+        </div>
+        <div style="font-size:12px; font-family:var(--font-mono); color:#a855f7; background:rgba(168, 85, 247, 0.1); padding:4px 10px; border-radius:6px; border:1px solid rgba(168, 85, 247, 0.2);">
+          C-ABI: alloc / dealloc / dispatch
+        </div>
+      </div>
+
+      <!-- 模块 A: 生成哈希 -->
+      <div style="margin-top:20px; background:rgba(0,0,0,0.25); padding:16px; border-radius:10px; border:1px solid rgba(255,255,255,0.05);">
+        <h3 style="font-size:15px; margin:0 0 12px; color:#38bdf8;">A. 生成 Bcrypt 密文 (bcrypt/hash)</h3>
+        <form id="bcrypt-hash-form" hx-post="/api/backend/bcrypt/hash" hx-target="#backend-bcrypt-hash-result" hx-swap="innerHTML">
+          <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:16px;">
+            <div>
+              <label style="display:block; font-size:13px; margin-bottom:6px; color:var(--text-muted);">明文密码 (Plaintext Password):</label>
+              <input type="text" id="bcrypt-input-pass" name="password" value="SuperSecretPassword123!" style="width:100%; padding:8px 12px; background:#1e293b; border:1px solid rgba(255,255,255,0.1); color:#fff; border-radius:6px; font-family:var(--font-mono); box-sizing:border-box;">
+            </div>
+            <div>
+              <label style="display:block; font-size:13px; margin-bottom:6px; color:var(--text-muted);">
+                运算成本 (Cost / Rounds: 4 ~ 14): <strong id="bcrypt-cost-display" style="color:#a855f7;">8</strong>
+              </label>
+              <input type="range" id="bcrypt-cost-range" name="cost" min="4" max="14" value="8" style="width:100%;" oninput="document.getElementById('bcrypt-cost-display').innerText=this.value;">
+            </div>
+          </div>
+
+          <div style="display:flex; gap:12px; margin-top:14px; flex-wrap:wrap;">
+            <button type="submit" style="padding:8px 16px; background:linear-gradient(135deg, #f97316, #ea580c); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600; display:flex; align-items:center; gap:6px;">
+              <span>🖥️ HTMX 提交后端计算密文</span>
+              <span class="htmx-indicator">⏳</span>
+            </button>
+            <button type="button" onclick="runFrontendBcryptHash()" style="padding:8px 16px; background:linear-gradient(135deg, #0284c7, #0369a1); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600;">
+              🌐 浏览器前端本地生成
+            </button>
+          </div>
+        </form>
+
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:16px; margin-top:14px;">
+          <div>
+            <div style="font-size:12px; color:var(--text-muted); margin-bottom:4px;">后端生成结果 (Hono HTMX):</div>
+            <div id="backend-bcrypt-hash-result" class="result-container">
+              <div class="result-box" style="opacity:0.5;">点击上方橙色按钮生成</div>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:12px; color:var(--text-muted); margin-bottom:4px;">前端生成结果 (Browser WASM):</div>
+            <div id="frontend-bcrypt-hash-result" class="result-container">
+              <div class="result-box" style="opacity:0.5;">点击上方蓝色按钮生成</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 模块 B: 密码校验 -->
+      <div style="margin-top:20px; background:rgba(0,0,0,0.25); padding:16px; border-radius:10px; border:1px solid rgba(255,255,255,0.05);">
+        <h3 style="font-size:15px; margin:0 0 12px; color:#34d399;">B. 恒定时间密码比对 (bcrypt/verify)</h3>
+        <form id="bcrypt-verify-form" hx-post="/api/backend/bcrypt/verify" hx-target="#backend-bcrypt-verify-result" hx-swap="innerHTML">
+          <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap:16px;">
+            <div>
+              <label style="display:block; font-size:13px; margin-bottom:6px; color:var(--text-muted);">待检验密码:</label>
+              <input type="text" id="bcrypt-verify-pass" name="password" value="SuperSecretPassword123!" style="width:100%; padding:8px 12px; background:#1e293b; border:1px solid rgba(255,255,255,0.1); color:#fff; border-radius:6px; font-family:var(--font-mono); box-sizing:border-box;">
+            </div>
+            <div>
+              <label style="display:block; font-size:13px; margin-bottom:6px; color:var(--text-muted);">目标 Bcrypt 密文字符串:</label>
+              <input type="text" id="bcrypt-verify-hash" name="hash" placeholder="粘贴 $2b$... 密文或自动填入" style="width:100%; padding:8px 12px; background:#1e293b; border:1px solid rgba(255,255,255,0.1); color:#fff; border-radius:6px; font-family:var(--font-mono); box-sizing:border-box;">
+            </div>
+          </div>
+
+          <div style="display:flex; gap:12px; margin-top:14px; flex-wrap:wrap;">
+            <button type="submit" style="padding:8px 16px; background:linear-gradient(135deg, #f97316, #ea580c); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600; display:flex; align-items:center; gap:6px;">
+              <span>🖥️ HTMX 提交后端验证</span>
+              <span class="htmx-indicator">⏳</span>
+            </button>
+            <button type="button" onclick="runFrontendBcryptVerify()" style="padding:8px 16px; background:linear-gradient(135deg, #059669, #047857); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:600;">
+              🌐 浏览器前端本地比对
+            </button>
+          </div>
+        </form>
+
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:16px; margin-top:14px;">
+          <div>
+            <div style="font-size:12px; color:var(--text-muted); margin-bottom:4px;">后端比对反馈:</div>
+            <div id="backend-bcrypt-verify-result" class="result-container">
+              <div class="result-box" style="opacity:0.5;">输入密文后点击上方按钮校验</div>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:12px; color:var(--text-muted); margin-bottom:4px;">前端比对反馈:</div>
+            <div id="frontend-bcrypt-verify-result" class="result-container">
+              <div class="result-box" style="opacity:0.5;">输入密文后点击上方按钮校验</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- ================= 区域 3: 4 象限综合矩阵基准测试 ================= -->
     <div class="matrix-card">
       <h2>📊 4 维度跨场景一致性与性能矩阵</h2>
@@ -561,10 +665,12 @@
       tsReady: false,
       tokenReady: false,
       hashReady: false,
+      bcryptReady: false,
       rust: null,
       ts: null,
       tokenGenerator: null,
       hashText: null,
+      bcrypt: null,
       activeFrontendEngine: "rust",
       activeBackendEngine: "rust"
     };
@@ -575,24 +681,28 @@
         const tsEngine = await loadWasmFromUrl("./wasm/ts.wasm");
         const tokenEngine = await loadWasmFromUrl("./wasm/token-generator.wasm");
         const hashEngine = await loadWasmFromUrl("./wasm/hash-text.wasm");
+        const bcryptEngine = await loadWasmFromUrl("./wasm/bcrypt.wasm");
 
         window.wasmContext.rust = rsEngine;
         window.wasmContext.ts = tsEngine;
         window.wasmContext.tokenGenerator = tokenEngine;
         window.wasmContext.hashText = hashEngine;
+        window.wasmContext.bcrypt = bcryptEngine;
         window.wasmContext.rustReady = true;
         window.wasmContext.tsReady = true;
         window.wasmContext.tokenReady = true;
         window.wasmContext.hashReady = true;
+        window.wasmContext.bcryptReady = true;
 
         const statusEl = document.getElementById("frontend-status");
-        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载 rs, ts, token-gen & hash-text)`;
+        statusEl.innerHTML = `<span class="dot"></span> 浏览器 WASM 基础设施：已就绪 (原生加载 rs, ts, token-gen, hash-text & bcrypt)`;
 
-        // 初始自动运行一次前端计算、Token 生成与哈希计算
+        // 初始自动运行一次前端计算、Token、Hash、Bcrypt
         window.runFrontendCalc();
         window.runFrontendGreet();
         window.runFrontendTokenGen();
         window.runFrontendHashAll();
+        window.runFrontendBcryptHash();
       } catch (err) {
         console.error("加载浏览器端 WASM 失败:", err);
         const statusEl = document.getElementById("frontend-status");
@@ -811,6 +921,100 @@
               <span id="cli-hash-ripemd" style="color:#f1f5f9; word-break:break-all; flex:1;">${d.ripemd160}</span>
               <button type="button" class="btn-copy" style="margin-left:8px; padding:2px 8px; border-radius:4px; background:#1e293b; color:#fff; border:1px solid rgba(255,255,255,0.2); cursor:pointer;" onclick="navigator.clipboard.writeText(document.getElementById('cli-hash-ripemd').innerText); this.innerText='已复制!'; setTimeout(()=>this.innerText='复制', 1500)">复制</button>
             </div>
+          </div>
+        </div>
+      `;
+    };
+
+    // 前端 Bcrypt 哈希生成 (bcrypt/hash)
+    window.runFrontendBcryptHash = function() {
+      const engine = window.wasmContext.bcrypt;
+      if (!engine) {
+        document.getElementById("frontend-bcrypt-hash-result").innerHTML = `
+          <div class="result-box error">bcrypt.wasm 尚未加载完毕</div>
+        `;
+        return;
+      }
+
+      const password = document.getElementById("bcrypt-input-pass").value || "";
+      const cost = parseInt(document.getElementById("bcrypt-cost-range").value) || 8;
+
+      const t0 = performance.now();
+      const response = engine.dispatch({
+        action: "bcrypt/hash",
+        requestId: `req-front-${Date.now()}`,
+        params: { password, cost, seed: Math.floor(Math.random() * 0xFFFFFFFF) }
+      });
+      const duration = (performance.now() - t0).toFixed(4);
+
+      if (response.code !== 0) {
+        document.getElementById("frontend-bcrypt-hash-result").innerHTML = `
+          <div class="result-box error"><strong>生成失败:</strong> ${response.msg}</div>
+        `;
+        return;
+      }
+
+      const { hash } = response.data;
+      document.getElementById("bcrypt-verify-hash").value = hash;
+
+      document.getElementById("frontend-bcrypt-hash-result").innerHTML = `
+        <div class="result-box">
+          <div class="result-header">
+            <span class="tag tag-rust">🦀 Browser WASM: bcrypt</span>
+            <span class="badge-time">⚡ ${duration} ms (客户端原生内存计算)</span>
+          </div>
+          <div class="token-display-wrap" style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,0.3); padding:10px 14px; border-radius:8px; margin:8px 0;">
+            <div class="result-value" id="client-bcrypt-hash" style="font-size:14px; color:#34d399; word-break:break-all; flex:1;">${hash}</div>
+            <button type="button" class="btn-copy" style="margin-left:12px; padding:6px 12px; border-radius:6px; background:#1e293b; color:#fff; border:1px solid #34d399; cursor:pointer;" onclick="navigator.clipboard.writeText(document.getElementById('client-bcrypt-hash').innerText); this.innerText='已复制!'; setTimeout(()=>this.innerText='复制', 1500)">复制</button>
+          </div>
+          <div class="token-meta" style="display:flex; gap:16px; font-size:12px; color:var(--text-muted); margin-top:6px;">
+            <span>🎯 运算轮次 (Cost): <strong style="color:#fff;">${cost}</strong></span>
+            <span>🔒 密码学算法: <strong style="color:#34d399;">Blowfish-based Bcrypt</strong></span>
+          </div>
+        </div>
+      `;
+    };
+
+    // 前端 Bcrypt 密码比对 (bcrypt/verify)
+    window.runFrontendBcryptVerify = function() {
+      const engine = window.wasmContext.bcrypt;
+      if (!engine) {
+        document.getElementById("frontend-bcrypt-verify-result").innerHTML = `
+          <div class="result-box error">bcrypt.wasm 尚未加载完毕</div>
+        `;
+        return;
+      }
+
+      const password = document.getElementById("bcrypt-verify-pass").value || "";
+      const hash = document.getElementById("bcrypt-verify-hash").value.trim();
+
+      const t0 = performance.now();
+      const response = engine.dispatch({
+        action: "bcrypt/verify",
+        requestId: `req-front-${Date.now()}`,
+        params: { password, hash }
+      });
+      const duration = (performance.now() - t0).toFixed(4);
+
+      if (response.code !== 0) {
+        document.getElementById("frontend-bcrypt-verify-result").innerHTML = `
+          <div class="result-box error"><strong>比对异常:</strong> ${response.msg}</div>
+        `;
+        return;
+      }
+
+      const { valid } = response.data;
+      const badgeColor = valid ? "#34d399" : "#ef4444";
+      const statusText = valid ? "✅ 验证通过：密码与哈希完全匹配" : "❌ 验证失败：密码错误或哈希不匹配";
+
+      document.getElementById("frontend-bcrypt-verify-result").innerHTML = `
+        <div class="result-box" style="border-color:${badgeColor};">
+          <div class="result-header">
+            <span class="tag tag-rust">🦀 Browser WASM: 恒定时间比对</span>
+            <span class="badge-time">⚡ ${duration} ms</span>
+          </div>
+          <div style="font-size:15px; font-weight:bold; color:${badgeColor}; margin-top:4px;">
+            ${statusText}
           </div>
         </div>
       `;
