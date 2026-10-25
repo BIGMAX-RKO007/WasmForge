@@ -1,0 +1,15 @@
+{
+  "name": "hash-text",
+  "version": "1.0.0",
+  "description": "Multi-algorithm Hash Engine WASM Module for WasmForge",
+  "type": "module",
+  "scripts": {
+    "build:wasm": "cargo build --target wasm32-unknown-unknown --release",
+    "export": "powershell -Command \"Copy-Item target/wasm32-unknown-unknown/release/hash_text.wasm ../hono-htmx/public/wasm/hash-text.wasm\"",
+    "deploy": "npm run build:wasm ; npm run export",
+    "test": "cargo test"
+  },
+  "keywords": ["wasm", "rust", "hash", "md5", "sha256", "sha512", "sha3", "ripemd160"],
+  "author": "",
+  "license": "MIT"
+}

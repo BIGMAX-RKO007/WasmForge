@@ -13,10 +13,12 @@ const app = new Hono();
 const rsWasmPath = path.resolve(__dirname, "../public/wasm/rs.wasm");
 const tsWasmPath = path.resolve(__dirname, "../public/wasm/ts.wasm");
 const tokenWasmPath = path.resolve(__dirname, "../public/wasm/token-generator.wasm");
+const hashWasmPath = path.resolve(__dirname, "../public/wasm/hash-text.wasm");
 
 let rsEngine = null;
 let tsEngine = null;
 let tokenEngine = null;
+let hashEngine = null;
 
 async function initEngines() {
   try {
@@ -39,6 +41,13 @@ async function initEngines() {
       console.log("✅ [Backend Infra] 纯单一文件 token-generator.wasm 加载成功");
     } else {
       console.warn("⚠️ token-generator.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
+    }
+
+    if (fs.existsSync(hashWasmPath)) {
+      hashEngine = await loadWasmFromDisk(hashWasmPath);
+      console.log("✅ [Backend Infra] 纯单一文件 hash-text.wasm 加载成功");
+    } else {
+      console.warn("⚠️ hash-text.wasm 尚未就绪，请先编译并拷贝至 public/wasm/");
     }
   } catch (err) {
     console.error("❌ 后端 WASM 基础设施初始化失败:", err);
@@ -202,11 +211,100 @@ app.post("/api/backend/token/generate", async (c) => {
   }
 });
 
+// API: 后端执行哈希计算 (hash/all: 一键返回 6 种主流哈希)
+app.post("/api/backend/hash/all", async (c) => {
+  try {
+    if (!hashEngine) {
+      throw new Error("hash-text.wasm 模块尚未就绪，请先完成编译");
+    }
+
+    const contentType = c.req.header("content-type") || "";
+    let text = "";
+
+    if (contentType.includes("application/json")) {
+      const json = await c.req.json();
+      text = json.text || (json.params && json.params.text) || "";
+    } else {
+      const body = await c.req.parseBody();
+      text = (body.text || "").toString();
+    }
+
+    const t0 = performance.now();
+    const response = hashEngine.dispatch({
+      action: "hash/all",
+      requestId: `req-${Date.now()}`,
+      params: { text },
+    });
+    const duration = (performance.now() - t0).toFixed(4);
+
+    if (response.code !== 0) {
+      throw new Error(response.msg || "哈希计算失败");
+    }
+
+    const d = response.data;
+
+    if (c.req.header("accept")?.includes("application/json") && !c.req.header("hx-request")) {
+      return c.json({ ...response, serverDurationMs: duration });
+    }
+
+    return c.html(`
+      <div class="result-box">
+        <div class="result-header">
+          <span class="tag tag-rust">🦀 Rust WASM: hash-text</span>
+          <span class="badge-time">⚡ ${duration} ms (Hono 后端微秒级 6 哈希全量运算)</span>
+        </div>
+        <div style="font-size:12px; color:var(--text-muted); margin-bottom:10px;">
+          字符数: <strong style="color:#fff;">${d.textLength}</strong> | 字节数 (UTF-8): <strong style="color:#fff;">${d.byteLength}</strong>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <div class="hash-row" style="display:flex; align-items:center; justify-content:space-between; background:rgba(0,0,0,0.3); padding:6px 12px; border-radius:6px; font-size:13px; font-family:var(--font-mono);">
+            <span style="color:#f97316; font-weight:bold; width:80px;">MD5</span>
+            <span id="srv-hash-md5" style="color:#f1f5f9; word-break:break-all; flex:1;">${d.md5}</span>
+            <button type="button" class="btn-copy" style="margin-left:8px; padding:2px 8px; border-radius:4px; background:#1e293b; color:#fff; border:1px solid rgba(255,255,255,0.2); cursor:pointer;" onclick="navigator.clipboard.writeText(document.getElementById('srv-hash-md5').innerText); this.innerText='已复制!'; setTimeout(()=>this.innerText='复制', 1500)">复制</button>
+          </div>
+          <div class="hash-row" style="display:flex; align-items:center; justify-content:space-between; background:rgba(0,0,0,0.3); padding:6px 12px; border-radius:6px; font-size:13px; font-family:var(--font-mono);">
+            <span style="color:#38bdf8; font-weight:bold; width:80px;">SHA-1</span>
+            <span id="srv-hash-sha1" style="color:#f1f5f9; word-break:break-all; flex:1;">${d.sha1}</span>
+            <button type="button" class="btn-copy" style="margin-left:8px; padding:2px 8px; border-radius:4px; background:#1e293b; color:#fff; border:1px solid rgba(255,255,255,0.2); cursor:pointer;" onclick="navigator.clipboard.writeText(document.getElementById('srv-hash-sha1').innerText); this.innerText='已复制!'; setTimeout(()=>this.innerText='复制', 1500)">复制</button>
+          </div>
+          <div class="hash-row" style="display:flex; align-items:center; justify-content:space-between; background:rgba(0,0,0,0.3); padding:6px 12px; border-radius:6px; font-size:13px; font-family:var(--font-mono);">
+            <span style="color:#34d399; font-weight:bold; width:80px;">SHA-256</span>
+            <span id="srv-hash-sha256" style="color:#34d399; word-break:break-all; flex:1; font-weight:bold;">${d.sha256}</span>
+            <button type="button" class="btn-copy" style="margin-left:8px; padding:2px 8px; border-radius:4px; background:#1e293b; color:#fff; border:1px solid #34d399; cursor:pointer;" onclick="navigator.clipboard.writeText(document.getElementById('srv-hash-sha256').innerText); this.innerText='已复制!'; setTimeout(()=>this.innerText='复制', 1500)">复制</button>
+          </div>
+          <div class="hash-row" style="display:flex; align-items:center; justify-content:space-between; background:rgba(0,0,0,0.3); padding:6px 12px; border-radius:6px; font-size:13px; font-family:var(--font-mono);">
+            <span style="color:#eab308; font-weight:bold; width:80px;">SHA-512</span>
+            <span id="srv-hash-sha512" style="color:#f1f5f9; word-break:break-all; flex:1; font-size:11px;">${d.sha512}</span>
+            <button type="button" class="btn-copy" style="margin-left:8px; padding:2px 8px; border-radius:4px; background:#1e293b; color:#fff; border:1px solid rgba(255,255,255,0.2); cursor:pointer;" onclick="navigator.clipboard.writeText(document.getElementById('srv-hash-sha512').innerText); this.innerText='已复制!'; setTimeout(()=>this.innerText='复制', 1500)">复制</button>
+          </div>
+          <div class="hash-row" style="display:flex; align-items:center; justify-content:space-between; background:rgba(0,0,0,0.3); padding:6px 12px; border-radius:6px; font-size:13px; font-family:var(--font-mono);">
+            <span style="color:#a855f7; font-weight:bold; width:80px;">SHA3-256</span>
+            <span id="srv-hash-sha3" style="color:#f1f5f9; word-break:break-all; flex:1;">${d.sha3_256}</span>
+            <button type="button" class="btn-copy" style="margin-left:8px; padding:2px 8px; border-radius:4px; background:#1e293b; color:#fff; border:1px solid rgba(255,255,255,0.2); cursor:pointer;" onclick="navigator.clipboard.writeText(document.getElementById('srv-hash-sha3').innerText); this.innerText='已复制!'; setTimeout(()=>this.innerText='复制', 1500)">复制</button>
+          </div>
+          <div class="hash-row" style="display:flex; align-items:center; justify-content:space-between; background:rgba(0,0,0,0.3); padding:6px 12px; border-radius:6px; font-size:13px; font-family:var(--font-mono);">
+            <span style="color:#ec4899; font-weight:bold; width:80px;">RIPEMD160</span>
+            <span id="srv-hash-ripemd" style="color:#f1f5f9; word-break:break-all; flex:1;">${d.ripemd160}</span>
+            <button type="button" class="btn-copy" style="margin-left:8px; padding:2px 8px; border-radius:4px; background:#1e293b; color:#fff; border:1px solid rgba(255,255,255,0.2); cursor:pointer;" onclick="navigator.clipboard.writeText(document.getElementById('srv-hash-ripemd').innerText); this.innerText='已复制!'; setTimeout(()=>this.innerText='复制', 1500)">复制</button>
+          </div>
+        </div>
+      </div>
+    `);
+  } catch (err) {
+    return c.html(`
+      <div class="result-box error">
+        <strong>计算失败:</strong> ${err.message}
+      </div>
+    `, 400);
+  }
+});
+
 // API: 模块统计信息
 app.get("/api/stats", (c) => {
   const rsSize = fs.existsSync(rsWasmPath) ? fs.statSync(rsWasmPath).size : 0;
   const tsSize = fs.existsSync(tsWasmPath) ? fs.statSync(tsWasmPath).size : 0;
   const tokenSize = fs.existsSync(tokenWasmPath) ? fs.statSync(tokenWasmPath).size : 0;
+  const hashSize = fs.existsSync(hashWasmPath) ? fs.statSync(hashWasmPath).size : 0;
   return c.json({
     rust: {
       file: "rs.wasm",
@@ -222,6 +320,11 @@ app.get("/api/stats", (c) => {
       file: "token-generator.wasm",
       sizeBytes: tokenSize,
       sizeFormatted: `${(tokenSize / 1024).toFixed(2)} KB`,
+    },
+    hashText: {
+      file: "hash-text.wasm",
+      sizeBytes: hashSize,
+      sizeFormatted: `${(hashSize / 1024).toFixed(2)} KB`,
     },
   });
 });
